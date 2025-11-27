@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chroma Seek</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- 메인 화면 -->
+        <div id="main-menu" class="screen">
+            <h1>Chroma Seek</h1>
+            <button id="start-btn">Game Start</button>
+            <button id="highscore-btn">High Scores</button>
+        </div>
+
+        <!-- 플레이 화면 -->
+        <div id="game-screen" class="screen" style="display: none;">
+            <div id="info-bar">
+                <div>Stage: <span id="stage">1 / 9</span></div>
+                <div>Targets: <span id="targets-found">0</span> / <span id="targets-total">1</span></div>
+                <div>Score: <span id="score">0</span></div>
+            </div>
+            <div id="timer-bar-container">
+                <div id="timer-bar"></div>
+            </div>
+            <div id="grid-container"></div>
+        </div>
+
+        <!-- 결과 화면 -->
+        <div id="result-screen" class="screen" style="display: none;">
+            <h2 id="result-title">Game Over</h2>
+            <p>Total Score: <span id="final-score">0</span></p>
+            <button id="retry-btn">Retry</button>
+            <button id="main-menu-btn">Main Menu</button>
+        </div>
+
+        <!-- 점수판 화면 -->
+        <div id="highscore-screen" class="screen" style="display: none;">
+            <h2>High Scores</h2>
+            <ol id="highscore-list"></ol>
+            <button id="back-to-main-btn">Back</button>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
