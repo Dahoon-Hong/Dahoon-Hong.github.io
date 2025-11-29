@@ -9,47 +9,27 @@
      crossorigin="anonymous"></script>
 </head>
 <body>
-    <div id="main-wrapper">
-        <div id="ad-left" class="ad-space"></div>
-        <div id="game-container">
-            <!-- 메인 화면 -->
-            <div id="main-menu" class="screen">
-                <h1>Chroma Seek</h1>
-            <button id="start-btn">Game Start</button>
-            <button id="highscore-btn">High Scores</button>
-        </div>
-
-        <!-- 플레이 화면 -->
-        <div id="game-screen" class="screen" style="display: none;">
-            <div id="info-bar">
-                <div>Stage: <span id="stage">1 / 9</span></div>
-                <div>Targets: <span id="targets-found">0</span> / <span id="targets-total">1</span></div>
-                <div>Score: <span id="score">0</span></div>
-            </div>
-            <div id="timer-bar-container">
+    <div id="game-container">
+        <div id="info-bar">
+            <div id="stage-info">Stage: <span>1 / 9</span></div>
+            <div id="target-info">Targets: <span>●</span></div>
+            <div id="score-info">Score: <span>0</span></div>
+            <div id="timer-container">
                 <div id="timer-bar"></div>
             </div>
-            <div id="grid-container"></div>
         </div>
-
-        <!-- 결과 화면 -->
-        <div id="result-screen" class="screen" style="display: none;">
+        <div id="grid-container"></div>
+        <div id="start-screen">
+            <h1>Chroma Seek</h1>
+            <button id="start-button">Game Start</button>
+        </div>
+        <div id="result-screen" class="hidden">
             <h2 id="result-title">Game Over</h2>
-            <p>Total Score: <span id="final-score">0</span></p>
-            <button id="retry-btn">Retry</button>
-            <button id="main-menu-btn">Main Menu</button>
-        </div>
-
-        <!-- 점수판 화면 -->
-        <div id="highscore-screen" class="screen" style="display: none;">
-            <h2>High Scores</h2>
-            <ol id="highscore-list"></ol>
-            <button id="back-to-main-btn">Back</button>
+            <p id="final-score">Total Score: 0</p>
+            <div id="color-feedback" class="hidden"></div>
+            <button id="retry-button">Retry</button>
         </div>
     </div>
-        <div id="ad-right" class="ad-space"></div>
-    </div>
-    <div id="ad-bottom" class="ad-space"></div>
     <script src="script.js"></script>
 </body>
 </html>

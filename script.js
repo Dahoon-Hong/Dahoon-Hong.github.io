@@ -1,240 +1,189 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // DOM Elements
-    const screens = {
-        mainMenu: document.getElementById('main-menu'),
-        game: document.getElementById('game-screen'),
-        result: document.getElementById('result-screen'),
-        highscore: document.getElementById('highscore-screen')
-    };
-
-    const buttons = {
-        start: document.getElementById('start-btn'),
-        highscore: document.getElementById('highscore-btn'),
-        retry: document.getElementById('retry-btn'),
-        mainMenu: document.getElementById('main-menu-btn'),
-        backToMain: document.getElementById('back-to-main-btn')
-    };
-
-    const displays = {
-        stage: document.getElementById('stage'),
-        targetsFound: document.getElementById('targets-found'),
-        targetsTotal: document.getElementById('targets-total'),
-        score: document.getElementById('score'),
-        timerBar: document.getElementById('timer-bar'),
-        finalScore: document.getElementById('final-score'),
-        resultTitle: document.getElementById('result-title'),
-        highscoreList: document.getElementById('highscore-list')
-    };
+    const STAGES = [
+        { N: 7, T: 1, Delta: 100 }, { N: 8, T: 1, Delta: 90 }, { N: 9, T: 1, Delta: 80 },
+        { N: 7, T: 2, Delta: 70 }, { N: 8, T: 2, Delta: 60 }, { N: 9, T: 2, Delta: 50 },
+        { N: 7, T: 3, Delta: 40 }, { N: 8, T: 3, Delta: 25 }, { N: 9, T: 3, Delta: 10 }
+    ];
+    const STAGE_TIME_LIMIT = 10; // seconds
 
     const gridContainer = document.getElementById('grid-container');
+    const stageInfo = document.querySelector('#stage-info span');
+    const targetInfo = document.getElementById('target-info');
+    const scoreInfo = document.querySelector('#score-info span');
+    const timerBar = document.getElementById('timer-bar');
 
-    // Game Configuration
-    const STAGE_CONFIGS = [
-        { gridSize: 7, targetCount: 1, colorDelta: 100 },
-        { gridSize: 8, targetCount: 1, colorDelta: 90 },
-        { gridSize: 9, targetCount: 1, colorDelta: 80 },
-        { gridSize: 7, targetCount: 2, colorDelta: 70 },
-        { gridSize: 8, targetCount: 2, colorDelta: 60 },
-        { gridSize: 9, targetCount: 2, colorDelta: 50 },
-        { gridSize: 7, targetCount: 3, colorDelta: 40 },
-        { gridSize: 8, targetCount: 3, colorDelta: 25 },
-        { gridSize: 9, targetCount: 3, colorDelta: 10 }
-    ];
-    const STAGE_TIME = 15; // seconds
-    const PENALTY_TIME = 3; // seconds
+    const startScreen = document.getElementById('start-screen');
+    const resultScreen = document.getElementById('result-screen');
+    const startButton = document.getElementById('start-button');
+    const retryButton = document.getElementById('retry-button');
 
-    // Game State
     let currentStage = 0;
     let score = 0;
-    let timeLeft = STAGE_TIME;
-    let timerInterval = null;
-    let foundTargets = 0;
-    let highScores = JSON.parse(localStorage.getItem('chromaSeekHighScores')) || [];
+    let targetsToFind = 0;
+    let timerInterval;
+    let timeLeft = STAGE_TIME_LIMIT;
 
-    // --- Screen Management ---
-    function showScreen(screenId) {
-        Object.values(screens).forEach(screen => screen.style.display = 'none');
-        screens[screenId].style.display = 'flex';
+    function hslToRgb(h, s, l) {
+        s /= 100;
+        l /= 100;
+        let c = (1 - Math.abs(2 * l - 1)) * s,
+            x = c * (1 - Math.abs((h / 60) % 2 - 1)),
+            m = l - c / 2,
+            r = 0, g = 0, b = 0;
+        if (0 <= h && h < 60) { r = c; g = x; b = 0; }
+        else if (60 <= h && h < 120) { r = x; g = c; b = 0; }
+        else if (120 <= h && h < 180) { r = 0; g = c; b = x; }
+        else if (180 <= h && h < 240) { r = 0; g = x; b = c; }
+        else if (240 <= h && h < 300) { r = x; g = 0; b = c; }
+        else if (300 <= h && h < 360) { r = c; g = 0; b = x; }
+        r = Math.round((r + m) * 255);
+        g = Math.round((g + m) * 255);
+        b = Math.round((b + m) * 255);
+        return `rgb(${r}, ${g}, ${b})`;
     }
 
-    // --- Event Listeners ---
-    buttons.start.addEventListener('click', startGame);
-    buttons.retry.addEventListener('click', startGame);
-    buttons.mainMenu.addEventListener('click', () => showScreen('mainMenu'));
-    buttons.backToMain.addEventListener('click', () => showScreen('mainMenu'));
-    buttons.highscore.addEventListener('click', showHighscoreScreen);
-    gridContainer.addEventListener('click', handleTileClick);
+    function generateColors(delta) {
+        const baseH = Math.random() * 360;
+        const baseS = 40 + Math.random() * 60; // 40% - 100%
+        const baseL = 40 + Math.random() * 20; // 40% - 60%
 
-    // --- Game Logic ---
-    function startGame() {
-        currentStage = 0;
-        score = 0;
-        displays.score.textContent = 0;
-        startStage();
-    }
-
-    function startStage() {
-        if (currentStage >= STAGE_CONFIGS.length) {
-            endGame(true);
-            return;
-        }
-
-        showScreen('game');
-        const config = STAGE_CONFIGS[currentStage];
-        foundTargets = 0;
-
-        // Update UI
-        displays.stage.textContent = `${currentStage + 1} / ${STAGE_CONFIGS.length}`;
-        displays.targetsFound.textContent = foundTargets;
-        displays.targetsTotal.textContent = config.targetCount;
-
-        generateGrid(config);
-        startTimer();
-    }
-
-    function generateGrid({ gridSize, targetCount, colorDelta }) {
-        gridContainer.innerHTML = '';
-        gridContainer.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
-
-        // Color Generation
-        const baseColor = {
-            r: Math.floor(Math.random() * 256),
-            g: Math.floor(Math.random() * 256),
-            b: Math.floor(Math.random() * 256)
-        };
-
-        const targetColor = { ...baseColor };
-        const channel = ['r', 'g', 'b'][Math.floor(Math.random() * 3)];
         const direction = Math.random() < 0.5 ? 1 : -1;
-        targetColor[channel] = Math.max(0, Math.min(255, targetColor[channel] + (colorDelta * direction)));
+        let targetH = (baseH + direction * (delta / 2)) % 360; // Delta를 Hue 변화에 적용
+        if (targetH < 0) targetH += 360;
 
-        const baseColorStr = `rgb(${baseColor.r}, ${baseColor.g}, ${baseColor.b})`;
-        const targetColorStr = `rgb(${targetColor.r}, ${targetColor.g}, ${targetColor.b})`;
+        return {
+            base: hslToRgb(baseH, baseS, baseL),
+            target: hslToRgb(targetH, baseS, baseL)
+        };
+    }
 
-        // Target Placement
-        const totalTiles = gridSize * gridSize;
+    function updateTargetInfo() {
+        targetInfo.innerHTML = 'Targets: ' + '● '.repeat(targetsToFind) + '○ '.repeat(STAGES[currentStage].T - targetsToFind);
+    }
+
+    function startTimer() {
+        timeLeft = STAGE_TIME_LIMIT;
+        clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            timeLeft -= 0.1;
+            timerBar.style.width = `${(timeLeft / STAGE_TIME_LIMIT) * 100}%`;
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                gameOver('Time Over!');
+            }
+        }, 100);
+    }
+
+    function handleTileClick(e) {
+        const tile = e.target;
+        if (tile.dataset.isTarget === 'true') {
+            tile.classList.add('correct');
+            tile.style.pointerEvents = 'none'; // 중복 클릭 방지
+            targetsToFind--;
+            updateTargetInfo();
+
+            // 점수 계산 (기획서 기반)
+            const baseScore = 1000;
+            const deltaMultiplier = (100 - STAGES[currentStage].Delta) / 100 + 1; // Delta가 작을수록 배수 증가
+            const timeBonus = Math.round(timeLeft * 100);
+            score += Math.round(baseScore * deltaMultiplier) + timeBonus;
+            scoreInfo.textContent = score;
+
+            if (targetsToFind === 0) {
+                clearInterval(timerInterval);
+                setTimeout(() => {
+                    currentStage++;
+                    if (currentStage >= STAGES.length) {
+                        gameOver('Clear!', true);
+                    } else {
+                        loadStage(currentStage);
+                    }
+                }, 500);
+            }
+        } else {
+            // 오답 페널티
+            score = Math.max(0, score - 500);
+            scoreInfo.textContent = score;
+            gridContainer.classList.add('shake');
+            setTimeout(() => gridContainer.classList.remove('shake'), 300);
+        }
+    }
+
+    function loadStage(stageIndex) {
+        currentStage = stageIndex;
+        const { N, T, Delta } = STAGES[stageIndex];
+        targetsToFind = T;
+
+        // UI 업데이트
+        stageInfo.textContent = `${stageIndex + 1} / ${STAGES.length}`;
+        updateTargetInfo();
+
+        // 색상 생성
+        const { base, target } = generateColors(Delta);
+
+        // 그리드 생성
+        gridContainer.innerHTML = '';
+        gridContainer.style.gridTemplateColumns = `repeat(${N}, 1fr)`;
+        gridContainer.style.gridTemplateRows = `repeat(${N}, 1fr)`;
+
+        const totalTiles = N * N;
         const targetIndexes = new Set();
-        while (targetIndexes.size < targetCount) {
+        while (targetIndexes.size < T) {
             targetIndexes.add(Math.floor(Math.random() * totalTiles));
         }
 
-        // Create Tiles
         for (let i = 0; i < totalTiles; i++) {
             const tile = document.createElement('div');
             tile.classList.add('tile');
             if (targetIndexes.has(i)) {
-                tile.style.backgroundColor = targetColorStr;
-                tile.dataset.target = 'true';
+                tile.style.backgroundColor = target;
+                tile.dataset.isTarget = 'true';
             } else {
-                tile.style.backgroundColor = baseColorStr;
+                tile.style.backgroundColor = base;
+                tile.dataset.isTarget = 'false';
             }
+            tile.addEventListener('click', handleTileClick);
             gridContainer.appendChild(tile);
         }
+
+        startTimer();
     }
 
-    function handleTileClick(e) {
-        const clickedTile = e.target;
-        if (!clickedTile.classList.contains('tile') || clickedTile.dataset.found) return;
-
-        if (clickedTile.dataset.target === 'true') {
-            foundTargets++;
-            clickedTile.dataset.found = 'true';
-            displays.targetsFound.textContent = foundTargets;
-            
-            // Add visual feedback
-            const check = document.createElement('span');
-            check.textContent = '✔';
-            check.style.fontSize = `${clickedTile.offsetWidth / 2}px`;
-            check.style.color = 'white';
-            check.style.position = 'absolute';
-            clickedTile.style.position = 'relative';
-            clickedTile.style.display = 'flex';
-            clickedTile.style.justifyContent = 'center';
-            clickedTile.style.alignItems = 'center';
-            clickedTile.appendChild(check);
-            clickedTile.classList.add('correct-flash');
-
-
-            const config = STAGE_CONFIGS[currentStage];
-            if (foundTargets === config.targetCount) {
-                updateScore();
-                currentStage++;
-                setTimeout(startStage, 500); // Wait for feedback animation
-            }
-        } else {
-            timeLeft = Math.max(0, timeLeft - PENALTY_TIME);
-            document.body.classList.add('shake');
-            setTimeout(() => document.body.classList.remove('shake'), 300);
-        }
-    }
-
-    // --- Timer ---
-    function startTimer() {
+    function gameOver(message, isClear = false) {
         clearInterval(timerInterval);
-        timeLeft = STAGE_TIME;
-        displays.timerBar.style.transition = 'none';
-        displays.timerBar.style.width = '100%';
-        
-        // Force reflow to apply transition reset immediately
-        void displays.timerBar.offsetWidth; 
+        resultScreen.classList.remove('hidden');
+        document.getElementById('result-title').textContent = message;
+        document.getElementById('final-score').textContent = `Total Score: ${score}`;
 
-        displays.timerBar.style.transition = `width ${STAGE_TIME}s linear`;
-        displays.timerBar.style.width = '0%';
-        
-        timerInterval = setInterval(() => {
-            timeLeft--;
-            if (timeLeft <= 0) {
-                clearInterval(timerInterval);
-                endGame(false);
+        if (!isClear) {
+            // 게임 오버 시 정답/오답 피드백 (기획서 5.2.1)
+            const colorFeedback = document.getElementById('color-feedback');
+            const correctTiles = document.querySelectorAll(".tile[data-is-target='true']");
+            if (correctTiles.length > 0) {
+                const correctColor = correctTiles[0].style.backgroundColor;
+                const baseColor = document.querySelectorAll(".tile[data-is-target='false']")[0].style.backgroundColor;
+                
+                colorFeedback.innerHTML = `
+                    <p>You missed this color difference:</p>
+                    <div style="display: flex; justify-content: center; gap: 20px; align-items: center;">
+                        <div>Base<div style="width: 50px; height: 50px; background-color: ${baseColor};"></div></div>
+                        <div>Target<div style="width: 50px; height: 50px; background-color: ${correctColor};"></div></div>
+                    </div>
+                `;
+                colorFeedback.classList.remove('hidden');
             }
-        }, 1000);
-    }
-
-    // --- Scoring & End Game ---
-    function updateScore() {
-        const config = STAGE_CONFIGS[currentStage];
-        const baseScore = 1000;
-        const deltaMultiplier = (110 - config.colorDelta) / 100;
-        const timeBonus = Math.floor(timeLeft * 10);
-        score += Math.floor(baseScore * deltaMultiplier) + timeBonus;
-        displays.score.textContent = score;
-    }
-
-    function endGame(isCleared) {
-        clearInterval(timerInterval);
-        displays.finalScore.textContent = score;
-        if (isCleared) {
-            displays.resultTitle.textContent = "All Clear!";
-        } else {
-            displays.resultTitle.textContent = "Game Over";
         }
-        saveHighScore(score, currentStage + (isCleared ? 1 : 0));
-        showScreen('result');
     }
 
-    function saveHighScore(finalScore, stageReached) {
-        if (finalScore === 0) return;
-        const newScore = { score: finalScore, stage: stageReached };
-        highScores.push(newScore);
-        highScores.sort((a, b) => b.score - a.score);
-        highScores.splice(5); // Keep only top 5
-        localStorage.setItem('chromaSeekHighScores', JSON.stringify(highScores));
+    function startGame() {
+        startScreen.classList.add('hidden');
+        resultScreen.classList.add('hidden');
+        document.getElementById('color-feedback').classList.add('hidden');
+        score = 0;
+        scoreInfo.textContent = '0';
+        loadStage(0);
     }
 
-    function showHighscoreScreen() {
-        displays.highscoreList.innerHTML = '';
-        if (highScores.length === 0) {
-            displays.highscoreList.innerHTML = '<li>No scores yet!</li>';
-        } else {
-            highScores.forEach(score => {
-                const li = document.createElement('li');
-                li.innerHTML = `<span>Score: ${score.score}</span> <span>Stage: ${score.stage}</span>`;
-                displays.highscoreList.appendChild(li);
-            });
-        }
-        showScreen('highscore');
-    }
-
-    // Initial Screen
-    showScreen('mainMenu');
+    startButton.addEventListener('click', startGame);
+    retryButton.addEventListener('click', startGame);
 });
