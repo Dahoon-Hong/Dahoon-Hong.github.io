@@ -1,0 +1,95 @@
+import { BaseModule, CoreModule, ResourceModule, DirectWeaponModule } from './Module';
+
+export class Vehicle {
+  public x: number;
+  public y: number;
+  public speed: number = 180;
+  public tileSize: number = 44;
+  public gridRows: number = 3;
+  public gridCols: number = 3;
+
+  public modules: (BaseModule | null)[][];
+  public coreModule: CoreModule;
+
+  constructor(startX: number, startY: number) {
+    this.x = startX;
+    this.y = startY;
+
+    // Initialize 3x3 grid
+    this.modules = Array.from({ length: 3 }, () => Array(3).fill(null));
+
+    // Place Core Module at center [1, 1]
+    this.coreModule = new CoreModule(1, 1);
+    this.modules[1][1] = this.coreModule;
+
+    // Pre-install 1 Resource Module at [0, 1] and 1 Direct Weapon at [1, 0] for fun initial start
+    this.modules[0][1] = new ResourceModule(0, 1);
+    this.modules[1][0] = new DirectWeaponModule(1, 0);
+  }
+
+  public getModuleAt(gridX: number, gridY: number): BaseModule | null {
+    if (gridX < 0 || gridX >= 3 || gridY < 0 || gridY >= 3) return null;
+    return this.modules[gridY][gridX];
+  }
+
+  public installModule(module: BaseModule): boolean {
+    if (module.gridX < 0 || module.gridX >= 3 || module.gridY < 0 || module.gridY >= 3) return false;
+    if (this.modules[module.gridY][module.gridX] !== null) return false;
+    this.modules[module.gridY][module.gridX] = module;
+    return true;
+  }
+
+  public getModuleWorldPos(gridX: number, gridY: number): { x: number; y: number } {
+    const offsetX = (gridX - 1) * this.tileSize;
+    const offsetY = (gridY - 1) * this.tileSize;
+    return { x: this.x + offsetX, y: this.y + offsetY };
+  }
+
+  public update(dt: number, moveInput: { x: number; y: number }, bounds: { width: number; height: number }): void {
+    this.x += moveInput.x * this.speed * dt;
+    this.y += moveInput.y * this.speed * dt;
+
+    // Clamp inside canvas bounds with padding
+    const padding = 70;
+    this.x = Math.max(padding, Math.min(bounds.width - padding, this.x));
+    this.y = Math.max(padding, Math.min(bounds.height - padding, this.y));
+  }
+
+  public render(ctx: CanvasRenderingContext2D): void {
+    ctx.save();
+
+    // 1. Draw Platform Base Frame
+    const halfWidth = (this.gridCols * this.tileSize) / 2 + 6;
+    const halfHeight = (this.gridRows * this.tileSize) / 2 + 6;
+
+    ctx.fillStyle = '#1e1e2d';
+    ctx.strokeStyle = '#4deaea';
+    ctx.lineWidth = 2;
+    ctx.fillRect(this.x - halfWidth, this.y - halfHeight, halfWidth * 2, halfHeight * 2);
+    ctx.strokeRect(this.x - halfWidth, this.y - halfHeight, halfWidth * 2, halfHeight * 2);
+
+    // 2. Draw 3x3 Grid Slots & Installed Modules
+    for (let gy = 0; gy < this.gridRows; gy++) {
+      for (let gx = 0; gx < this.gridCols; gx++) {
+        const pos = this.getModuleWorldPos(gx, gy);
+        const mod = this.modules[gy][gx];
+
+        // Empty Slot Outline
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(
+          pos.x - this.tileSize / 2 + 2,
+          pos.y - this.tileSize / 2 + 2,
+          this.tileSize - 4,
+          this.tileSize - 4
+        );
+
+        if (mod) {
+          mod.render(ctx, pos.x, pos.y, this.tileSize);
+        }
+      }
+    }
+
+    ctx.restore();
+  }
+}
