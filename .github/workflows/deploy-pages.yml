@@ -50,7 +50,7 @@ jobs:
       pages: write
       id-token: write
     environment:
-      name: github-pages-defence
+      name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
