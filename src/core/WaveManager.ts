@@ -1,12 +1,17 @@
 import { Enemy, StandardEnemy, TankerEnemy } from '../entities/Enemy';
 
 export class WaveManager {
+  public readonly totalWaves: number;
   public currentWave: number = 1;
   public totalWaveEnemies: number = 12;
   public spawnedEnemiesCount: number = 0;
   private spawnTimer: number = 0;
   private spawnInterval: number = 1.2;
   public waveCleared: boolean = false;
+
+  constructor(totalWaves: number = 3) {
+    this.totalWaves = totalWaves;
+  }
 
   public update(
     dt: number,
@@ -31,6 +36,8 @@ export class WaveManager {
   }
 
   public nextWave(): void {
+    if (this.currentWave >= this.totalWaves) return;
+
     this.currentWave++;
     this.spawnedEnemiesCount = 0;
     this.totalWaveEnemies = Math.floor(12 * Math.pow(1.3, this.currentWave - 1));

@@ -5,7 +5,7 @@ export class InputManager {
   constructor() {
     window.addEventListener('keydown', (e) => {
       this.keys.add(e.code);
-      if (e.code === 'Space' || e.code === 'KeyP') {
+      if (!e.repeat && (e.code === 'Space' || e.code === 'KeyP')) {
         this.pauseRequested = true;
       }
     });

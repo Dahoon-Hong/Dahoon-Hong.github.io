@@ -3,10 +3,17 @@ import { ResourceModule, DirectWeaponModule, ArcWeaponModule, BaseModule } from 
 
 export class HUDManager {
   private selectedTile: { gx: number; gy: number } | null = null;
+  private feedbackMessage: string | null = null;
+  private feedbackColor: string = '#e57373';
+
+  private setFeedback(message: string, color: string = '#e57373'): void {
+    this.feedbackMessage = message;
+    this.feedbackColor = color;
+  }
 
   public setupMouseListeners(
     canvas: HTMLCanvasElement,
-    vehicle: Vehicle,
+    getVehicle: () => Vehicle,
     getResource: () => number,
     spendResource: (amount: number) => boolean
   ): void {
@@ -16,10 +23,11 @@ export class HUDManager {
       const scaleY = canvas.height / rect.height;
       const mouseX = (e.clientX - rect.left) * scaleX;
       const mouseY = (e.clientY - rect.top) * scaleY;
+      const vehicle = getVehicle();
 
       // 1. Check if user clicked on vehicle 3x3 grid tile
-      for (let gy = 0; gy < 3; gy++) {
-        for (let gx = 0; gx < 3; gx++) {
+      for (let gy = 0; gy < vehicle.gridRows; gy++) {
+        for (let gx = 0; gx < vehicle.gridCols; gx++) {
           const pos = vehicle.getModuleWorldPos(gx, gy);
           const half = vehicle.tileSize / 2;
           if (
@@ -29,6 +37,7 @@ export class HUDManager {
             mouseY <= pos.y + half
           ) {
             this.selectedTile = { gx, gy };
+            this.feedbackMessage = null;
             return;
           }
         }
@@ -54,24 +63,40 @@ export class HUDManager {
           mouseY >= btnY &&
           mouseY <= btnY + btnH
         ) {
-          if (this.selectedTile) {
-            const { gx, gy } = this.selectedTile;
-            const existingModule = vehicle.getModuleAt(gx, gy);
-
-            if (!existingModule) {
-              const item = shopItems[i];
-              if (getResource() >= item.cost) {
-                let newMod: BaseModule | null = null;
-                if (item.type === 'RESOURCE') newMod = new ResourceModule(gx, gy);
-                else if (item.type === 'DIRECT_WEAPON') newMod = new DirectWeaponModule(gx, gy);
-                else if (item.type === 'ARC_WEAPON') newMod = new ArcWeaponModule(gx, gy);
-
-                if (newMod && spendResource(item.cost)) {
-                  vehicle.installModule(newMod);
-                }
-              }
-            }
+          if (!this.selectedTile) {
+            this.setFeedback('Select a grid slot first.');
+            return;
           }
+
+          const { gx, gy } = this.selectedTile;
+          const existingModule = vehicle.getModuleAt(gx, gy);
+          if (existingModule) {
+            this.setFeedback('This slot is already occupied.');
+            return;
+          }
+
+          const item = shopItems[i];
+          if (getResource() < item.cost) {
+            this.setFeedback(`Not enough resource. Need ⚡ ${item.cost}.`);
+            return;
+          }
+
+          let newMod: BaseModule | null = null;
+          if (item.type === 'RESOURCE') newMod = new ResourceModule(gx, gy);
+          else if (item.type === 'DIRECT_WEAPON') newMod = new DirectWeaponModule(gx, gy);
+          else if (item.type === 'ARC_WEAPON') newMod = new ArcWeaponModule(gx, gy);
+
+          if (!newMod || !vehicle.canInstallModule(newMod)) {
+            this.setFeedback('Cannot install a module here.');
+            return;
+          }
+
+          if (spendResource(item.cost) && vehicle.installModule(newMod)) {
+            this.setFeedback('Module installed.', '#81c784');
+          } else {
+            this.setFeedback('Module installation failed.');
+          }
+          return;
         }
       }
 
@@ -81,7 +106,7 @@ export class HUDManager {
         if (existing && existing.type !== 'CORE') {
           const upgradeCost = existing.getUpgradeCost();
           const upBtnX = canvas.width - 220;
-          const upBtnY = 120;
+          const upBtnY = 135;
           const upBtnW = 200;
           const upBtnH = 45;
 
@@ -91,15 +116,21 @@ export class HUDManager {
             mouseY >= upBtnY &&
             mouseY <= upBtnY + upBtnH
           ) {
-            if (getResource() >= upgradeCost) {
-              if (spendResource(upgradeCost)) {
-                existing.upgrade();
-              }
+            if (getResource() < upgradeCost) {
+              this.setFeedback(`Not enough resource. Need ⚡ ${upgradeCost}.`);
+            } else if (spendResource(upgradeCost)) {
+              existing.upgrade();
+              this.setFeedback('Module upgraded.', '#81c784');
             }
           }
         }
       }
     });
+  }
+
+  public resetSelection(): void {
+    this.selectedTile = null;
+    this.feedbackMessage = null;
   }
 
   public render(
@@ -173,10 +204,10 @@ export class HUDManager {
       const inspectorX = canvasWidth - 230;
       const inspectorY = 60;
       ctx.fillStyle = 'rgba(30, 30, 45, 0.9)';
-      ctx.fillRect(inspectorX, inspectorY, 220, 120);
+      ctx.fillRect(inspectorX, inspectorY, 220, 150);
       ctx.strokeStyle = '#4deaea';
       ctx.lineWidth = 1;
-      ctx.strokeRect(inspectorX, inspectorY, 220, 120);
+      ctx.strokeRect(inspectorX, inspectorY, 220, 150);
 
       const mod = vehicle.getModuleAt(this.selectedTile.gx, this.selectedTile.gy);
       ctx.fillStyle = '#ffffff';
@@ -186,20 +217,28 @@ export class HUDManager {
       if (mod) {
         ctx.fillText(`Selected: [${this.selectedTile.gx},${this.selectedTile.gy}]`, inspectorX + 10, inspectorY + 22);
         ctx.fillText(`${mod.name} (Lv.${mod.level})`, inspectorX + 10, inspectorY + 42);
+        ctx.fillStyle = mod.isActive() ? '#81c784' : '#e57373';
+        ctx.font = '12px sans-serif';
+        ctx.fillText(
+          `HP: ${mod.currentHp} / ${mod.maxHp} (${mod.isActive() ? 'ACTIVE' : 'DISABLED'})`,
+          inspectorX + 10,
+          inspectorY + 62
+        );
 
         if (mod.type !== 'CORE') {
           const upCost = mod.getUpgradeCost();
           ctx.fillStyle = resources >= upCost ? '#4caf50' : '#e57373';
-          ctx.fillRect(inspectorX + 10, inspectorY + 60, 200, 45);
+          ctx.fillRect(inspectorX + 10, inspectorY + 75, 200, 45);
 
           ctx.fillStyle = '#ffffff';
           ctx.font = 'bold 13px sans-serif';
           ctx.textAlign = 'center';
-          ctx.fillText(`UPGRADE (Lv.${mod.level + 1})`, inspectorX + 110, inspectorY + 78);
-          ctx.fillText(`Cost: ⚡ ${upCost}`, inspectorX + 110, inspectorY + 95);
+          ctx.fillText(`UPGRADE (Lv.${mod.level + 1})`, inspectorX + 110, inspectorY + 93);
+          ctx.fillText(`Cost: ⚡ ${upCost}`, inspectorX + 110, inspectorY + 110);
         } else {
           ctx.fillStyle = '#aaa';
-          ctx.fillText('Core module cannot be moved', inspectorX + 10, inspectorY + 70);
+          ctx.textAlign = 'left';
+          ctx.fillText('Core module cannot be moved', inspectorX + 10, inspectorY + 88);
         }
       } else {
         ctx.fillText(`Selected: Slot [${this.selectedTile.gx},${this.selectedTile.gy}]`, inspectorX + 10, inspectorY + 25);
@@ -208,6 +247,13 @@ export class HUDManager {
         ctx.fillText(`Select a module from bottom shop`, inspectorX + 10, inspectorY + 50);
         ctx.fillText(`to build here.`, inspectorX + 10, inspectorY + 70);
       }
+    }
+
+    if (this.feedbackMessage) {
+      ctx.fillStyle = this.feedbackColor;
+      ctx.font = 'bold 13px sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(this.feedbackMessage, canvasWidth - 20, 225);
     }
 
     // 3. Shop HUD Bar at Bottom

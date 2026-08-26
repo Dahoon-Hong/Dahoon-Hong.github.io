@@ -10,13 +10,32 @@ export abstract class BaseModule {
   public gridX: number; // 0..2
   public gridY: number; // 0..2
   public cost: number;
+  public maxHp: number;
+  public currentHp: number;
 
-  constructor(type: ModuleType, name: string, gridX: number, gridY: number, cost: number) {
+  constructor(
+    type: ModuleType,
+    name: string,
+    gridX: number,
+    gridY: number,
+    cost: number,
+    maxHp: number = 100
+  ) {
     this.type = type;
     this.name = name;
     this.gridX = gridX;
     this.gridY = gridY;
     this.cost = cost;
+    this.maxHp = maxHp;
+    this.currentHp = maxHp;
+  }
+
+  public isActive(): boolean {
+    return this.currentHp > 0;
+  }
+
+  public takeDamage(amount: number): void {
+    this.currentHp = Math.max(0, this.currentHp - Math.max(0, amount));
   }
 
   public getUpgradeCost(): number {
@@ -46,11 +65,8 @@ export abstract class BaseModule {
 
 // Core Module
 export class CoreModule extends BaseModule {
-  public maxHp: number = 100;
-  public currentHp: number = 100;
-
   constructor(gridX: number = 1, gridY: number = 1) {
-    super('CORE', 'Core Engine', gridX, gridY, 0);
+    super('CORE', 'Core Engine', gridX, gridY, 0, 100);
   }
 
   public upgrade(): boolean {
@@ -99,6 +115,8 @@ export class ResourceModule extends BaseModule {
     _spawnProj: (p: Projectile) => void,
     addResource: (amount: number) => void
   ): void {
+    if (!this.isActive()) return;
+
     this.timer += dt;
     const interval = Math.max(0.5, 2.0 - (this.level - 1) * 0.2);
     if (this.timer >= interval) {
@@ -153,6 +171,8 @@ export class DirectWeaponModule extends BaseModule {
     enemies: Enemy[],
     spawnProjectile: (proj: Projectile) => void
   ): void {
+    if (!this.isActive()) return;
+
     this.cooldownTimer -= dt;
     if (this.cooldownTimer <= 0) {
       // Find closest enemy within range
@@ -229,6 +249,8 @@ export class ArcWeaponModule extends BaseModule {
     enemies: Enemy[],
     spawnProjectile: (proj: Projectile) => void
   ): void {
+    if (!this.isActive()) return;
+
     this.cooldownTimer -= dt;
     if (this.cooldownTimer <= 0) {
       // Find enemy with most surrounding enemies or closest

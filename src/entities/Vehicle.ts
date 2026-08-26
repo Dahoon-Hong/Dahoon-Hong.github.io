@@ -15,12 +15,12 @@ export class Vehicle {
     this.x = startX;
     this.y = startY;
 
-    // Initialize 3x3 grid
-    this.modules = Array.from({ length: 3 }, () => Array(3).fill(null));
+    // Initialize the current 3x3 grid.
+    this.modules = Array.from({ length: this.gridRows }, () => Array(this.gridCols).fill(null));
 
-    // Place Core Module at center [1, 1]
-    this.coreModule = new CoreModule(1, 1);
-    this.modules[1][1] = this.coreModule;
+    const corePosition = this.getCoreGridPosition();
+    this.coreModule = new CoreModule(corePosition.gx, corePosition.gy);
+    this.modules[corePosition.gy][corePosition.gx] = this.coreModule;
 
     // Pre-install 1 Resource Module at [0, 1] and 1 Direct Weapon at [1, 0] for fun initial start
     this.modules[0][1] = new ResourceModule(0, 1);
@@ -28,20 +28,43 @@ export class Vehicle {
   }
 
   public getModuleAt(gridX: number, gridY: number): BaseModule | null {
-    if (gridX < 0 || gridX >= 3 || gridY < 0 || gridY >= 3) return null;
+    if (!this.isInsideGrid(gridX, gridY)) return null;
     return this.modules[gridY][gridX];
   }
 
+  public getCoreGridPosition(): { gx: number; gy: number } {
+    return {
+      gx: Math.floor(this.gridCols / 2),
+      gy: Math.floor(this.gridRows / 2),
+    };
+  }
+
+  public isInsideGrid(gridX: number, gridY: number): boolean {
+    return gridX >= 0 && gridX < this.gridCols && gridY >= 0 && gridY < this.gridRows;
+  }
+
+  public isCorePosition(gridX: number, gridY: number): boolean {
+    const corePosition = this.getCoreGridPosition();
+    return gridX === corePosition.gx && gridY === corePosition.gy;
+  }
+
+  public canInstallModule(module: BaseModule): boolean {
+    if (!this.isInsideGrid(module.gridX, module.gridY)) return false;
+    if (module.type === 'CORE' && !this.isCorePosition(module.gridX, module.gridY)) return false;
+    if (module.type !== 'CORE' && this.isCorePosition(module.gridX, module.gridY)) return false;
+    return this.modules[module.gridY][module.gridX] === null;
+  }
+
   public installModule(module: BaseModule): boolean {
-    if (module.gridX < 0 || module.gridX >= 3 || module.gridY < 0 || module.gridY >= 3) return false;
-    if (this.modules[module.gridY][module.gridX] !== null) return false;
+    if (!this.canInstallModule(module)) return false;
     this.modules[module.gridY][module.gridX] = module;
     return true;
   }
 
   public getModuleWorldPos(gridX: number, gridY: number): { x: number; y: number } {
-    const offsetX = (gridX - 1) * this.tileSize;
-    const offsetY = (gridY - 1) * this.tileSize;
+    const corePosition = this.getCoreGridPosition();
+    const offsetX = (gridX - corePosition.gx) * this.tileSize;
+    const offsetY = (gridY - corePosition.gy) * this.tileSize;
     return { x: this.x + offsetX, y: this.y + offsetY };
   }
 

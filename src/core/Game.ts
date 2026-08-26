@@ -35,12 +35,12 @@ export class Game {
 
     this.input = new InputManager();
     this.vehicle = new Vehicle(canvas.width / 2, canvas.height / 2);
-    this.waveManager = new WaveManager();
+    this.waveManager = new WaveManager(3);
     this.hud = new HUDManager();
 
     this.hud.setupMouseListeners(
       this.canvas,
-      this.vehicle,
+      () => this.vehicle,
       () => this.resources,
       (amount) => this.spendResources(amount)
     );
@@ -72,12 +72,13 @@ export class Game {
 
   private restartGame(): void {
     this.vehicle = new Vehicle(this.canvas.width / 2, this.canvas.height / 2);
-    this.waveManager = new WaveManager();
+    this.waveManager = new WaveManager(3);
     this.enemies = [];
     this.projectiles = [];
     this.effects = [];
     this.resources = 50;
     this.state = GameState.PLAYING;
+    this.hud.resetSelection();
   }
 
   private spendResources(amount: number): boolean {
@@ -118,8 +119,8 @@ export class Game {
     }
 
     // 2. Update Installed Modules
-    for (let gy = 0; gy < 3; gy++) {
-      for (let gx = 0; gx < 3; gx++) {
+    for (let gy = 0; gy < this.vehicle.gridRows; gy++) {
+      for (let gx = 0; gx < this.vehicle.gridCols; gx++) {
         const mod = this.vehicle.modules[gy][gx];
         if (mod) {
           const modPos = this.vehicle.getModuleWorldPos(gx, gy);
@@ -145,6 +146,10 @@ export class Game {
       );
 
       if (this.waveManager.waveCleared) {
+        if (this.waveManager.currentWave >= this.waveManager.totalWaves) {
+          this.state = GameState.VICTORY;
+          return;
+        }
         this.waveManager.nextWave();
       }
 
@@ -158,12 +163,11 @@ export class Game {
         const distToCore = Math.hypot(enemy.x - corePos.x, enemy.y - corePos.y);
         if (distToCore < enemy.radius + 20) {
           // Deal damage to Core Module
-          this.vehicle.coreModule.currentHp -= 10;
+          this.vehicle.coreModule.takeDamage(10);
           this.effects.push(new VisualEffect(enemy.x, enemy.y, 25, '#ff1744'));
           enemy.takeDamage(999); // Destroy enemy on hit
 
-          if (this.vehicle.coreModule.currentHp <= 0) {
-            this.vehicle.coreModule.currentHp = 0;
+          if (!this.vehicle.coreModule.isActive()) {
             this.state = GameState.GAME_OVER;
           }
         }
@@ -234,6 +238,15 @@ export class Game {
     }
 
     // Render HUD UI
+    const liveEnemyCount = this.enemies.reduce(
+      (count, enemy) => count + (enemy.isDead() ? 0 : 1),
+      0
+    );
+    const enemiesRemaining = Math.max(
+      0,
+      this.waveManager.totalWaveEnemies - this.waveManager.spawnedEnemiesCount + liveEnemyCount
+    );
+
     this.hud.render(
       this.ctx,
       this.canvas.width,
@@ -241,20 +254,25 @@ export class Game {
       this.vehicle,
       this.resources,
       this.waveManager.currentWave,
-      this.waveManager.totalWaveEnemies - this.waveManager.spawnedEnemiesCount + this.enemies.length,
+      enemiesRemaining,
       this.state === GameState.PAUSED
     );
 
-    // Game Over Overlay
-    if (this.state === GameState.GAME_OVER) {
+    // Result Overlay
+    if (this.state === GameState.GAME_OVER || this.state === GameState.VICTORY) {
+      const isVictory = this.state === GameState.VICTORY;
       this.ctx.save();
       this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
       this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-      this.ctx.fillStyle = '#ff1744';
+      this.ctx.fillStyle = isVictory ? '#00e676' : '#ff1744';
       this.ctx.font = 'bold 42px sans-serif';
       this.ctx.textAlign = 'center';
-      this.ctx.fillText('CORE DESTROYED - GAME OVER', this.canvas.width / 2, this.canvas.height / 2 - 20);
+      this.ctx.fillText(
+        isVictory ? 'REGION CLEARED - VICTORY' : 'CORE DESTROYED - GAME OVER',
+        this.canvas.width / 2,
+        this.canvas.height / 2 - 20
+      );
 
       // Restart Button
       const btnX = this.canvas.width / 2 - 100;
