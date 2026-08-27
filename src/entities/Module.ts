@@ -1,8 +1,18 @@
 import { Enemy } from './Enemy';
 import { Projectile, DirectProjectile, ArcProjectile } from './Projectile';
 import { ResourcePickup } from './ResourcePickup';
+import { ResourceType } from '../core/ResourceStorage';
 
-export type ModuleType = 'CORE' | 'RESOURCE' | 'GATHERER' | 'DIRECT_WEAPON' | 'ARC_WEAPON';
+export type ModuleType =
+  | 'CORE'
+  | 'RESOURCE'
+  | 'GATHERER'
+  | 'RECYCLER'
+  | 'ARSENAL'
+  | 'COMPOSER'
+  | 'RAIL'
+  | 'DIRECT_WEAPON'
+  | 'ARC_WEAPON';
 
 export abstract class BaseModule {
   public type: ModuleType;
@@ -53,7 +63,8 @@ export abstract class BaseModule {
     moduleWorldPos: { x: number; y: number },
     enemies: Enemy[],
     spawnProjectile: (proj: Projectile) => void,
-    addResource: (amount: number) => void
+    addResource: (type: ResourceType, amount: number) => number,
+    spendResource: (type: ResourceType, amount: number) => boolean
   ): void;
 
   public abstract render(
@@ -114,7 +125,8 @@ export class ResourceModule extends BaseModule {
     _pos: { x: number; y: number },
     _enemies: Enemy[],
     _spawnProj: (p: Projectile) => void,
-    addResource: (amount: number) => void
+    addResource: (type: ResourceType, amount: number) => number,
+    _spendResource: (type: ResourceType, amount: number) => boolean
   ): void {
     if (!this.isActive()) return;
 
@@ -123,7 +135,7 @@ export class ResourceModule extends BaseModule {
     if (this.timer >= interval) {
       this.timer -= interval;
       const amount = 5 + (this.level - 1) * 3;
-      addResource(amount);
+      addResource('resource', amount);
     }
   }
 
@@ -180,7 +192,8 @@ export class GathererModule extends BaseModule {
     _pos: { x: number; y: number },
     _enemies: Enemy[],
     _spawnProj: (p: Projectile) => void,
-    _addResource: (amount: number) => void
+    _addResource: (type: ResourceType, amount: number) => number,
+    _spendResource: (type: ResourceType, amount: number) => boolean
   ): void {
     // Collection is handled by Game after all modules have updated.
   }
@@ -237,9 +250,11 @@ export class DirectWeaponModule extends BaseModule {
     dt: number,
     modulePos: { x: number; y: number },
     enemies: Enemy[],
-    spawnProjectile: (proj: Projectile) => void
+    spawnProjectile: (proj: Projectile) => void,
+    _addResource: (type: ResourceType, amount: number) => number,
+    spendResource: (type: ResourceType, amount: number) => boolean
   ): void {
-    if (!this.isActive()) return;
+    if (!this.isActive() || dt <= 0) return;
 
     this.cooldownTimer -= dt;
     if (this.cooldownTimer <= 0) {
@@ -256,7 +271,7 @@ export class DirectWeaponModule extends BaseModule {
         }
       }
 
-      if (closest) {
+      if (closest && spendResource('ammo', 1)) {
         this.cooldownTimer = this.getFireRate();
         const dirX = minDist > 0 ? (closest.x - modulePos.x) / minDist : 1;
         const dirY = minDist > 0 ? (closest.y - modulePos.y) / minDist : 0;
@@ -327,9 +342,11 @@ export class ArcWeaponModule extends BaseModule {
     dt: number,
     modulePos: { x: number; y: number },
     enemies: Enemy[],
-    spawnProjectile: (proj: Projectile) => void
+    spawnProjectile: (proj: Projectile) => void,
+    _addResource: (type: ResourceType, amount: number) => number,
+    spendResource: (type: ResourceType, amount: number) => boolean
   ): void {
-    if (!this.isActive()) return;
+    if (!this.isActive() || dt <= 0) return;
 
     this.cooldownTimer -= dt;
     if (this.cooldownTimer <= 0) {
@@ -346,7 +363,7 @@ export class ArcWeaponModule extends BaseModule {
         }
       }
 
-      if (target) {
+      if (target && spendResource('ammo', 1)) {
         this.cooldownTimer = this.getFireRate();
         spawnProjectile(
           new ArcProjectile(
@@ -378,6 +395,216 @@ export class ArcWeaponModule extends BaseModule {
     ctx.font = '10px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(`MORT Lv.${this.level}`, worldX, worldY + 14);
+    ctx.restore();
+  }
+}
+
+export abstract class ProductionModule extends BaseModule {
+  private outputAmount = 0;
+  private readonly outputCapacity = 20;
+  public readonly outputType: ResourceType;
+
+  protected constructor(
+    type: ModuleType,
+    name: string,
+    gridX: number,
+    gridY: number,
+    cost: number,
+    outputType: ResourceType
+  ) {
+    super(type, name, gridX, gridY, cost);
+    this.outputType = outputType;
+  }
+
+  public getOutputAmount(): number {
+    return this.outputAmount;
+  }
+
+  public takeOutput(amount: number): number {
+    if (!Number.isFinite(amount) || amount <= 0) return 0;
+    const moved = Math.min(this.outputAmount, amount);
+    this.outputAmount -= moved;
+    return moved;
+  }
+
+  protected canProduce(amount: number): boolean {
+    return this.outputAmount + amount <= this.outputCapacity;
+  }
+
+  protected queueOutput(amount: number): boolean {
+    if (!Number.isFinite(amount) || amount <= 0 || !this.canProduce(amount)) return false;
+    this.outputAmount += amount;
+    return true;
+  }
+
+  protected renderProductionModule(
+    ctx: CanvasRenderingContext2D,
+    worldX: number,
+    worldY: number,
+    tileSize: number,
+    color: string,
+    label: string
+  ): void {
+    const half = tileSize / 2;
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.fillRect(worldX - half + 4, worldY - half + 4, tileSize - 8, tileSize - 8);
+    ctx.fillStyle = '#000000';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${label} ${this.getOutputAmount()}`, worldX, worldY + 14);
+    ctx.restore();
+  }
+}
+
+export class RecyclerModule extends ProductionModule {
+  private timer = 0;
+
+  constructor(gridX: number, gridY: number) {
+    super('RECYCLER', 'Recycler', gridX, gridY, 20, 'matter');
+  }
+
+  public update(
+    dt: number,
+    _pos: { x: number; y: number },
+    _enemies: Enemy[],
+    _spawnProj: (p: Projectile) => void,
+    _addResource: (type: ResourceType, amount: number) => number,
+    spendResource: (type: ResourceType, amount: number) => boolean
+  ): void {
+    if (!this.isActive()) return;
+    this.timer += dt;
+    if (this.timer < 4) return;
+
+    this.timer -= 4;
+    if (this.canProduce(5) && spendResource('resource', 10)) this.queueOutput(5);
+  }
+
+  public render(ctx: CanvasRenderingContext2D, worldX: number, worldY: number, tileSize: number): void {
+    this.renderProductionModule(ctx, worldX, worldY, tileSize, '#8d6e63', 'REC');
+  }
+}
+
+export class ArsenalModule extends ProductionModule {
+  private timer = 0;
+
+  constructor(gridX: number, gridY: number) {
+    super('ARSENAL', 'Arsenal', gridX, gridY, 20, 'ammo');
+  }
+
+  public update(
+    dt: number,
+    _pos: { x: number; y: number },
+    _enemies: Enemy[],
+    _spawnProj: (p: Projectile) => void,
+    _addResource: (type: ResourceType, amount: number) => number,
+    spendResource: (type: ResourceType, amount: number) => boolean
+  ): void {
+    if (!this.isActive()) return;
+    this.timer += dt;
+    if (this.timer < 3) return;
+
+    this.timer -= 3;
+    if (this.canProduce(1) && spendResource('matter', 5)) this.queueOutput(1);
+  }
+
+  public render(ctx: CanvasRenderingContext2D, worldX: number, worldY: number, tileSize: number): void {
+    this.renderProductionModule(ctx, worldX, worldY, tileSize, '#ef6c00', 'ARS');
+  }
+}
+
+export class MatterComposerModule extends ProductionModule {
+  private timer = 0;
+
+  constructor(gridX: number, gridY: number) {
+    super('COMPOSER', 'Matter Composer', gridX, gridY, 25, 'nano');
+  }
+
+  public update(
+    dt: number,
+    _pos: { x: number; y: number },
+    _enemies: Enemy[],
+    _spawnProj: (p: Projectile) => void,
+    _addResource: (type: ResourceType, amount: number) => number,
+    spendResource: (type: ResourceType, amount: number) => boolean
+  ): void {
+    if (!this.isActive()) return;
+    this.timer += dt;
+    if (this.timer < 5) return;
+
+    this.timer -= 5;
+    if (this.canProduce(1) && spendResource('matter', 10)) this.queueOutput(1);
+  }
+
+  public render(ctx: CanvasRenderingContext2D, worldX: number, worldY: number, tileSize: number): void {
+    this.renderProductionModule(ctx, worldX, worldY, tileSize, '#26a69a', 'NANO');
+  }
+}
+
+export class RailModule extends BaseModule {
+  private timer = 0;
+
+  constructor(gridX: number, gridY: number) {
+    super('RAIL', 'Rail Transport', gridX, gridY, 10);
+  }
+
+  public update(
+    _dt: number,
+    _pos: { x: number; y: number },
+    _enemies: Enemy[],
+    _spawnProj: (p: Projectile) => void,
+    _addResource: (type: ResourceType, amount: number) => number,
+    _spendResource: (type: ResourceType, amount: number) => boolean
+  ): void {
+    // Transport is handled by Game after all producers have updated.
+  }
+
+  public transfer(
+    dt: number,
+    modules: (BaseModule | null)[][],
+    addResource: (type: ResourceType, amount: number) => number
+  ): void {
+    if (!this.isActive()) return;
+    this.timer += dt;
+    if (this.timer < 1) return;
+    this.timer -= 1;
+
+    // Fixed adjacent routing keeps the MVP deterministic; add graph routing when branching is needed.
+    const neighbors = [
+      { x: this.gridX, y: this.gridY - 1 },
+      { x: this.gridX + 1, y: this.gridY },
+      { x: this.gridX, y: this.gridY + 1 },
+      { x: this.gridX - 1, y: this.gridY },
+    ];
+    for (const neighbor of neighbors) {
+      const source = modules[neighbor.y]?.[neighbor.x];
+      if (!(source instanceof ProductionModule) || source.getOutputAmount() <= 0) continue;
+
+      const moved = addResource(source.outputType, Math.min(10, source.getOutputAmount()));
+      if (moved > 0) {
+        source.takeOutput(moved);
+        return;
+      }
+    }
+  }
+
+  public render(ctx: CanvasRenderingContext2D, worldX: number, worldY: number, tileSize: number): void {
+    const half = tileSize / 2;
+    ctx.save();
+    ctx.fillStyle = '#78909c';
+    ctx.fillRect(worldX - half + 4, worldY - half + 4, tileSize - 8, tileSize - 8);
+    ctx.strokeStyle = '#263238';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(worldX - 12, worldY - 8);
+    ctx.lineTo(worldX + 12, worldY + 8);
+    ctx.moveTo(worldX - 12, worldY + 8);
+    ctx.lineTo(worldX + 12, worldY - 8);
+    ctx.stroke();
+    ctx.fillStyle = '#000000';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('RAIL', worldX, worldY + 14);
     ctx.restore();
   }
 }

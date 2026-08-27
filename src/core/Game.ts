@@ -4,8 +4,8 @@ import { WaveManager } from './WaveManager';
 import { Enemy } from '../entities/Enemy';
 import { Projectile, VisualEffect } from '../entities/Projectile';
 import { ResourcePickup } from '../entities/ResourcePickup';
-import { GathererModule } from '../entities/Module';
-import { ResourceStorage } from './ResourceStorage';
+import { GathererModule, RailModule } from '../entities/Module';
+import { ResourceStorage, ResourceType } from './ResourceStorage';
 import { HUDManager } from '../ui/HUDManager';
 
 export enum GameState {
@@ -30,7 +30,7 @@ export class Game {
   private effects: VisualEffect[] = [];
   private pickups: ResourcePickup[] = [];
 
-  private resources = new ResourceStorage(50, 100);
+  private resources = new ResourceStorage({ resource: 50 });
   private lastTime: number = 0;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -45,7 +45,7 @@ export class Game {
     this.hud.setupMouseListeners(
       this.canvas,
       () => this.vehicle,
-      () => this.resources.current,
+      () => this.resources.get('resource'),
       (amount) => this.spendResources(amount)
     );
 
@@ -87,7 +87,7 @@ export class Game {
   }
 
   private spendResources(amount: number): boolean {
-    return this.resources.spend(amount);
+    return this.resources.spend('resource', amount);
   }
 
   private gameLoop(time: number): void {
@@ -130,11 +130,23 @@ export class Game {
             modPos,
             this.enemies,
             (proj) => this.projectiles.push(proj),
-            (amount) => { this.resources.add(amount); }
+            (type: ResourceType, amount: number) => this.resources.add(type, amount),
+            (type: ResourceType, amount: number) => this.resources.spend(type, amount)
           );
 
           if (!isPaused && mod instanceof GathererModule) {
-            mod.collect(modPos, this.pickups, (amount) => this.resources.tryAdd(amount));
+            mod.collect(modPos, this.pickups, (amount) => this.resources.tryAdd('resource', amount));
+          }
+        }
+      }
+    }
+
+    if (!isPaused) {
+      for (let gy = 0; gy < this.vehicle.gridRows; gy++) {
+        for (let gx = 0; gx < this.vehicle.gridCols; gx++) {
+          const mod = this.vehicle.modules[gy][gx];
+          if (mod instanceof RailModule) {
+            mod.transfer(dt, this.vehicle.modules, (type, amount) => this.resources.add(type, amount));
           }
         }
       }
@@ -266,8 +278,7 @@ export class Game {
       this.canvas.width,
       this.canvas.height,
       this.vehicle,
-      this.resources.current,
-      this.resources.capacity,
+      this.resources,
       this.waveManager.currentWave,
       enemiesRemaining,
       this.state === GameState.PAUSED
