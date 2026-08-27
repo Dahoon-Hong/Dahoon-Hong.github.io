@@ -1,7 +1,8 @@
 import { Enemy } from './Enemy';
 import { Projectile, DirectProjectile, ArcProjectile } from './Projectile';
+import { ResourcePickup } from './ResourcePickup';
 
-export type ModuleType = 'CORE' | 'RESOURCE' | 'DIRECT_WEAPON' | 'ARC_WEAPON';
+export type ModuleType = 'CORE' | 'RESOURCE' | 'GATHERER' | 'DIRECT_WEAPON' | 'ARC_WEAPON';
 
 export abstract class BaseModule {
   public type: ModuleType;
@@ -141,6 +142,63 @@ export class ResourceModule extends BaseModule {
     ctx.font = '10px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(`RES Lv.${this.level}`, worldX, worldY + 14);
+    ctx.restore();
+  }
+}
+
+// Gatherer Module
+export class GathererModule extends BaseModule {
+  constructor(gridX: number, gridY: number) {
+    super('GATHERER', 'Resource Gatherer', gridX, gridY, 25);
+  }
+
+  public getCollectionRadius(): number {
+    return 120 + (this.level - 1) * 20;
+  }
+
+  public collect(
+    modulePos: { x: number; y: number },
+    pickups: ResourcePickup[],
+    addResource: (amount: number) => number
+  ): void {
+    if (!this.isActive()) return;
+
+    for (const pickup of pickups) {
+      if (pickup.isEmpty()) continue;
+
+      const distance = Math.hypot(pickup.x - modulePos.x, pickup.y - modulePos.y);
+      if (distance <= this.getCollectionRadius()) {
+        pickup.collect(addResource(pickup.amount));
+      }
+    }
+  }
+
+  public update(
+    _dt: number,
+    _pos: { x: number; y: number },
+    _enemies: Enemy[],
+    _spawnProj: (p: Projectile) => void,
+    _addResource: (amount: number) => void
+  ): void {
+    // Collection is handled by Game after all modules have updated.
+  }
+
+  public render(ctx: CanvasRenderingContext2D, worldX: number, worldY: number, tileSize: number): void {
+    const half = tileSize / 2;
+    ctx.save();
+    ctx.fillStyle = '#66bb6a';
+    ctx.fillRect(worldX - half + 4, worldY - half + 4, tileSize - 8, tileSize - 8);
+
+    ctx.strokeStyle = '#1b5e20';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(worldX, worldY, 10, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = '#000000';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`COLL Lv.${this.level}`, worldX, worldY + 14);
     ctx.restore();
   }
 }

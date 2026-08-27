@@ -1,5 +1,11 @@
 import { Vehicle } from '../entities/Vehicle';
-import { ResourceModule, DirectWeaponModule, ArcWeaponModule, BaseModule } from '../entities/Module';
+import {
+  ResourceModule,
+  GathererModule,
+  DirectWeaponModule,
+  ArcWeaponModule,
+  BaseModule,
+} from '../entities/Module';
 
 export class HUDManager {
   private selectedTile: { gx: number; gy: number } | null = null;
@@ -44,18 +50,18 @@ export class HUDManager {
       }
 
       // 2. Check if user clicked on Shop buttons at bottom HUD
-      const shopY = canvas.height - 70;
       const shopItems = [
         { type: 'RESOURCE', cost: 20, name: '+ Resource Generator' },
+        { type: 'GATHERER', cost: 25, name: '+ Resource Gatherer' },
         { type: 'DIRECT_WEAPON', cost: 30, name: '+ Gatling Gun' },
         { type: 'ARC_WEAPON', cost: 50, name: '+ Mortar Grenade' },
       ];
 
       for (let i = 0; i < shopItems.length; i++) {
-        const btnX = 20 + i * 210;
-        const btnY = shopY;
-        const btnW = 200;
-        const btnH = 50;
+        const btnX = 20 + i * 220;
+        const btnY = canvas.height - 60;
+        const btnW = 205;
+        const btnH = 48;
 
         if (
           mouseX >= btnX &&
@@ -83,6 +89,7 @@ export class HUDManager {
 
           let newMod: BaseModule | null = null;
           if (item.type === 'RESOURCE') newMod = new ResourceModule(gx, gy);
+          else if (item.type === 'GATHERER') newMod = new GathererModule(gx, gy);
           else if (item.type === 'DIRECT_WEAPON') newMod = new DirectWeaponModule(gx, gy);
           else if (item.type === 'ARC_WEAPON') newMod = new ArcWeaponModule(gx, gy);
 
@@ -139,6 +146,7 @@ export class HUDManager {
     canvasHeight: number,
     vehicle: Vehicle,
     resources: number,
+    resourceCapacity: number,
     wave: number,
     enemiesRemaining: number,
     isPaused: boolean
@@ -166,7 +174,7 @@ export class HUDManager {
     // Resource Counter
     ctx.fillStyle = '#ffd54f';
     ctx.font = 'bold 18px sans-serif';
-    ctx.fillText(`⚡ Resource: ${resources}`, 360, 30);
+    ctx.fillText(`⚡ Resource: ${resources} / ${resourceCapacity}`, 360, 30);
 
     // Wave Info
     ctx.fillStyle = '#4deaea';
@@ -262,6 +270,7 @@ export class HUDManager {
 
     const shopItems = [
       { type: 'RESOURCE', cost: 20, name: '+ Resource Gen (⚡20)' },
+      { type: 'GATHERER', cost: 25, name: '+ Gatherer (⚡25)' },
       { type: 'DIRECT_WEAPON', cost: 30, name: '+ Gatling Gun (⚡30)' },
       { type: 'ARC_WEAPON', cost: 50, name: '+ Mortar Grenade (⚡50)' },
     ];

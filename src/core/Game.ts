@@ -3,6 +3,9 @@ import { Vehicle } from '../entities/Vehicle';
 import { WaveManager } from './WaveManager';
 import { Enemy } from '../entities/Enemy';
 import { Projectile, VisualEffect } from '../entities/Projectile';
+import { ResourcePickup } from '../entities/ResourcePickup';
+import { GathererModule } from '../entities/Module';
+import { ResourceStorage } from './ResourceStorage';
 import { HUDManager } from '../ui/HUDManager';
 
 export enum GameState {
@@ -25,8 +28,9 @@ export class Game {
   private enemies: Enemy[] = [];
   private projectiles: Projectile[] = [];
   private effects: VisualEffect[] = [];
+  private pickups: ResourcePickup[] = [];
 
-  private resources: number = 50;
+  private resources = new ResourceStorage(50, 100);
   private lastTime: number = 0;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -41,7 +45,7 @@ export class Game {
     this.hud.setupMouseListeners(
       this.canvas,
       () => this.vehicle,
-      () => this.resources,
+      () => this.resources.current,
       (amount) => this.spendResources(amount)
     );
 
@@ -76,17 +80,14 @@ export class Game {
     this.enemies = [];
     this.projectiles = [];
     this.effects = [];
-    this.resources = 50;
+    this.pickups = [];
+    this.resources.reset();
     this.state = GameState.PLAYING;
     this.hud.resetSelection();
   }
 
   private spendResources(amount: number): boolean {
-    if (this.resources >= amount) {
-      this.resources -= amount;
-      return true;
-    }
-    return false;
+    return this.resources.spend(amount);
   }
 
   private gameLoop(time: number): void {
@@ -129,10 +130,18 @@ export class Game {
             modPos,
             this.enemies,
             (proj) => this.projectiles.push(proj),
-            (amount) => { this.resources += amount; }
+            (amount) => { this.resources.add(amount); }
           );
+
+          if (!isPaused && mod instanceof GathererModule) {
+            mod.collect(modPos, this.pickups, (amount) => this.resources.add(amount));
+          }
         }
       }
+    }
+
+    for (let i = this.pickups.length - 1; i >= 0; i--) {
+      if (this.pickups[i].isEmpty()) this.pickups.splice(i, 1);
     }
 
     if (!isPaused) {
@@ -173,7 +182,7 @@ export class Game {
         }
 
         if (enemy.isDead()) {
-          this.resources += enemy.reward;
+          this.pickups.push(new ResourcePickup(enemy.x, enemy.y, enemy.reward));
           this.enemies.splice(i, 1);
         }
       }
@@ -224,6 +233,11 @@ export class Game {
       enemy.render(this.ctx);
     }
 
+    // Render Resource Pickups
+    for (const pickup of this.pickups) {
+      pickup.render(this.ctx);
+    }
+
     // Render Vehicle & Modules
     this.vehicle.render(this.ctx);
 
@@ -252,7 +266,8 @@ export class Game {
       this.canvas.width,
       this.canvas.height,
       this.vehicle,
-      this.resources,
+      this.resources.current,
+      this.resources.capacity,
       this.waveManager.currentWave,
       enemiesRemaining,
       this.state === GameState.PAUSED
