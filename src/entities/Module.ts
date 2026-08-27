@@ -159,7 +159,7 @@ export class GathererModule extends BaseModule {
   public collect(
     modulePos: { x: number; y: number },
     pickups: ResourcePickup[],
-    addResource: (amount: number) => number
+    tryAddResource: (amount: number) => boolean
   ): void {
     if (!this.isActive()) return;
 
@@ -168,7 +168,9 @@ export class GathererModule extends BaseModule {
 
       const distance = Math.hypot(pickup.x - modulePos.x, pickup.y - modulePos.y);
       if (distance <= this.getCollectionRadius()) {
-        pickup.collect(addResource(pickup.amount));
+        if (tryAddResource(pickup.amount)) {
+          pickup.collect(pickup.amount);
+        }
       }
     }
   }

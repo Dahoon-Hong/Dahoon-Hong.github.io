@@ -134,7 +134,7 @@ export class Game {
           );
 
           if (!isPaused && mod instanceof GathererModule) {
-            mod.collect(modPos, this.pickups, (amount) => this.resources.add(amount));
+            mod.collect(modPos, this.pickups, (amount) => this.resources.tryAdd(amount));
           }
         }
       }

@@ -21,6 +21,15 @@ export class ResourceStorage {
     return added;
   }
 
+  public tryAdd(amount: number): boolean {
+    if (!Number.isFinite(amount) || amount <= 0 || amount > this.capacity - this.amount) {
+      return false;
+    }
+
+    this.amount += amount;
+    return true;
+  }
+
   public spend(amount: number): boolean {
     if (!Number.isFinite(amount) || amount < 0 || amount > this.amount) return false;
 
