@@ -33,7 +33,9 @@ export abstract class Enemy {
   }
 
   public takeDamage(amount: number): void {
-    this.hp -= amount;
+    if (this.isDead()) return;
+
+    this.hp -= Math.max(0, amount);
     if (this.hp <= 0) {
       this.hp = 0;
       this.dead = true;

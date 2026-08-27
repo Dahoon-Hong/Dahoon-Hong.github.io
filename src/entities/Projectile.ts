@@ -1,5 +1,38 @@
 import { Enemy } from './Enemy';
 
+function distanceSquaredToSegment(
+  pointX: number,
+  pointY: number,
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number
+): number {
+  const segmentX = endX - startX;
+  const segmentY = endY - startY;
+  const segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
+
+  if (segmentLengthSquared === 0) {
+    const dx = pointX - startX;
+    const dy = pointY - startY;
+    return dx * dx + dy * dy;
+  }
+
+  const projection = Math.max(
+    0,
+    Math.min(
+      1,
+      ((pointX - startX) * segmentX + (pointY - startY) * segmentY) /
+        segmentLengthSquared
+    )
+  );
+  const closestX = startX + segmentX * projection;
+  const closestY = startY + segmentY * projection;
+  const dx = pointX - closestX;
+  const dy = pointY - closestY;
+  return dx * dx + dy * dy;
+}
+
 export abstract class Projectile {
   public x: number;
   public y: number;
@@ -84,26 +117,32 @@ export class DirectProjectile extends Projectile {
   }
 
   public update(dt: number, enemies: Enemy[], spawnEffect: (e: VisualEffect) => void): void {
-    const moveDist = this.speed * dt;
+    if (this.dead) return;
+
+    const previousX = this.x;
+    const previousY = this.y;
+    const moveDist = Math.min(this.speed * dt, this.maxDistance - this.traveled);
     this.x += this.dirX * moveDist;
     this.y += this.dirY * moveDist;
     this.traveled += moveDist;
 
-    if (this.traveled >= this.maxDistance) {
-      this.dead = true;
-      return;
-    }
-
     // Check hit against enemies
     for (const enemy of enemies) {
       if (enemy.isDead()) continue;
-      const dist = Math.hypot(enemy.x - this.x, enemy.y - this.y);
-      if (dist < enemy.radius + 5) {
+      const hitRadius = enemy.radius + 5;
+      if (
+        distanceSquaredToSegment(enemy.x, enemy.y, previousX, previousY, this.x, this.y) <=
+        hitRadius * hitRadius
+      ) {
         enemy.takeDamage(this.damage);
         spawnEffect(new VisualEffect(this.x, this.y, 15, '#29b6f6'));
         this.dead = true;
         break;
       }
+    }
+
+    if (this.traveled >= this.maxDistance) {
+      this.dead = true;
     }
   }
 
@@ -149,7 +188,9 @@ export class ArcProjectile extends Projectile {
   }
 
   public update(dt: number, enemies: Enemy[], spawnEffect: (e: VisualEffect) => void): void {
-    this.elapsedTime += dt;
+    if (this.dead) return;
+
+    this.elapsedTime = Math.min(this.totalTime, this.elapsedTime + dt);
     const t = Math.min(1, this.elapsedTime / this.totalTime);
 
     // Ground position interpolation
@@ -163,7 +204,7 @@ export class ArcProjectile extends Projectile {
         const dist = Math.hypot(enemy.x - this.targetX, enemy.y - this.targetY);
         if (dist <= this.aoeRadius + enemy.radius) {
           // Full damage at center, falloff at edges
-          const damageFactor = Math.max(0.4, 1 - dist / (this.aoeRadius + enemy.radius));
+          const damageFactor = Math.max(0, 1 - dist / (this.aoeRadius + enemy.radius));
           enemy.takeDamage(this.damage * damageFactor);
         }
       }

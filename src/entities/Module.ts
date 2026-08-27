@@ -165,6 +165,14 @@ export class DirectWeaponModule extends BaseModule {
     return Math.max(0.15, 0.4 - (this.level - 1) * 0.04);
   }
 
+  public getProjectileSpeed(): number {
+    return 500;
+  }
+
+  public getMaxDistance(): number {
+    return 500;
+  }
+
   public update(
     dt: number,
     modulePos: { x: number; y: number },
@@ -177,12 +185,12 @@ export class DirectWeaponModule extends BaseModule {
     if (this.cooldownTimer <= 0) {
       // Find closest enemy within range
       let closest: Enemy | null = null;
-      let minDist = this.getRange();
+      let minDist = Number.POSITIVE_INFINITY;
 
       for (const enemy of enemies) {
         if (enemy.isDead()) continue;
         const dist = Math.hypot(enemy.x - modulePos.x, enemy.y - modulePos.y);
-        if (dist < minDist) {
+        if (dist <= this.getRange() && dist < minDist) {
           minDist = dist;
           closest = enemy;
         }
@@ -190,10 +198,18 @@ export class DirectWeaponModule extends BaseModule {
 
       if (closest) {
         this.cooldownTimer = this.getFireRate();
-        const dirX = (closest.x - modulePos.x) / minDist;
-        const dirY = (closest.y - modulePos.y) / minDist;
+        const dirX = minDist > 0 ? (closest.x - modulePos.x) / minDist : 1;
+        const dirY = minDist > 0 ? (closest.y - modulePos.y) / minDist : 0;
         spawnProjectile(
-          new DirectProjectile(modulePos.x, modulePos.y, dirX, dirY, 500, this.getDamage(), 500)
+          new DirectProjectile(
+            modulePos.x,
+            modulePos.y,
+            dirX,
+            dirY,
+            this.getProjectileSpeed(),
+            this.getDamage(),
+            this.getMaxDistance()
+          )
         );
       }
     }
@@ -243,6 +259,10 @@ export class ArcWeaponModule extends BaseModule {
     return 60 + (this.level - 1) * 10;
   }
 
+  public getFlightTime(): number {
+    return 1.2;
+  }
+
   public update(
     dt: number,
     modulePos: { x: number; y: number },
@@ -255,12 +275,12 @@ export class ArcWeaponModule extends BaseModule {
     if (this.cooldownTimer <= 0) {
       // Find enemy with most surrounding enemies or closest
       let target: Enemy | null = null;
-      let minDist = this.getRange();
+      let minDist = Number.POSITIVE_INFINITY;
 
       for (const enemy of enemies) {
         if (enemy.isDead()) continue;
         const dist = Math.hypot(enemy.x - modulePos.x, enemy.y - modulePos.y);
-        if (dist < minDist) {
+        if (dist <= this.getRange() && dist < minDist) {
           minDist = dist;
           target = enemy;
         }
@@ -274,7 +294,7 @@ export class ArcWeaponModule extends BaseModule {
             modulePos.y,
             target.x,
             target.y,
-            1.2,
+            this.getFlightTime(),
             this.getDamage(),
             this.getAOERadius()
           )
