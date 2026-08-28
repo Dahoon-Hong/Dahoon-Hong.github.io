@@ -7,6 +7,9 @@ export type ModuleType =
   | 'CORE'
   | 'RESOURCE'
   | 'GATHERER'
+  | 'POWER_PACK'
+  | 'CATERPILLAR_TRACK'
+  | 'ARMOR_PLATE'
   | 'RECYCLER'
   | 'ARSENAL'
   | 'COMPOSER'
@@ -214,6 +217,109 @@ export class GathererModule extends BaseModule {
     ctx.font = '10px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(`COLL Lv.${this.level}`, worldX, worldY + 14);
+    ctx.restore();
+  }
+}
+
+// Power Pack Module
+export class PowerPackModule extends BaseModule {
+  constructor(gridX: number, gridY: number) {
+    super('POWER_PACK', 'Power Pack', gridX, gridY, 40);
+  }
+
+  public getMovementSpeed(): number {
+    return 180 + (this.level - 1) * 20;
+  }
+
+  public update(): void {
+    // Movement availability is read by Vehicle.
+  }
+
+  public render(ctx: CanvasRenderingContext2D, worldX: number, worldY: number, tileSize: number): void {
+    const half = tileSize / 2;
+    ctx.save();
+    ctx.fillStyle = '#fdd835';
+    ctx.fillRect(worldX - half + 4, worldY - half + 4, tileSize - 8, tileSize - 8);
+    ctx.fillStyle = '#5d4037';
+    ctx.fillRect(worldX - 5, worldY - 12, 10, 24);
+    ctx.fillStyle = '#000000';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('POWER', worldX, worldY + 14);
+    ctx.restore();
+  }
+}
+
+// Caterpillar Track Module
+export class CaterpillarTrackModule extends BaseModule {
+  constructor(gridX: number, gridY: number) {
+    super('CATERPILLAR_TRACK', 'Caterpillar Track', gridX, gridY, 35);
+  }
+
+  public getRotationSpeed(): number {
+    return 1 + (this.level - 1) * 0.1;
+  }
+
+  public getMaxSpeed(): number {
+    return 180 + (this.level - 1) * 20;
+  }
+
+  public update(): void {
+    // Rotation physics is deferred; Vehicle uses the speed limit for now.
+  }
+
+  public render(ctx: CanvasRenderingContext2D, worldX: number, worldY: number, tileSize: number): void {
+    const half = tileSize / 2;
+    ctx.save();
+    ctx.fillStyle = '#90a4ae';
+    ctx.fillRect(worldX - half + 4, worldY - half + 4, tileSize - 8, tileSize - 8);
+    ctx.strokeStyle = '#263238';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(worldX - 12, worldY - 12, 24, 24);
+    ctx.fillStyle = '#000000';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('TRACK', worldX, worldY + 14);
+    ctx.restore();
+  }
+}
+
+// Armor Plate Module
+export class ArmorPlateModule extends BaseModule {
+  constructor(gridX: number, gridY: number) {
+    super('ARMOR_PLATE', 'Armor Plate', gridX, gridY, 30, 120);
+  }
+
+  public getArmorValue(): number {
+    return 20 + (this.level - 1) * 10;
+  }
+
+  public absorbDamage(amount: number, penetration = 0): number {
+    if (!Number.isFinite(amount) || amount <= 0) return 0;
+    if (!this.isActive()) return amount;
+
+    const safePenetration = Number.isFinite(penetration) ? Math.max(0, penetration) : 0;
+    const effectiveArmor = Math.max(0, this.getArmorValue() - safePenetration);
+    this.takeDamage(amount);
+    return Math.max(0, amount - effectiveArmor);
+  }
+
+  public update(): void {
+    // Damage absorption is handled by Vehicle.
+  }
+
+  public render(ctx: CanvasRenderingContext2D, worldX: number, worldY: number, tileSize: number): void {
+    const half = tileSize / 2;
+    ctx.save();
+    ctx.fillStyle = '#78909c';
+    ctx.fillRect(worldX - half + 4, worldY - half + 4, tileSize - 8, tileSize - 8);
+    ctx.strokeStyle = '#eceff1';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(worldX - 12, worldY - 12, 24, 24);
+    ctx.fillStyle = '#000000';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('ARMOR', worldX, worldY + 14);
     ctx.restore();
   }
 }

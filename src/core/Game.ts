@@ -206,8 +206,11 @@ export class Game {
         // Check Enemy ↔ Core Collision
         const distToCore = Math.hypot(enemy.x - corePos.x, enemy.y - corePos.y);
         if (distToCore < enemy.radius + 20) {
-          // Deal damage to Core Module
-          this.vehicle.coreModule.takeDamage(10);
+          // Route impact damage through the vehicle's armor before the core.
+          this.vehicle.takeDamage(10, 0, {
+            x: enemy.x - corePos.x,
+            y: enemy.y - corePos.y,
+          });
           this.effects.push(new VisualEffect(enemy.x, enemy.y, 25, '#ff1744'));
           enemy.takeDamage(999); // Destroy enemy on hit
 

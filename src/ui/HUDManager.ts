@@ -9,13 +9,19 @@ import {
   RailModule,
   DirectWeaponModule,
   ArcWeaponModule,
+  PowerPackModule,
+  CaterpillarTrackModule,
+  ArmorPlateModule,
   BaseModule,
   ModuleType,
 } from '../entities/Module';
 
 const SHOP_BUTTON_X = 20;
 const SHOP_BUTTON_WIDTH = 150;
+const SHOP_BUTTON_HEIGHT = 48;
 const SHOP_BUTTON_GAP = 5;
+const SHOP_COLUMNS = 8;
+const SHOP_PANEL_PADDING = 10;
 const SHOP_ITEMS: readonly { type: ModuleType; cost: number; label: string }[] = [
   { type: 'RESOURCE', cost: 20, label: '+ Resource Gen (20)' },
   { type: 'GATHERER', cost: 25, label: '+ Gatherer (25)' },
@@ -25,7 +31,24 @@ const SHOP_ITEMS: readonly { type: ModuleType; cost: number; label: string }[] =
   { type: 'RAIL', cost: 10, label: '+ Rail (10)' },
   { type: 'DIRECT_WEAPON', cost: 30, label: '+ Gatling (30)' },
   { type: 'ARC_WEAPON', cost: 50, label: '+ Mortar (50)' },
+  { type: 'POWER_PACK', cost: 40, label: '+ Power Pack (40)' },
+  { type: 'CATERPILLAR_TRACK', cost: 35, label: '+ Track (35)' },
+  { type: 'ARMOR_PLATE', cost: 30, label: '+ Armor (30)' },
 ];
+const SHOP_ROWS = Math.ceil(SHOP_ITEMS.length / SHOP_COLUMNS);
+const SHOP_PANEL_HEIGHT =
+  SHOP_PANEL_PADDING * 2 +
+  SHOP_ROWS * SHOP_BUTTON_HEIGHT +
+  (SHOP_ROWS - 1) * SHOP_BUTTON_GAP;
+
+function getShopButtonRect(index: number, canvasHeight: number): { x: number; y: number } {
+  const row = Math.floor(index / SHOP_COLUMNS);
+  const column = index % SHOP_COLUMNS;
+  return {
+    x: SHOP_BUTTON_X + column * (SHOP_BUTTON_WIDTH + SHOP_BUTTON_GAP),
+    y: canvasHeight - SHOP_PANEL_HEIGHT + SHOP_PANEL_PADDING + row * (SHOP_BUTTON_HEIGHT + SHOP_BUTTON_GAP),
+  };
+}
 
 export class HUDManager {
   private selectedTile: { gx: number; gy: number } | null = null;
@@ -69,13 +92,12 @@ export class HUDManager {
       }
 
       for (let i = 0; i < SHOP_ITEMS.length; i++) {
-        const btnX = SHOP_BUTTON_X + i * (SHOP_BUTTON_WIDTH + SHOP_BUTTON_GAP);
-        const btnY = canvas.height - 60;
+        const { x: btnX, y: btnY } = getShopButtonRect(i, canvas.height);
         if (
           mouseX >= btnX &&
           mouseX <= btnX + SHOP_BUTTON_WIDTH &&
           mouseY >= btnY &&
-          mouseY <= btnY + 48
+          mouseY <= btnY + SHOP_BUTTON_HEIGHT
         ) {
           if (!this.selectedTile) {
             this.setFeedback('Select a grid slot first.');
@@ -103,6 +125,9 @@ export class HUDManager {
           else if (item.type === 'RAIL') newModule = new RailModule(gx, gy);
           else if (item.type === 'DIRECT_WEAPON') newModule = new DirectWeaponModule(gx, gy);
           else if (item.type === 'ARC_WEAPON') newModule = new ArcWeaponModule(gx, gy);
+          else if (item.type === 'POWER_PACK') newModule = new PowerPackModule(gx, gy);
+          else if (item.type === 'CATERPILLAR_TRACK') newModule = new CaterpillarTrackModule(gx, gy);
+          else if (item.type === 'ARMOR_PLATE') newModule = new ArmorPlateModule(gx, gy);
 
           if (!newModule || !vehicle.canInstallModule(newModule)) {
             this.setFeedback('Cannot install a module here.');
@@ -192,7 +217,7 @@ export class HUDManager {
 
     if (isPaused) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-      ctx.fillRect(0, 50, canvasWidth, canvasHeight - 120);
+      ctx.fillRect(0, 50, canvasWidth, Math.max(0, canvasHeight - 50 - SHOP_PANEL_HEIGHT));
       ctx.fillStyle = '#ffd54f';
       ctx.font = 'bold 28px sans-serif';
       ctx.textAlign = 'center';
@@ -264,17 +289,16 @@ export class HUDManager {
     }
 
     ctx.fillStyle = 'rgba(15, 15, 25, 0.9)';
-    ctx.fillRect(0, canvasHeight - 70, canvasWidth, 70);
+    ctx.fillRect(0, canvasHeight - SHOP_PANEL_HEIGHT, canvasWidth, SHOP_PANEL_HEIGHT);
     for (let i = 0; i < SHOP_ITEMS.length; i++) {
       const item = SHOP_ITEMS[i];
-      const btnX = SHOP_BUTTON_X + i * (SHOP_BUTTON_WIDTH + SHOP_BUTTON_GAP);
-      const btnY = canvasHeight - 60;
+      const { x: btnX, y: btnY } = getShopButtonRect(i, canvasHeight);
       const canAfford = storage.get('resource') >= item.cost && this.selectedTile !== null;
       ctx.fillStyle = canAfford ? '#1e3a5f' : '#2a2a3a';
-      ctx.fillRect(btnX, btnY, SHOP_BUTTON_WIDTH, 48);
+      ctx.fillRect(btnX, btnY, SHOP_BUTTON_WIDTH, SHOP_BUTTON_HEIGHT);
       ctx.strokeStyle = canAfford ? '#4deaea' : '#555566';
       ctx.lineWidth = canAfford ? 2 : 1;
-      ctx.strokeRect(btnX, btnY, SHOP_BUTTON_WIDTH, 48);
+      ctx.strokeRect(btnX, btnY, SHOP_BUTTON_WIDTH, SHOP_BUTTON_HEIGHT);
       ctx.fillStyle = canAfford ? '#ffffff' : '#888899';
       ctx.font = 'bold 12px sans-serif';
       ctx.textAlign = 'center';
