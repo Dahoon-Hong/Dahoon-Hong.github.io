@@ -1,4 +1,12 @@
-import { BaseModule, CoreModule, ResourceModule, DirectWeaponModule } from './Module';
+import {
+  ArsenalModule,
+  BaseModule,
+  CoreModule,
+  DirectWeaponModule,
+  GathererModule,
+  RecyclerModule,
+  ResourceModule,
+} from './Module';
 
 export class Vehicle {
   public x: number;
@@ -22,9 +30,12 @@ export class Vehicle {
     this.coreModule = new CoreModule(corePosition.gx, corePosition.gy);
     this.modules[corePosition.gy][corePosition.gx] = this.coreModule;
 
-    // Pre-install 1 Resource Module at [0, 1] and 1 Direct Weapon at [1, 0] for fun initial start
+    // Pre-install the initial resource, weapon, and gatherer modules.
     this.modules[0][1] = new ResourceModule(0, 1);
     this.modules[1][0] = new DirectWeaponModule(1, 0);
+    this.modules[2][1] = new GathererModule(1, 2);
+    this.modules[0][0] = new RecyclerModule(0, 0);
+    this.modules[0][2] = new ArsenalModule(2, 0);
   }
 
   public getModuleAt(gridX: number, gridY: number): BaseModule | null {

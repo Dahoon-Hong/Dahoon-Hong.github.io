@@ -131,10 +131,10 @@ export class ResourceModule extends BaseModule {
     if (!this.isActive()) return;
 
     this.timer += dt;
-    const interval = Math.max(0.5, 2.0 - (this.level - 1) * 0.2);
+    const interval = Math.max(0.25, (2.0 - (this.level - 1) * 0.2) / 2);
     if (this.timer >= interval) {
       this.timer -= interval;
-      const amount = 5 + (this.level - 1) * 3;
+      const amount = (5 + (this.level - 1) * 3) * 2;
       addResource('resource', amount);
     }
   }
@@ -227,23 +227,23 @@ export class DirectWeaponModule extends BaseModule {
   }
 
   public getRange(): number {
-    return 300 + (this.level - 1) * 30;
+    return 600 + (this.level - 1) * 60;
   }
 
   public getDamage(): number {
-    return 15 + (this.level - 1) * 8;
+    return 30 + (this.level - 1) * 16;
   }
 
   public getFireRate(): number {
-    return Math.max(0.15, 0.4 - (this.level - 1) * 0.04);
+    return Math.max(0.075, (0.4 - (this.level - 1) * 0.04) / 2);
   }
 
   public getProjectileSpeed(): number {
-    return 500;
+    return 1000;
   }
 
   public getMaxDistance(): number {
-    return 500;
+    return 1000;
   }
 
   public update(
@@ -319,19 +319,19 @@ export class ArcWeaponModule extends BaseModule {
   }
 
   public getRange(): number {
-    return 400 + (this.level - 1) * 40;
+    return 800 + (this.level - 1) * 80;
   }
 
   public getDamage(): number {
-    return 45 + (this.level - 1) * 20;
+    return 90 + (this.level - 1) * 40;
   }
 
   public getFireRate(): number {
-    return Math.max(0.8, 1.8 - (this.level - 1) * 0.15);
+    return Math.max(0.4, (1.8 - (this.level - 1) * 0.15) / 2);
   }
 
   public getAOERadius(): number {
-    return 60 + (this.level - 1) * 10;
+    return 120 + (this.level - 1) * 20;
   }
 
   public getFlightTime(): number {
@@ -457,6 +457,11 @@ export abstract class ProductionModule extends BaseModule {
   }
 }
 
+export function compareProductionPriority(a: ProductionModule, b: ProductionModule): number {
+  const ammoPriority = Number(b.outputType === 'ammo') - Number(a.outputType === 'ammo');
+  return ammoPriority || a.gridY - b.gridY || a.gridX - b.gridX;
+}
+
 export class RecyclerModule extends ProductionModule {
   private timer = 0;
 
@@ -474,9 +479,9 @@ export class RecyclerModule extends ProductionModule {
   ): void {
     if (!this.isActive()) return;
     this.timer += dt;
-    if (this.timer < 4) return;
+    if (this.timer < 1) return;
 
-    this.timer -= 4;
+    this.timer -= 1;
     if (this.canProduce(5) && spendResource('resource', 10)) this.queueOutput(5);
   }
 
@@ -502,9 +507,9 @@ export class ArsenalModule extends ProductionModule {
   ): void {
     if (!this.isActive()) return;
     this.timer += dt;
-    if (this.timer < 3) return;
+    if (this.timer < 1.5) return;
 
-    this.timer -= 3;
+    this.timer -= 1.5;
     if (this.canProduce(1) && spendResource('matter', 5)) this.queueOutput(1);
   }
 
@@ -530,9 +535,9 @@ export class MatterComposerModule extends ProductionModule {
   ): void {
     if (!this.isActive()) return;
     this.timer += dt;
-    if (this.timer < 5) return;
+    if (this.timer < 2.5) return;
 
-    this.timer -= 5;
+    this.timer -= 2.5;
     if (this.canProduce(1) && spendResource('matter', 10)) this.queueOutput(1);
   }
 
@@ -569,18 +574,20 @@ export class RailModule extends BaseModule {
     if (this.timer < 1) return;
     this.timer -= 1;
 
-    // Fixed adjacent routing keeps the MVP deterministic; add graph routing when branching is needed.
-    const neighbors = [
-      { x: this.gridX, y: this.gridY - 1 },
-      { x: this.gridX + 1, y: this.gridY },
-      { x: this.gridX, y: this.gridY + 1 },
-      { x: this.gridX - 1, y: this.gridY },
-    ];
-    for (const neighbor of neighbors) {
-      const source = modules[neighbor.y]?.[neighbor.x];
-      if (!(source instanceof ProductionModule) || source.getOutputAmount() <= 0) continue;
+    const sources: ProductionModule[] = [];
+    for (const row of modules) {
+      for (const module of row) {
+        if (module instanceof ProductionModule && module.getOutputAmount() > 0) {
+          sources.push(module);
+        }
+      }
+    }
+    sources.sort(compareProductionPriority);
 
-      const moved = addResource(source.outputType, Math.min(10, source.getOutputAmount()));
+    // Rail is the long-distance fallback; local outputs are collected by Game first.
+    for (const source of sources) {
+
+      const moved = addResource(source.outputType, Math.min(20, source.getOutputAmount()));
       if (moved > 0) {
         source.takeOutput(moved);
         return;

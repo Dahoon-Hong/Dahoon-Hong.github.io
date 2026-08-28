@@ -4,7 +4,12 @@ import { WaveManager } from './WaveManager';
 import { Enemy } from '../entities/Enemy';
 import { Projectile, VisualEffect } from '../entities/Projectile';
 import { ResourcePickup } from '../entities/ResourcePickup';
-import { GathererModule, RailModule } from '../entities/Module';
+import {
+  GathererModule,
+  ProductionModule,
+  RailModule,
+  compareProductionPriority,
+} from '../entities/Module';
 import { ResourceStorage, ResourceType } from './ResourceStorage';
 import { HUDManager } from '../ui/HUDManager';
 
@@ -14,6 +19,10 @@ export enum GameState {
   GAME_OVER = 'GAME_OVER',
   VICTORY = 'VICTORY',
 }
+
+const INITIAL_PICKUP_COUNT = 10;
+const INITIAL_PICKUP_AMOUNT = 10;
+const INITIAL_PICKUP_RADIUS = 70;
 
 export class Game {
   private canvas: HTMLCanvasElement;
@@ -41,6 +50,7 @@ export class Game {
     this.vehicle = new Vehicle(canvas.width / 2, canvas.height / 2);
     this.waveManager = new WaveManager(3);
     this.hud = new HUDManager();
+    this.pickups = this.createInitialPickups();
 
     this.hud.setupMouseListeners(
       this.canvas,
@@ -80,7 +90,7 @@ export class Game {
     this.enemies = [];
     this.projectiles = [];
     this.effects = [];
-    this.pickups = [];
+    this.pickups = this.createInitialPickups();
     this.resources.reset();
     this.state = GameState.PLAYING;
     this.hud.resetSelection();
@@ -88,6 +98,17 @@ export class Game {
 
   private spendResources(amount: number): boolean {
     return this.resources.spend('resource', amount);
+  }
+
+  private createInitialPickups(): ResourcePickup[] {
+    return Array.from({ length: INITIAL_PICKUP_COUNT }, (_, index) => {
+      const angle = (index / INITIAL_PICKUP_COUNT) * Math.PI * 2;
+      return new ResourcePickup(
+        this.vehicle.x + Math.cos(angle) * INITIAL_PICKUP_RADIUS,
+        this.vehicle.y + Math.sin(angle) * INITIAL_PICKUP_RADIUS,
+        INITIAL_PICKUP_AMOUNT
+      );
+    });
   }
 
   private gameLoop(time: number): void {
@@ -142,6 +163,8 @@ export class Game {
     }
 
     if (!isPaused) {
+      this.collectAdjacentProductionOutputs();
+
       for (let gy = 0; gy < this.vehicle.gridRows; gy++) {
         for (let gx = 0; gx < this.vehicle.gridCols; gx++) {
           const mod = this.vehicle.modules[gy][gx];
@@ -216,6 +239,32 @@ export class Game {
           this.effects.splice(i, 1);
         }
       }
+    }
+  }
+
+  private collectAdjacentProductionOutputs(): void {
+    const core = this.vehicle.getCoreGridPosition();
+    const sources: ProductionModule[] = [];
+
+    for (let gy = 0; gy < this.vehicle.gridRows; gy++) {
+      for (let gx = 0; gx < this.vehicle.gridCols; gx++) {
+        const module = this.vehicle.modules[gy][gx];
+        if (
+          module instanceof ProductionModule &&
+          Math.max(Math.abs(gx - core.gx), Math.abs(gy - core.gy)) <= 1
+        ) {
+          sources.push(module);
+        }
+      }
+    }
+
+    sources.sort(compareProductionPriority);
+    for (const source of sources) {
+      const amount = source.getOutputAmount();
+      if (amount <= 0) continue;
+
+      const moved = this.resources.add(source.outputType, amount);
+      if (moved > 0) source.takeOutput(moved);
     }
   }
 
