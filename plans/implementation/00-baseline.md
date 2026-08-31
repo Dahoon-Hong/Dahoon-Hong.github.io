@@ -1,5 +1,13 @@
 # 구현 계획 기준선
 
+## 재설계 이후 실행 기준
+
+06.5 중간 점검 이후에는 기존 모듈 설치 구조를 이어서 확장하지 않고 [10 모듈·전투 그리드 재설계](10-module-redesign.md)를 먼저 수행한다. 실제 실행 순서는 06.5 → 10 → 07 → 08 → 09다.
+
+- 탱크별 조립도는 `src/data/tanks/<tankId>/module.json`으로 관리한다.
+- 모듈별 수치와 업그레이드 선택지는 같은 디렉터리의 `<moduleId>.json`으로 관리한다.
+- 전투 모듈만 그리드에 설치하고, 나머지는 탱크 생성 시 활성화된 내장 시스템으로 시작한다.
+
 ## 목적
 
 `plans/concept.md`, `plans/system.md`, `plans/user_guide.md`를 기준으로 게임을 단계적으로 구현한다. 각 단계는 이전 단계가 동작하는 상태에서 시작하며, 한 단계의 완료 조건을 확인한 뒤 다음 단계로 넘어간다.
@@ -10,6 +18,8 @@
 - 한 단계에서는 하나의 플레이 경험 또는 시스템만 완성한다.
 - 새 기능을 추가하기 전에 현재 기능의 빌드와 플레이 가능 여부를 확인한다.
 - 수치와 규칙은 코드에 흩어 놓지 말고 해당 시스템의 설정으로 모은다.
+- 탱크별 조립도는 `src/data/tanks/<tankId>/module.json`, 모듈별 수치와 선택지는 같은 디렉터리의 `<moduleId>.json`으로 관리한다.
+- 전투 모듈만 그리드에 설치하며, 나머지 기능은 탱크 생성 시 활성화된 내장 시스템으로 시작한다.
 - 아직 필요하지 않은 행성 저장, 픽셀 아트, 복잡한 모듈 연결은 뒤 단계로 미룬다.
 - 각 단계가 끝나면 `npm run build`와 수동 플레이 검증을 실행한다.
 
@@ -40,9 +50,11 @@
 4. [04-resource-collection.md](04-resource-collection.md) - 자원 획득과 저장
 5. [05-production-and-logistics.md](05-production-and-logistics.md) - 자원 가공, 탄약, 운송
 6. [06-mobility-defense.md](06-mobility-defense.md) - 기동 모듈과 방어 판정
-7. [07-progression-content.md](07-progression-content.md) - 모듈 확장, 적, 지역·행성 진행
-8. [08-ui-tutorial-polish.md](08-ui-tutorial-polish.md) - 튜토리얼과 사용자 경험
-9. [09-release-verification.md](09-release-verification.md) - 밸런스와 배포 전 검증
+7. [06.5-mid-term-review.md](06.5-mid-term-review.md) - 기존 구현 점검
+8. [10-module-redesign.md](10-module-redesign.md) - 모듈 JSON, 내장 시스템, 전투 전용 다중 칸 그리드 전환
+9. [07-progression-content.md](07-progression-content.md) - 탱크 콘텐츠, 적, 지역·행성 진행
+10. [08-ui-tutorial-polish.md](08-ui-tutorial-polish.md) - 업그레이드 그래프 튜토리얼과 사용자 경험
+11. [09-release-verification.md](09-release-verification.md) - 새 구조 기준 밸런스와 배포 전 검증
 
 ## 공통 완료 조건
 
