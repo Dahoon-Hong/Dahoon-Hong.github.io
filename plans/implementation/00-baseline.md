@@ -2,7 +2,7 @@
 
 ## 재설계 이후 실행 기준
 
-06.5 중간 점검 이후에는 기존 모듈 설치 구조를 이어서 확장하지 않고 [10 모듈·전투 그리드 재설계](10-module-redesign.md)를 먼저 수행한다. 실제 실행 순서는 06.5 → 10 → 07 → 08 → 09다.
+06.5에서 기존 구현 점검과 모듈·전투 그리드 재설계를 함께 수행한다. 실제 실행 순서는 `06.5(재설계 포함) → 07 → 08 → 09`다.
 
 - 탱크별 조립도는 `src/data/tanks/<tankId>/module.json`으로 관리한다.
 - 모듈별 수치와 업그레이드 선택지는 같은 디렉터리의 `<moduleId>.json`으로 관리한다.
@@ -50,11 +50,10 @@
 4. [04-resource-collection.md](04-resource-collection.md) - 자원 획득과 저장
 5. [05-production-and-logistics.md](05-production-and-logistics.md) - 자원 가공, 탄약, 운송
 6. [06-mobility-defense.md](06-mobility-defense.md) - 기동 모듈과 방어 판정
-7. [06.5-mid-term-review.md](06.5-mid-term-review.md) - 기존 구현 점검
-8. [10-module-redesign.md](10-module-redesign.md) - 모듈 JSON, 내장 시스템, 전투 전용 다중 칸 그리드 전환
-9. [07-progression-content.md](07-progression-content.md) - 탱크 콘텐츠, 적, 지역·행성 진행
-10. [08-ui-tutorial-polish.md](08-ui-tutorial-polish.md) - 업그레이드 그래프 튜토리얼과 사용자 경험
-11. [09-release-verification.md](09-release-verification.md) - 새 구조 기준 밸런스와 배포 전 검증
+7. [06.5-mid-term-review.md](06.5-mid-term-review.md) - 기존 구현 점검과 모듈·전투 그리드 재설계
+8. [07-progression-content.md](07-progression-content.md) - 탱크 콘텐츠, 적, 지역·행성 진행
+9. [08-ui-tutorial-polish.md](08-ui-tutorial-polish.md) - 업그레이드 그래프 튜토리얼과 사용자 경험
+10. [09-release-verification.md](09-release-verification.md) - 새 구조 기준 밸런스와 배포 전 검증
 
 ## 공통 완료 조건
 
