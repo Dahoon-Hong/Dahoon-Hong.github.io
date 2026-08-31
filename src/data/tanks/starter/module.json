@@ -1,0 +1,25 @@
+{
+  "id": "starter",
+  "name": "Starter Tank",
+  "grid": {
+    "columns": 3,
+    "rows": 3,
+    "coreCell": { "x": 1, "y": 1 },
+    "blockedCells": []
+  },
+  "builtinModuleIds": [
+    "core",
+    "resource-generator",
+    "gatherer",
+    "recycler",
+    "arsenal",
+    "composer",
+    "rail",
+    "power-pack",
+    "caterpillar-track",
+    "armor-plate"
+  ],
+  "initialCombatModules": [
+    { "moduleId": "direct-weapon", "anchor": { "x": 1, "y": 0 } }
+  ]
+}

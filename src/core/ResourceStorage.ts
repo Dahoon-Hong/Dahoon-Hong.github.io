@@ -56,6 +56,22 @@ export class ResourceStorage {
     return true;
   }
 
+  public canAfford(cost: Partial<Record<ResourceType, number>>): boolean {
+    return Object.entries(cost).every(([type, amount]) => {
+      if (!(RESOURCE_TYPES as string[]).includes(type)) return false;
+      return Number.isFinite(amount) && (amount ?? 0) >= 0 && (amount ?? 0) <= this.amounts[type as ResourceType];
+    });
+  }
+
+  public spendCost(cost: Partial<Record<ResourceType, number>>): boolean {
+    if (!this.canAfford(cost)) return false;
+
+    for (const [type, amount] of Object.entries(cost)) {
+      this.amounts[type as ResourceType] -= amount ?? 0;
+    }
+    return true;
+  }
+
   public reset(): void {
     for (const type of RESOURCE_TYPES) {
       this.amounts[type] = this.initialAmounts[type];

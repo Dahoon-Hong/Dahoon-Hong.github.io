@@ -1,0 +1,19 @@
+{
+  "id": "arc-weapon",
+  "kind": "combat",
+  "name": "Mortar Grenade",
+  "behavior": "arc",
+  "size": { "width": 2, "height": 1 },
+  "installCost": { "resource": 50 },
+  "baseStats": { "maxHp": 100, "range": 800, "damage": 90, "fireRate": 0.9, "aoeRadius": 120, "flightTime": 1.2 },
+  "upgradeTree": {
+    "rootId": "root",
+    "nodes": [
+      { "id": "root", "parentId": null, "cost": {}, "effects": [] },
+      { "id": "blast-radius", "parentId": "root", "cost": { "resource": 60 }, "effects": [{ "stat": "aoeRadius", "operation": "add", "value": 25 }] },
+      { "id": "siege-shell", "parentId": "root", "cost": { "resource": 60 }, "effects": [{ "stat": "damage", "operation": "add", "value": 35 }] },
+      { "id": "blast-radius-branch", "parentId": "blast-radius", "cost": { "resource": 80 }, "effects": [{ "stat": "fireRate", "operation": "multiply", "value": 0.9 }] },
+      { "id": "siege-shell-branch", "parentId": "siege-shell", "cost": { "resource": 80 }, "effects": [{ "stat": "range", "operation": "add", "value": 100 }] }
+    ]
+  }
+}

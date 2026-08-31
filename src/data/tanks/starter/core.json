@@ -1,0 +1,15 @@
+{
+  "id": "core",
+  "kind": "builtin",
+  "name": "Core Engine",
+  "behavior": "core",
+  "baseStats": { "maxHp": 100 },
+  "upgradeTree": {
+    "rootId": "root",
+    "nodes": [
+      { "id": "root", "parentId": null, "cost": {}, "effects": [] },
+      { "id": "reinforced-core", "parentId": "root", "cost": { "resource": 40 }, "effects": [{ "stat": "maxHp", "operation": "add", "value": 50 }] },
+      { "id": "overclocked-core", "parentId": "root", "cost": { "resource": 40 }, "effects": [{ "stat": "maxHp", "operation": "add", "value": 25 }] }
+    ]
+  }
+}

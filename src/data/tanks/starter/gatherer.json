@@ -1,0 +1,15 @@
+{
+  "id": "gatherer",
+  "kind": "builtin",
+  "name": "Resource Gatherer",
+  "behavior": "gatherer",
+  "baseStats": { "collectionRadius": 120 },
+  "upgradeTree": {
+    "rootId": "root",
+    "nodes": [
+      { "id": "root", "parentId": null, "cost": {}, "effects": [] },
+      { "id": "wide-scoop", "parentId": "root", "cost": { "resource": 30 }, "effects": [{ "stat": "collectionRadius", "operation": "add", "value": 30 }] },
+      { "id": "fast-scoop", "parentId": "root", "cost": { "resource": 30 }, "effects": [{ "stat": "collectionRadius", "operation": "add", "value": 15 }] }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "power-pack",
+  "kind": "builtin",
+  "name": "Power Pack",
+  "behavior": "power-pack",
+  "baseStats": { "movementSpeed": 180 },
+  "upgradeTree": {
+    "rootId": "root",
+    "nodes": [
+      { "id": "root", "parentId": null, "cost": {}, "effects": [] },
+      { "id": "high-output", "parentId": "root", "cost": { "resource": 40 }, "effects": [{ "stat": "movementSpeed", "operation": "add", "value": 20 }] },
+      { "id": "stable-output", "parentId": "root", "cost": { "resource": 40 }, "effects": [{ "stat": "movementSpeed", "operation": "add", "value": 10 }] }
+    ]
+  }
+}

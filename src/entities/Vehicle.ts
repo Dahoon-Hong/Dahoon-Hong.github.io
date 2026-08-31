@@ -1,61 +1,110 @@
-import {
-  ArsenalModule,
-  ArmorPlateModule,
-  BaseModule,
-  CaterpillarTrackModule,
-  CoreModule,
-  DirectWeaponModule,
-  GathererModule,
-  PowerPackModule,
-  RecyclerModule,
-  ResourceModule,
-} from './Module';
+import { TankDefinition } from '../core/TankDefinitionLoader';
+import { UpgradeManager } from '../core/UpgradeManager';
+import { VehicleSystems } from '../core/VehicleSystems';
+import { CombatGrid } from './CombatGrid';
+import { CombatModule } from './Module';
 
 export class Vehicle {
   public x: number;
   public y: number;
-  public speed: number = 180;
-  public tileSize: number = 44;
-  public gridRows: number = 3;
-  public gridCols: number = 3;
+  public readonly tileSize = 44;
+  public readonly gridRows: number;
+  public readonly gridCols: number;
+  public readonly combatGrid: CombatGrid;
+  public readonly systems: VehicleSystems;
 
-  public modules: (BaseModule | null)[][];
-  public coreModule: CoreModule;
-
-  constructor(startX: number, startY: number) {
+  constructor(startX: number, startY: number, definition: TankDefinition, upgrades: UpgradeManager) {
     this.x = startX;
     this.y = startY;
-
-    // Initialize the current 3x3 grid.
-    this.modules = Array.from({ length: this.gridRows }, () => Array(this.gridCols).fill(null));
-
-    const corePosition = this.getCoreGridPosition();
-    this.coreModule = new CoreModule(corePosition.gx, corePosition.gy);
-    this.modules[corePosition.gy][corePosition.gx] = this.coreModule;
-
-    // Pre-install the initial resource, weapon, gatherer, and mobility modules.
-    this.modules[0][1] = new ResourceModule(0, 1);
-    this.modules[1][0] = new DirectWeaponModule(1, 0);
-    this.modules[2][1] = new GathererModule(1, 2);
-    this.modules[0][0] = new RecyclerModule(0, 0);
-    this.modules[0][2] = new ArsenalModule(2, 0);
-    this.modules[1][2] = new PowerPackModule(2, 1);
-    this.modules[2][0] = new CaterpillarTrackModule(0, 2);
+    this.gridRows = definition.grid.rows;
+    this.gridCols = definition.grid.columns;
+    this.systems = new VehicleSystems(definition, upgrades);
+    this.combatGrid = new CombatGrid(definition.grid, definition.modules, upgrades);
+    this.combatGrid.installInitial(definition.initialCombatModules);
   }
 
-  public getModuleAt(gridX: number, gridY: number): BaseModule | null {
-    if (!this.isInsideGrid(gridX, gridY)) return null;
-    return this.modules[gridY][gridX];
+  public getCoreGridPosition(): { gx: number; gy: number } {
+    const cell = this.combatGrid.getCoreCell();
+    return { gx: cell.x, gy: cell.y };
+  }
+
+  public getCoreHp(): number {
+    return this.systems.getCoreHp();
+  }
+
+  public getCoreMaxHp(): number {
+    return this.systems.getCoreMaxHp();
+  }
+
+  public isCoreActive(): boolean {
+    return this.systems.isCoreActive();
   }
 
   public getMovementSpeed(): number {
-    const powerPack = this.findModule<PowerPackModule>('POWER_PACK');
-    if (!powerPack || !powerPack.isActive()) return 0;
+    return this.systems.getMovementSpeed();
+  }
 
-    const track = this.findModule<CaterpillarTrackModule>('CATERPILLAR_TRACK');
-    if (!track || !track.isActive()) return powerPack.getMovementSpeed() * 0.5;
+  public getCombatModules(): CombatModule[] {
+    return this.combatGrid.getPlacements().map((placement) => placement.module);
+  }
 
-    return Math.min(powerPack.getMovementSpeed(), track.getMaxSpeed());
+  public getCombatModuleDefinitions() {
+    return this.combatGrid.getCombatModuleDefinitions();
+  }
+
+  public getBuiltInModuleIds(): readonly string[] {
+    return this.systems.getBuiltInModuleIds();
+  }
+
+  public getBuiltInDefinition(moduleId: string) {
+    return this.systems.getBuiltInDefinition(moduleId);
+  }
+
+  public getModuleAt(gridX: number, gridY: number): CombatModule | null {
+    if (!this.isInsideGrid(gridX, gridY)) return null;
+    return this.combatGrid.getModuleAtCell(gridX, gridY);
+  }
+
+  public canInstallModule(moduleId: string, anchor: { x: number; y: number }): boolean {
+    return this.combatGrid.canInstall(moduleId, anchor);
+  }
+
+  public installModule(moduleId: string, anchor: { x: number; y: number }): CombatModule | null {
+    return this.combatGrid.install(moduleId, anchor);
+  }
+
+  public isInsideGrid(gridX: number, gridY: number): boolean {
+    return gridX >= 0 && gridX < this.gridCols && gridY >= 0 && gridY < this.gridRows;
+  }
+
+  public isCorePosition(gridX: number, gridY: number): boolean {
+    const core = this.getCoreGridPosition();
+    return gridX === core.gx && gridY === core.gy;
+  }
+
+  public getModuleWorldPos(gridX: number, gridY: number): { x: number; y: number } {
+    const core = this.getCoreGridPosition();
+    return {
+      x: this.x + (gridX - core.gx) * this.tileSize,
+      y: this.y + (gridY - core.gy) * this.tileSize,
+    };
+  }
+
+  public getModuleWorldRect(module: CombatModule): { x: number; y: number; width: number; height: number } {
+    const anchor = this.getModuleWorldPos(module.anchor.x, module.anchor.y);
+    const width = module.size.width * this.tileSize;
+    const height = module.size.height * this.tileSize;
+    return {
+      x: anchor.x - this.tileSize / 2,
+      y: anchor.y - this.tileSize / 2,
+      width,
+      height,
+    };
+  }
+
+  public getModuleWorldCenter(module: CombatModule): { x: number; y: number } {
+    const rect = this.getModuleWorldRect(module);
+    return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
   }
 
   public takeDamage(
@@ -64,123 +113,106 @@ export class Vehicle {
     impactDirection: { x: number; y: number } = { x: 0, y: 0 }
   ): void {
     const damage = Number.isFinite(amount) ? Math.max(0, amount) : 0;
-    if (damage <= 0) return;
+    if (damage <= 0 || !this.isCoreActive()) return;
 
-    const armor = this.findModule<ArmorPlateModule>('ARMOR_PLATE');
-    const remainingDamage = armor ? armor.absorbDamage(damage, penetration) : damage;
+    const armor = Math.max(0, this.systems.getArmorValue() - Math.max(0, penetration));
+    const remainingDamage = Math.max(0, damage - armor);
     if (remainingDamage <= 0) return;
 
     const target = this.getImpactModule(impactDirection);
-    if (target && target !== armor && target.type !== 'CORE' && target.isActive()) {
+    if (target?.isActive()) {
       const targetHp = target.currentHp;
       target.takeDamage(remainingDamage);
-      const overflowDamage = Math.max(0, remainingDamage - targetHp);
-      if (overflowDamage > 0) this.coreModule.takeDamage(overflowDamage);
+      const overflow = Math.max(0, remainingDamage - targetHp);
+      if (overflow > 0) this.systems.takeCoreDamage(overflow);
       return;
     }
 
-    this.coreModule.takeDamage(remainingDamage);
+    this.systems.takeCoreDamage(remainingDamage);
   }
 
-  private getImpactModule(direction: { x: number; y: number }): BaseModule | null {
-    const core = this.getCoreGridPosition();
-    const gridX = core.gx + Math.sign(direction.x);
-    const gridY = core.gy + Math.sign(direction.y);
-    if (gridX === core.gx && gridY === core.gy) return this.coreModule;
-    return this.getModuleAt(gridX, gridY);
-  }
-
-  private findModule<T extends BaseModule>(type: BaseModule['type']): T | null {
-    for (const row of this.modules) {
-      for (const module of row) {
-        if (module?.type === type) return module as T;
-      }
-    }
-    return null;
-  }
-
-  public getCoreGridPosition(): { gx: number; gy: number } {
-    return {
-      gx: Math.floor(this.gridCols / 2),
-      gy: Math.floor(this.gridRows / 2),
-    };
-  }
-
-  public isInsideGrid(gridX: number, gridY: number): boolean {
-    return gridX >= 0 && gridX < this.gridCols && gridY >= 0 && gridY < this.gridRows;
-  }
-
-  public isCorePosition(gridX: number, gridY: number): boolean {
-    const corePosition = this.getCoreGridPosition();
-    return gridX === corePosition.gx && gridY === corePosition.gy;
-  }
-
-  public canInstallModule(module: BaseModule): boolean {
-    if (!this.isInsideGrid(module.gridX, module.gridY)) return false;
-    if (module.type === 'CORE' && !this.isCorePosition(module.gridX, module.gridY)) return false;
-    if (module.type !== 'CORE' && this.isCorePosition(module.gridX, module.gridY)) return false;
-    return this.modules[module.gridY][module.gridX] === null;
-  }
-
-  public installModule(module: BaseModule): boolean {
-    if (!this.canInstallModule(module)) return false;
-    this.modules[module.gridY][module.gridX] = module;
-    return true;
-  }
-
-  public getModuleWorldPos(gridX: number, gridY: number): { x: number; y: number } {
-    const corePosition = this.getCoreGridPosition();
-    const offsetX = (gridX - corePosition.gx) * this.tileSize;
-    const offsetY = (gridY - corePosition.gy) * this.tileSize;
-    return { x: this.x + offsetX, y: this.y + offsetY };
-  }
-
-  public update(dt: number, moveInput: { x: number; y: number }, bounds: { width: number; height: number }): void {
+  public update(
+    dt: number,
+    moveInput: { x: number; y: number },
+    bounds: { width: number; height: number }
+  ): void {
     const movementSpeed = this.getMovementSpeed();
     this.x += moveInput.x * movementSpeed * dt;
     this.y += moveInput.y * movementSpeed * dt;
 
-    // Clamp inside canvas bounds with padding
     const padding = 70;
-    this.x = Math.max(padding, Math.min(bounds.width - padding, this.x));
-    this.y = Math.max(padding, Math.min(bounds.height - padding, this.y));
+    this.x = Math.max(padding, Math.min(Math.max(padding, bounds.width - padding), this.x));
+    this.y = Math.max(padding, Math.min(Math.max(padding, bounds.height - padding), this.y));
   }
 
   public render(ctx: CanvasRenderingContext2D): void {
     ctx.save();
 
-    // 1. Draw Platform Base Frame
-    const halfWidth = (this.gridCols * this.tileSize) / 2 + 6;
-    const halfHeight = (this.gridRows * this.tileSize) / 2 + 6;
-
+    const frameWidth = this.gridCols * this.tileSize + 12;
+    const frameHeight = this.gridRows * this.tileSize + 12;
     ctx.fillStyle = '#1e1e2d';
     ctx.strokeStyle = '#4deaea';
     ctx.lineWidth = 2;
-    ctx.fillRect(this.x - halfWidth, this.y - halfHeight, halfWidth * 2, halfHeight * 2);
-    ctx.strokeRect(this.x - halfWidth, this.y - halfHeight, halfWidth * 2, halfHeight * 2);
+    ctx.fillRect(this.x - frameWidth / 2, this.y - frameHeight / 2, frameWidth, frameHeight);
+    ctx.strokeRect(this.x - frameWidth / 2, this.y - frameHeight / 2, frameWidth, frameHeight);
 
-    // 2. Draw 3x3 Grid Slots & Installed Modules
     for (let gy = 0; gy < this.gridRows; gy++) {
       for (let gx = 0; gx < this.gridCols; gx++) {
         const pos = this.getModuleWorldPos(gx, gy);
-        const mod = this.modules[gy][gx];
-
-        // Empty Slot Outline
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        const cell = { x: gx, y: gy };
+        ctx.fillStyle = this.combatGrid.isBlocked(cell) ? 'rgba(90, 90, 110, 0.65)' : 'rgba(255, 255, 255, 0.03)';
+        ctx.fillRect(pos.x - this.tileSize / 2 + 2, pos.y - this.tileSize / 2 + 2, this.tileSize - 4, this.tileSize - 4);
+        ctx.strokeStyle = this.combatGrid.isBlocked(cell) ? '#616161' : 'rgba(255, 255, 255, 0.15)';
         ctx.lineWidth = 1;
-        ctx.strokeRect(
-          pos.x - this.tileSize / 2 + 2,
-          pos.y - this.tileSize / 2 + 2,
-          this.tileSize - 4,
-          this.tileSize - 4
-        );
+        ctx.strokeRect(pos.x - this.tileSize / 2 + 2, pos.y - this.tileSize / 2 + 2, this.tileSize - 4, this.tileSize - 4);
 
-        if (mod) {
-          mod.render(ctx, pos.x, pos.y, this.tileSize);
-        }
+        if (this.isCorePosition(gx, gy)) this.renderCore(ctx, pos.x, pos.y);
+        else if (this.combatGrid.isBlocked(cell)) this.renderBlocked(ctx, pos.x, pos.y);
       }
     }
 
+    for (const placement of this.combatGrid.getPlacements()) {
+      const rect = this.getModuleWorldRect(placement.module);
+      placement.module.render(ctx, rect.x + rect.width / 2, rect.y + rect.height / 2, rect.width, rect.height);
+    }
+
+    ctx.restore();
+  }
+
+  private getImpactModule(direction: { x: number; y: number }): CombatModule | null {
+    const core = this.getCoreGridPosition();
+    const targetX = core.gx + Math.sign(direction.x);
+    const targetY = core.gy + Math.sign(direction.y);
+    if (targetX === core.gx && targetY === core.gy) return null;
+    return this.getModuleAt(targetX, targetY);
+  }
+
+  private renderCore(ctx: CanvasRenderingContext2D, worldX: number, worldY: number): void {
+    const ratio = this.getCoreMaxHp() > 0 ? this.getCoreHp() / this.getCoreMaxHp() : 0;
+    ctx.save();
+    ctx.fillStyle = ratio > 0 ? '#00e676' : '#424242';
+    ctx.fillRect(worldX - this.tileSize / 2 + 4, worldY - this.tileSize / 2 + 4, this.tileSize - 8, this.tileSize - 8);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(worldX, worldY, 8 + Math.sin(Date.now() / 200) * 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#000000';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('CORE', worldX, worldY + 14);
+    ctx.restore();
+  }
+
+  private renderBlocked(ctx: CanvasRenderingContext2D, worldX: number, worldY: number): void {
+    ctx.save();
+    ctx.strokeStyle = '#b0bec5';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(worldX - 10, worldY - 10);
+    ctx.lineTo(worldX + 10, worldY + 10);
+    ctx.moveTo(worldX + 10, worldY - 10);
+    ctx.lineTo(worldX - 10, worldY + 10);
+    ctx.stroke();
     ctx.restore();
   }
 }

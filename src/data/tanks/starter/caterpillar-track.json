@@ -1,0 +1,15 @@
+{
+  "id": "caterpillar-track",
+  "kind": "builtin",
+  "name": "Caterpillar Track",
+  "behavior": "caterpillar-track",
+  "baseStats": { "trackMaxSpeed": 180, "rotationSpeed": 1 },
+  "upgradeTree": {
+    "rootId": "root",
+    "nodes": [
+      { "id": "root", "parentId": null, "cost": {}, "effects": [] },
+      { "id": "reinforced-track", "parentId": "root", "cost": { "resource": 35 }, "effects": [{ "stat": "trackMaxSpeed", "operation": "add", "value": 20 }] },
+      { "id": "agile-track", "parentId": "root", "cost": { "resource": 35 }, "effects": [{ "stat": "rotationSpeed", "operation": "add", "value": 0.2 }] }
+    ]
+  }
+}
