@@ -53,6 +53,10 @@ export abstract class CombatModule {
     this.currentHp = Math.max(0, this.currentHp - amount);
   }
 
+  public resetRuntime(): void {
+    this.currentHp = this.maxHp;
+  }
+
   public getStat(stat: string, fallback = 0): number {
     return this.upgrades.getEffectiveStats(this.instanceId)[stat] ?? fallback;
   }

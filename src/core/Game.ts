@@ -4,6 +4,7 @@ import { Projectile, VisualEffect } from '../entities/Projectile';
 import { ResourcePickup } from '../entities/ResourcePickup';
 import { Vehicle } from '../entities/Vehicle';
 import { InputManager } from './InputManager';
+import { ProgressionManager } from './ProgressionManager';
 import { ResourceStorage } from './ResourceStorage';
 import { TankDefinitionLoader, TankDefinition } from './TankDefinitionLoader';
 import { UpgradeManager } from './UpgradeManager';
@@ -13,6 +14,8 @@ export enum GameState {
   PLAYING = 'PLAYING',
   PAUSED = 'PAUSED',
   GAME_OVER = 'GAME_OVER',
+  REGION_CLEARED = 'REGION_CLEARED',
+  PLANET_CLEARED = 'PLANET_CLEARED',
   VICTORY = 'VICTORY',
 }
 
@@ -26,6 +29,7 @@ export class Game {
   private readonly input: InputManager;
   private readonly hud: HUDManager;
   private readonly tankDefinition: TankDefinition;
+  private readonly progression = new ProgressionManager();
 
   private state: GameState = GameState.PLAYING;
   private vehicle: Vehicle;
@@ -46,7 +50,7 @@ export class Game {
     this.tankDefinition = new TankDefinitionLoader().getDefault();
     this.upgradeManager = new UpgradeManager(this.tankDefinition.modules);
     this.vehicle = this.createVehicle();
-    this.waveManager = new WaveManager(3);
+    this.waveManager = this.createWaveManager();
     this.pickups = this.createInitialPickups();
 
     this.hud.setupMouseListeners(this.canvas, {
@@ -68,15 +72,43 @@ export class Game {
     return new Vehicle(this.canvas.width / 2, this.canvas.height / 2, this.tankDefinition, this.upgradeManager);
   }
 
+  private createWaveManager(): WaveManager {
+    return new WaveManager(this.progression.currentRegion, this.progression.enemyDefinitions);
+  }
+
   private restartGame(): void {
     this.upgradeManager = new UpgradeManager(this.tankDefinition.modules);
     this.vehicle = this.createVehicle();
-    this.waveManager = new WaveManager(3);
+    this.waveManager = this.createWaveManager();
     this.enemies = [];
     this.projectiles = [];
     this.effects = [];
     this.pickups = this.createInitialPickups();
     this.resources.reset();
+    this.state = GameState.PLAYING;
+    this.hud.resetSelection();
+  }
+
+  private advanceProgression(): void {
+    const transition = this.progression.advance();
+    if (transition === 'complete') {
+      this.state = GameState.VICTORY;
+      return;
+    }
+
+    if (transition === 'planet') {
+      this.upgradeManager = new UpgradeManager(this.tankDefinition.modules);
+      this.vehicle = this.createVehicle();
+      this.resources.reset();
+    } else {
+      this.vehicle.resetRuntime();
+    }
+
+    this.waveManager = this.createWaveManager();
+    this.enemies = [];
+    this.projectiles = [];
+    this.effects = [];
+    this.pickups = this.createInitialPickups();
     this.state = GameState.PLAYING;
     this.hud.resetSelection();
   }
@@ -106,7 +138,7 @@ export class Game {
       else if (this.state === GameState.PAUSED) this.state = GameState.PLAYING;
     }
 
-    if (this.state === GameState.GAME_OVER || this.state === GameState.VICTORY) return;
+    if (this.isTerminalState()) return;
     const isPaused = this.state === GameState.PAUSED;
 
     if (!isPaused) {
@@ -143,7 +175,9 @@ export class Game {
 
     if (this.waveManager.waveCleared) {
       if (this.waveManager.currentWave >= this.waveManager.totalWaves) {
-        this.state = GameState.VICTORY;
+        if (this.progression.hasNextRegion()) this.state = GameState.REGION_CLEARED;
+        else if (this.progression.hasNextPlanet()) this.state = GameState.PLANET_CLEARED;
+        else this.state = GameState.VICTORY;
         return;
       }
       this.waveManager.nextWave();
@@ -152,6 +186,7 @@ export class Game {
     const corePos = { x: this.vehicle.x, y: this.vehicle.y };
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const enemy = this.enemies[i];
+      const previousPos = { x: enemy.x, y: enemy.y };
       if (enemy.isDead()) {
         this.pickups.push(new ResourcePickup(enemy.x, enemy.y, enemy.reward));
         this.enemies.splice(i, 1);
@@ -159,11 +194,9 @@ export class Game {
       }
 
       enemy.update(dt, corePos);
-      const distToCore = Math.hypot(enemy.x - corePos.x, enemy.y - corePos.y);
-      if (distToCore < enemy.radius + 20) {
-        this.vehicle.takeDamage(10, 0, { x: enemy.x - corePos.x, y: enemy.y - corePos.y });
+      if (this.resolveEnemyAgainstGrid(enemy, this.vehicle.getGridBounds(), previousPos) && enemy.tryContactDamage()) {
+        this.vehicle.takeDamage(enemy.contactDamage, 0, { x: enemy.x - corePos.x, y: enemy.y - corePos.y });
         this.effects.push(new VisualEffect(enemy.x, enemy.y, 25, '#ff1744'));
-        enemy.takeDamage(999);
         if (!this.vehicle.isCoreActive()) this.state = GameState.GAME_OVER;
       }
 
@@ -226,23 +259,41 @@ export class Game {
       this.state === GameState.PAUSED
     );
 
-    if (this.state === GameState.GAME_OVER || this.state === GameState.VICTORY) this.renderResultOverlay();
+    if (this.isTerminalState()) this.renderResultOverlay();
   }
 
   private renderResultOverlay(): void {
-    const isVictory = this.state === GameState.VICTORY;
+    const isGameOver = this.state === GameState.GAME_OVER;
+    const isRegionCleared = this.state === GameState.REGION_CLEARED;
+    const isPlanetCleared = this.state === GameState.PLANET_CLEARED;
     const gameplayWidth = this.canvas.width - HUDManager.PANEL_WIDTH;
+    const location = this.progression.location;
+    const title = isGameOver
+      ? 'CORE DESTROYED - GAME OVER'
+      : isRegionCleared
+        ? 'REGION CLEARED'
+        : isPlanetCleared
+          ? 'PLANET CLEARED'
+          : 'CAMPAIGN COMPLETE';
+    const buttonLabel = isRegionCleared
+      ? 'NEXT REGION'
+      : isPlanetCleared && this.progression.hasNextPlanet()
+        ? 'NEXT PLANET'
+        : 'RESTART REGION';
     this.ctx.save();
     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
     this.ctx.fillRect(0, 0, gameplayWidth, this.canvas.height);
-    this.ctx.fillStyle = isVictory ? '#00e676' : '#ff1744';
-    this.ctx.font = 'bold 42px sans-serif';
+    this.ctx.fillStyle = isGameOver ? '#ff1744' : '#00e676';
+    this.ctx.font = 'bold 34px sans-serif';
     this.ctx.textAlign = 'center';
     this.ctx.fillText(
-      isVictory ? 'REGION CLEARED - VICTORY' : 'CORE DESTROYED - GAME OVER',
+      title,
       gameplayWidth / 2,
       this.canvas.height / 2 - 20
     );
+    this.ctx.fillStyle = '#d0d8e0';
+    this.ctx.font = '16px sans-serif';
+    this.ctx.fillText(`${location.planetName} · ${location.regionName}`, gameplayWidth / 2, this.canvas.height / 2 + 10);
 
     const buttonX = gameplayWidth / 2 - 100;
     const buttonY = this.canvas.height / 2 + 30;
@@ -250,12 +301,46 @@ export class Game {
     this.ctx.fillRect(buttonX, buttonY, 200, 50);
     this.ctx.fillStyle = '#000000';
     this.ctx.font = 'bold 20px sans-serif';
-    this.ctx.fillText('RESTART', gameplayWidth / 2, buttonY + 32);
+    this.ctx.fillText(buttonLabel, gameplayWidth / 2, buttonY + 32);
     this.ctx.restore();
   }
 
+  private resolveEnemyAgainstGrid(
+    enemy: Enemy,
+    bounds: { left: number; top: number; right: number; bottom: number },
+    previousPos: { x: number; y: number }
+  ): boolean {
+    const closestX = Math.max(bounds.left, Math.min(bounds.right, enemy.x));
+    const closestY = Math.max(bounds.top, Math.min(bounds.bottom, enemy.y));
+    const deltaX = enemy.x - closestX;
+    const deltaY = enemy.y - closestY;
+    if (deltaX * deltaX + deltaY * deltaY > enemy.radius * enemy.radius) return false;
+
+    const distance = Math.hypot(deltaX, deltaY);
+    if (distance > 0) {
+      enemy.x = closestX + (deltaX / distance) * (enemy.radius + 0.01);
+      enemy.y = closestY + (deltaY / distance) * (enemy.radius + 0.01);
+      return true;
+    }
+
+    if (previousPos.x < bounds.left) enemy.x = bounds.left - enemy.radius - 0.01;
+    else if (previousPos.x > bounds.right) enemy.x = bounds.right + enemy.radius + 0.01;
+    else if (previousPos.y < bounds.top) enemy.y = bounds.top - enemy.radius - 0.01;
+    else if (previousPos.y > bounds.bottom) enemy.y = bounds.bottom + enemy.radius + 0.01;
+    else {
+      const distances = [
+        { distance: enemy.x - bounds.left, set: () => { enemy.x = bounds.left - enemy.radius - 0.01; } },
+        { distance: bounds.right - enemy.x, set: () => { enemy.x = bounds.right + enemy.radius + 0.01; } },
+        { distance: enemy.y - bounds.top, set: () => { enemy.y = bounds.top - enemy.radius - 0.01; } },
+        { distance: bounds.bottom - enemy.y, set: () => { enemy.y = bounds.bottom + enemy.radius + 0.01; } },
+      ];
+      distances.sort((a, b) => a.distance - b.distance)[0].set();
+    }
+    return true;
+  }
+
   private handleRestartClick(event: MouseEvent): void {
-    if (this.state !== GameState.GAME_OVER && this.state !== GameState.VICTORY) return;
+    if (!this.isTerminalState()) return;
     const rect = this.canvas.getBoundingClientRect();
     const mouseX = (event.clientX - rect.left) * (this.canvas.width / rect.width);
     const mouseY = (event.clientY - rect.top) * (this.canvas.height / rect.height);
@@ -266,7 +351,18 @@ export class Game {
       mouseY >= this.canvas.height / 2 + 30 &&
       mouseY <= this.canvas.height / 2 + 80
     ) {
-      this.restartGame();
+      if (this.state === GameState.REGION_CLEARED || (this.state === GameState.PLANET_CLEARED && this.progression.hasNextPlanet())) {
+        this.advanceProgression();
+      } else {
+        this.restartGame();
+      }
     }
+  }
+
+  private isTerminalState(): boolean {
+    return this.state === GameState.GAME_OVER ||
+      this.state === GameState.REGION_CLEARED ||
+      this.state === GameState.PLANET_CLEARED ||
+      this.state === GameState.VICTORY;
   }
 }

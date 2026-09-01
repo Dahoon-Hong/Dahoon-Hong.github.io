@@ -9,8 +9,10 @@
 - `CORE`, `RESOURCE`, `GATHERER`, `RECYCLER`, `ARSENAL`, `COMPOSER`, `RAIL`, `POWER_PACK`, `CATERPILLAR_TRACK`, `ARMOR_PLATE`는 설치 대상이 아니다. 게임 시작 시 내장 시스템으로 활성화된다.
 - 모듈 업그레이드는 우측 `UPGRADE WEB`에서 진행한다. 모듈별 JSON의 중앙 `root`가 자동 선택되고, 같은 부모를 가진 2~3개 선택지 중 하나를 고르면 나머지 형제와 그 파생 노드는 현재 런에서 비활성화된다.
 - 탱크 콘텐츠는 `src/data/tanks/<tankId>/module.json`과 같은 디렉터리의 `<moduleId>.json`으로 구성한다. 모듈 ID가 같아도 탱크 디렉터리가 다르면 서로 다른 정의를 사용할 수 있다.
+- 코어 업그레이드는 다른 내장 시스템과 같은 `UPGRADE WEB` 선택형 트리로 처리한다. 코어 선택지는 `maxHp` 같은 성능 수치뿐 아니라 허용된 `gridColumns`·`gridRows` 확장 효과를 가질 수 있으며, 선택 시 기존 전투 모듈 배치를 보존한다.
 - 탱크별 `grid`에는 `kind: "combat"`인 모듈만 설치할 수 있다. 설치 좌표는 다중 셀 모듈의 좌상단 anchor이며, `size`가 `2x1`, `2x2`이면 모든 점유 셀이 비어 있어야 한다. 현재 회전과 철거는 지원하지 않는다.
 - 일시정지 중에는 전투 모듈 설치와 업그레이드만 진행할 수 있다. 이동, 적, 발사체, 자동 생산, 수집, 자원 변환은 멈춘다.
+- 적은 탱크의 grid 외곽을 원형 rigidbody 경계처럼 취급해 내부로 진입하지 않는다. 외곽에 접촉한 적은 진행 데이터의 `contactDamageInterval`마다 `contactDamage`를 지속 적용하며, 전투 공격으로 처치될 때까지 유지된다.
 
 ## 이전 프로토타입 공통 규칙(참고)
 

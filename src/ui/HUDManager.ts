@@ -248,8 +248,12 @@ export class HUDManager {
     ctx.font = 'bold 16px sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText('UPGRADE WEB', panelX + 12, 73);
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText(`GRID ${vehicle.gridCols}x${vehicle.gridRows}`, canvasWidth - 12, 73);
     ctx.fillStyle = '#899bb1';
     ctx.font = '11px sans-serif';
+    ctx.textAlign = 'left';
     ctx.fillText('Built-in systems are active from start', panelX + 12, 89);
 
     this.renderSubjectList(ctx, panelX, vehicle);
@@ -312,7 +316,7 @@ export class HUDManager {
     ctx.fillText(this.truncate(subject.definition.name, 20), x + 5, y + 13);
     ctx.fillStyle = '#81c784';
     ctx.textAlign = 'right';
-    ctx.fillText(`Lv.${subject.combatModule?.level ?? vehicle.systems.getLevel(subject.moduleId)}`, x + width - 5, y + 13);
+    ctx.fillText(subject.combatModule ? `Lv.${subject.combatModule.level}` : 'WEB', x + width - 5, y + 13);
     this.subjectHitboxes.push({ x, y, width, height: 18, instanceId });
   }
 

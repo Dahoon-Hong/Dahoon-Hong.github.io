@@ -8,8 +8,8 @@
     "rootId": "root",
     "nodes": [
       { "id": "root", "parentId": null, "cost": {}, "effects": [] },
-      { "id": "wide-scoop", "parentId": "root", "cost": { "resource": 30 }, "effects": [{ "stat": "collectionRadius", "operation": "add", "value": 30 }] },
-      { "id": "fast-scoop", "parentId": "root", "cost": { "resource": 30 }, "effects": [{ "stat": "collectionRadius", "operation": "add", "value": 15 }] }
+      { "id": "wide-scoop", "parentId": "root", "cost": { "matter": 30 }, "effects": [{ "stat": "collectionRadius", "operation": "add", "value": 30 }] },
+      { "id": "fast-scoop", "parentId": "root", "cost": { "matter": 30 }, "effects": [{ "stat": "collectionRadius", "operation": "add", "value": 15 }] }
     ]
   }
 }

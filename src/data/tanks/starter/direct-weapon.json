@@ -4,16 +4,16 @@
   "name": "Gatling Cannon",
   "behavior": "direct",
   "size": { "width": 1, "height": 1 },
-  "installCost": { "resource": 30 },
+  "installCost": { "matter": 30 },
   "baseStats": { "maxHp": 100, "range": 600, "damage": 30, "fireRate": 0.2, "projectileSpeed": 1000, "maxDistance": 1000 },
   "upgradeTree": {
     "rootId": "root",
     "nodes": [
       { "id": "root", "parentId": null, "cost": {}, "effects": [] },
-      { "id": "rapid-fire", "parentId": "root", "cost": { "resource": 40 }, "effects": [{ "stat": "fireRate", "operation": "multiply", "value": 0.9 }] },
-      { "id": "heavy-round", "parentId": "root", "cost": { "resource": 40 }, "effects": [{ "stat": "damage", "operation": "add", "value": 12 }] },
-      { "id": "rapid-fire-branch", "parentId": "rapid-fire", "cost": { "resource": 60 }, "effects": [{ "stat": "range", "operation": "add", "value": 80 }] },
-      { "id": "heavy-round-branch", "parentId": "heavy-round", "cost": { "resource": 60 }, "effects": [{ "stat": "damage", "operation": "add", "value": 18 }] }
+      { "id": "rapid-fire", "parentId": "root", "cost": { "matter": 40 }, "effects": [{ "stat": "fireRate", "operation": "multiply", "value": 0.9 }] },
+      { "id": "heavy-round", "parentId": "root", "cost": { "matter": 40 }, "effects": [{ "stat": "damage", "operation": "add", "value": 12 }] },
+      { "id": "rapid-fire-branch", "parentId": "rapid-fire", "cost": { "matter": 60 }, "effects": [{ "stat": "range", "operation": "add", "value": 80 }] },
+      { "id": "heavy-round-branch", "parentId": "heavy-round", "cost": { "matter": 60 }, "effects": [{ "stat": "damage", "operation": "add", "value": 18 }] }
     ]
   }
 }

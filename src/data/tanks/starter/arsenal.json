@@ -3,13 +3,13 @@
   "kind": "builtin",
   "name": "Arsenal",
   "behavior": "arsenal",
-  "baseStats": { "productionInterval": 1.5, "inputAmount": 5, "productionAmount": 1 },
+  "baseStats": { "productionInterval": 1, "inputAmount": 5, "productionAmount": 5 },
   "upgradeTree": {
     "rootId": "root",
     "nodes": [
       { "id": "root", "parentId": null, "cost": {}, "effects": [] },
-      { "id": "ammo-line", "parentId": "root", "cost": { "resource": 35 }, "effects": [{ "stat": "productionAmount", "operation": "add", "value": 1 }] },
-      { "id": "fast-loader", "parentId": "root", "cost": { "resource": 35 }, "effects": [{ "stat": "productionInterval", "operation": "multiply", "value": 0.85 }] }
+      { "id": "ammo-line", "parentId": "root", "cost": { "matter": 35 }, "effects": [{ "stat": "productionAmount", "operation": "add", "value": 1 }] },
+      { "id": "fast-loader", "parentId": "root", "cost": { "matter": 35 }, "effects": [{ "stat": "productionInterval", "operation": "multiply", "value": 0.85 }] }
     ]
   }
 }

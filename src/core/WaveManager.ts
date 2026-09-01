@@ -1,16 +1,27 @@
-import { Enemy, StandardEnemy, TankerEnemy } from '../entities/Enemy';
+import { Enemy, EnemyDefinition, EnemyType, StandardEnemy, TankerEnemy } from '../entities/Enemy';
+import { RegionDefinition } from './ProgressionManager';
 
 export class WaveManager {
   public readonly totalWaves: number;
-  public currentWave: number = 1;
-  public totalWaveEnemies: number = 12;
-  public spawnedEnemiesCount: number = 0;
-  private spawnTimer: number = 0;
-  private spawnInterval: number = 1.2;
-  public waveCleared: boolean = false;
+  public currentWave = 1;
+  public totalWaveEnemies = 0;
+  public spawnedEnemiesCount = 0;
+  public waveCleared = false;
 
-  constructor(totalWaves: number = 3) {
-    this.totalWaves = totalWaves;
+  private readonly region: RegionDefinition;
+  private readonly enemyDefinitions: Readonly<Record<EnemyType, EnemyDefinition>>;
+  private spawnTimer = 0;
+  private spawnInterval = 1.2;
+  private spawnQueue: EnemyType[] = [];
+
+  constructor(
+    region: RegionDefinition,
+    enemyDefinitions: Readonly<Record<EnemyType, EnemyDefinition>>
+  ) {
+    this.region = region;
+    this.enemyDefinitions = enemyDefinitions;
+    this.totalWaves = region.waves.length;
+    this.prepareWave();
   }
 
   public update(
@@ -21,9 +32,7 @@ export class WaveManager {
     _vehiclePos: { x: number; y: number }
   ): void {
     if (this.spawnedEnemiesCount >= this.totalWaveEnemies) {
-      if (enemies.length === 0) {
-        this.waveCleared = true;
-      }
+      if (enemies.length === 0) this.waveCleared = true;
       return;
     }
 
@@ -37,45 +46,53 @@ export class WaveManager {
 
   public nextWave(): void {
     if (this.currentWave >= this.totalWaves) return;
-
     this.currentWave++;
+    this.prepareWave();
+  }
+
+  private prepareWave(): void {
+    const wave = this.region.waves[this.currentWave - 1];
+    this.totalWaveEnemies = wave.standard + wave.tanker;
     this.spawnedEnemiesCount = 0;
-    this.totalWaveEnemies = Math.floor(12 * Math.pow(1.3, this.currentWave - 1));
-    this.spawnInterval = Math.max(0.3, 1.2 - (this.currentWave - 1) * 0.1);
+    this.spawnTimer = 0;
+    this.spawnInterval = Math.max(
+      this.region.minimumSpawnInterval,
+      this.region.spawnInterval + (this.currentWave - 1) * this.region.spawnIntervalStep
+    );
+    this.spawnQueue = [
+      ...Array<EnemyType>(wave.standard).fill('standard'),
+      ...Array<EnemyType>(wave.tanker).fill('tanker'),
+    ];
     this.waveCleared = false;
   }
 
   private spawnEnemy(enemies: Enemy[], width: number, height: number): void {
-    // Random position along screen perimeter
     let x = 0;
     let y = 0;
     const side = Math.floor(Math.random() * 4);
     const margin = 40;
 
     switch (side) {
-      case 0: // Top
+      case 0:
         x = Math.random() * width;
         y = -margin;
         break;
-      case 1: // Right
+      case 1:
         x = width + margin;
         y = Math.random() * height;
         break;
-      case 2: // Bottom
+      case 2:
         x = Math.random() * width;
         y = height + margin;
         break;
-      case 3: // Left
+      case 3:
         x = -margin;
         y = Math.random() * height;
         break;
     }
 
-    // 25% chance of Tanker enemy after wave 2
-    if (this.currentWave >= 2 && Math.random() < 0.3) {
-      enemies.push(new TankerEnemy(x, y));
-    } else {
-      enemies.push(new StandardEnemy(x, y));
-    }
+    const type = this.spawnQueue[this.spawnedEnemiesCount] ?? 'standard';
+    if (type === 'tanker') enemies.push(new TankerEnemy(x, y, this.enemyDefinitions.tanker));
+    else enemies.push(new StandardEnemy(x, y, this.enemyDefinitions.standard));
   }
 }

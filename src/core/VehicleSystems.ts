@@ -77,6 +77,16 @@ export class VehicleSystems {
     this.coreHp = Math.max(0, this.coreHp - amount);
   }
 
+  public resetRuntime(): void {
+    this.coreHp = this.getCoreMaxHp();
+    this.timers.clear();
+    this.outputs.clear();
+    for (const moduleId of this.definition.builtinModuleIds) {
+      this.timers.set(moduleId, 0);
+      if (moduleId in PRODUCTION_RULES) this.outputs.set(moduleId, 0);
+    }
+  }
+
   public getMovementSpeed(): number {
     const powerSpeed = this.getStat('power-pack', 'movementSpeed', 0);
     const trackSpeed = this.getStat('caterpillar-track', 'trackMaxSpeed', 0);

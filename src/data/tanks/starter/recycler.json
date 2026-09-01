@@ -8,8 +8,8 @@
     "rootId": "root",
     "nodes": [
       { "id": "root", "parentId": null, "cost": {}, "effects": [] },
-      { "id": "dense-recycler", "parentId": "root", "cost": { "resource": 30 }, "effects": [{ "stat": "productionAmount", "operation": "add", "value": 2 }] },
-      { "id": "rapid-recycler", "parentId": "root", "cost": { "resource": 30 }, "effects": [{ "stat": "productionInterval", "operation": "multiply", "value": 0.85 }] }
+      { "id": "dense-recycler", "parentId": "root", "cost": { "matter": 30 }, "effects": [{ "stat": "productionAmount", "operation": "add", "value": 2 }] },
+      { "id": "rapid-recycler", "parentId": "root", "cost": { "matter": 30 }, "effects": [{ "stat": "productionInterval", "operation": "multiply", "value": 0.85 }] }
     ]
   }
 }

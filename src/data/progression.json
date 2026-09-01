@@ -1,0 +1,70 @@
+{
+  "enemies": {
+    "standard": { "hp": 45, "speed": 95, "radius": 12, "reward": 10, "typeName": "Standard", "contactDamage": 10, "contactDamageInterval": 0.2 },
+    "tanker": { "hp": 160, "speed": 45, "radius": 18, "reward": 25, "typeName": "Tanker", "contactDamage": 10, "contactDamageInterval": 0.2 }
+  },
+  "planets": [
+    {
+      "id": "aurelia",
+      "name": "Aurelia",
+      "regions": [
+        {
+          "id": "landing-zone",
+          "name": "Landing Zone",
+          "spawnInterval": 1.2,
+          "spawnIntervalStep": -0.1,
+          "minimumSpawnInterval": 0.7,
+          "waves": [
+            { "standard": 12, "tanker": 0 },
+            { "standard": 10, "tanker": 2 },
+            { "standard": 8, "tanker": 4 }
+          ]
+        },
+        {
+          "id": "relay-fields",
+          "name": "Relay Fields",
+          "spawnInterval": 1.1,
+          "spawnIntervalStep": -0.08,
+          "minimumSpawnInterval": 0.6,
+          "waves": [
+            { "standard": 14, "tanker": 0 },
+            { "standard": 12, "tanker": 2 },
+            { "standard": 10, "tanker": 4 },
+            { "standard": 8, "tanker": 6 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cinder",
+      "name": "Cinder",
+      "regions": [
+        {
+          "id": "ash-basin",
+          "name": "Ash Basin",
+          "spawnInterval": 1,
+          "spawnIntervalStep": -0.08,
+          "minimumSpawnInterval": 0.55,
+          "waves": [
+            { "standard": 16, "tanker": 2 },
+            { "standard": 12, "tanker": 6 },
+            { "standard": 10, "tanker": 8 }
+          ]
+        },
+        {
+          "id": "core-ruins",
+          "name": "Core Ruins",
+          "spawnInterval": 0.9,
+          "spawnIntervalStep": -0.07,
+          "minimumSpawnInterval": 0.45,
+          "waves": [
+            { "standard": 18, "tanker": 4 },
+            { "standard": 14, "tanker": 8 },
+            { "standard": 12, "tanker": 10 },
+            { "standard": 10, "tanker": 12 }
+          ]
+        }
+      ]
+    }
+  ]
+}

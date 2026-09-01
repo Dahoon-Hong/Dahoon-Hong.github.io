@@ -8,10 +8,9 @@ export interface CombatPlacement {
 }
 
 export class CombatGrid {
-  public readonly columns: number;
-  public readonly rows: number;
-
   private readonly definition: GridDefinition;
+  private readonly baseColumns: number;
+  private readonly baseRows: number;
   private readonly modules: Readonly<Record<string, TankModuleDefinition>>;
   private readonly upgrades: UpgradeManager;
   private readonly placements: CombatPlacement[] = [];
@@ -24,10 +23,18 @@ export class CombatGrid {
     upgrades: UpgradeManager
   ) {
     this.definition = definition;
-    this.columns = definition.columns;
-    this.rows = definition.rows;
+    this.baseColumns = definition.columns;
+    this.baseRows = definition.rows;
     this.modules = modules;
     this.upgrades = upgrades;
+  }
+
+  public get columns(): number {
+    return this.getExpandedDimension('gridColumns', this.baseColumns);
+  }
+
+  public get rows(): number {
+    return this.getExpandedDimension('gridRows', this.baseRows);
   }
 
   public getCoreCell(): GridCell {
@@ -112,6 +119,15 @@ export class CombatGrid {
 
   private isIntegerCell(cell: GridCell): boolean {
     return Number.isInteger(cell.x) && Number.isInteger(cell.y);
+  }
+
+  private getExpandedDimension(stat: 'gridColumns' | 'gridRows', base: number): number {
+    try {
+      const expansion = this.upgrades.getEffectiveStats('builtin:core')[stat] ?? 0;
+      return base + Math.max(0, Math.floor(expansion));
+    } catch {
+      return base;
+    }
   }
 
   private key(x: number, y: number): string {

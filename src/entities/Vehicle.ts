@@ -8,19 +8,23 @@ export class Vehicle {
   public x: number;
   public y: number;
   public readonly tileSize = 44;
-  public readonly gridRows: number;
-  public readonly gridCols: number;
   public readonly combatGrid: CombatGrid;
   public readonly systems: VehicleSystems;
 
   constructor(startX: number, startY: number, definition: TankDefinition, upgrades: UpgradeManager) {
     this.x = startX;
     this.y = startY;
-    this.gridRows = definition.grid.rows;
-    this.gridCols = definition.grid.columns;
     this.systems = new VehicleSystems(definition, upgrades);
     this.combatGrid = new CombatGrid(definition.grid, definition.modules, upgrades);
     this.combatGrid.installInitial(definition.initialCombatModules);
+  }
+
+  public get gridRows(): number {
+    return this.combatGrid.rows;
+  }
+
+  public get gridCols(): number {
+    return this.combatGrid.columns;
   }
 
   public getCoreGridPosition(): { gx: number; gy: number } {
@@ -107,6 +111,18 @@ export class Vehicle {
     return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
   }
 
+  public getGridBounds(): { left: number; top: number; right: number; bottom: number } {
+    const topLeft = this.getModuleWorldPos(0, 0);
+    const left = topLeft.x - this.tileSize / 2;
+    const top = topLeft.y - this.tileSize / 2;
+    return {
+      left,
+      top,
+      right: left + this.gridCols * this.tileSize,
+      bottom: top + this.gridRows * this.tileSize,
+    };
+  }
+
   public takeDamage(
     amount: number,
     penetration = 0,
@@ -140,21 +156,33 @@ export class Vehicle {
     this.x += moveInput.x * movementSpeed * dt;
     this.y += moveInput.y * movementSpeed * dt;
 
-    const padding = 70;
-    this.x = Math.max(padding, Math.min(Math.max(padding, bounds.width - padding), this.x));
-    this.y = Math.max(padding, Math.min(Math.max(padding, bounds.height - padding), this.y));
+    const core = this.getCoreGridPosition();
+    const leftPadding = core.gx * this.tileSize + this.tileSize / 2 + 6;
+    const topPadding = core.gy * this.tileSize + this.tileSize / 2 + 6;
+    const rightPadding = (this.gridCols - 1 - core.gx) * this.tileSize + this.tileSize / 2 + 6;
+    const bottomPadding = (this.gridRows - 1 - core.gy) * this.tileSize + this.tileSize / 2 + 6;
+    this.x = Math.max(leftPadding, Math.min(Math.max(leftPadding, bounds.width - rightPadding), this.x));
+    this.y = Math.max(topPadding, Math.min(Math.max(topPadding, bounds.height - bottomPadding), this.y));
+  }
+
+  public resetRuntime(): void {
+    this.systems.resetRuntime();
+    for (const module of this.getCombatModules()) module.resetRuntime();
   }
 
   public render(ctx: CanvasRenderingContext2D): void {
     ctx.save();
 
+    const gridBounds = this.getGridBounds();
+    const frameX = gridBounds.left - 6;
+    const frameY = gridBounds.top - 6;
     const frameWidth = this.gridCols * this.tileSize + 12;
     const frameHeight = this.gridRows * this.tileSize + 12;
     ctx.fillStyle = '#1e1e2d';
     ctx.strokeStyle = '#4deaea';
     ctx.lineWidth = 2;
-    ctx.fillRect(this.x - frameWidth / 2, this.y - frameHeight / 2, frameWidth, frameHeight);
-    ctx.strokeRect(this.x - frameWidth / 2, this.y - frameHeight / 2, frameWidth, frameHeight);
+    ctx.fillRect(frameX, frameY, frameWidth, frameHeight);
+    ctx.strokeRect(frameX, frameY, frameWidth, frameHeight);
 
     for (let gy = 0; gy < this.gridRows; gy++) {
       for (let gx = 0; gx < this.gridCols; gx++) {

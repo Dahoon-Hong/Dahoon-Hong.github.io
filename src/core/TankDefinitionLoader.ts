@@ -83,6 +83,8 @@ const ALLOWED_STATS = new Set([
   'trackMaxSpeed',
   'rotationSpeed',
   'armorValue',
+  'gridColumns',
+  'gridRows',
   'productionAmount',
   'productionInterval',
   'collectionRadius',
@@ -161,6 +163,12 @@ function parseEffects(value: unknown, path: string): UpgradeEffect[] {
     const operation = requiredString(record.operation, `${effectPath}.operation`);
     if (operation !== 'add' && operation !== 'multiply') {
       fail(`${effectPath}.operation`, `unsupported operation '${operation}'`);
+    }
+    if (stat === 'gridColumns' || stat === 'gridRows') {
+      if (operation !== 'add') fail(`${effectPath}.operation`, `${stat} only supports 'add'`);
+      if (!Number.isInteger(record.value) || Number(record.value) <= 0) {
+        fail(`${effectPath}.value`, `${stat} must be a positive integer`);
+      }
     }
 
     return {
@@ -282,6 +290,13 @@ function parseModuleDefinition(value: unknown, path: string, expectedId: string)
       height: requiredInteger(sizeRecord.height, `${path}.size.height`, 1),
     };
     definition.installCost = parseCost(record.installCost, `${path}.installCost`);
+  }
+
+  if (kind !== 'builtin' || definition.behavior !== 'core') {
+    const hasGridEffect = definition.upgradeTree.nodes.some((node) =>
+      node.effects.some((effect) => effect.stat === 'gridColumns' || effect.stat === 'gridRows')
+    );
+    if (hasGridEffect) fail(`${path}.upgradeTree`, 'grid expansion effects are only allowed on the core');
   }
 
   return definition;

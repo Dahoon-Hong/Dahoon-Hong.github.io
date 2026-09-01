@@ -3,13 +3,13 @@
   "kind": "builtin",
   "name": "Matter Composer",
   "behavior": "composer",
-  "baseStats": { "productionInterval": 2.5, "inputAmount": 10, "productionAmount": 1 },
+  "baseStats": { "productionInterval": 2, "inputAmount": 10, "productionAmount": 5 },
   "upgradeTree": {
     "rootId": "root",
     "nodes": [
       { "id": "root", "parentId": null, "cost": {}, "effects": [] },
-      { "id": "nano-yield", "parentId": "root", "cost": { "resource": 35 }, "effects": [{ "stat": "productionAmount", "operation": "add", "value": 1 }] },
-      { "id": "nano-cycle", "parentId": "root", "cost": { "resource": 35 }, "effects": [{ "stat": "productionInterval", "operation": "multiply", "value": 0.85 }] }
+      { "id": "nano-yield", "parentId": "root", "cost": { "matter": 35 }, "effects": [{ "stat": "productionAmount", "operation": "add", "value": 1 }] },
+      { "id": "nano-cycle", "parentId": "root", "cost": { "matter": 35 }, "effects": [{ "stat": "productionInterval", "operation": "multiply", "value": 0.85 }] }
     ]
   }
 }

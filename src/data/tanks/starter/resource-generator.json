@@ -8,8 +8,8 @@
     "rootId": "root",
     "nodes": [
       { "id": "root", "parentId": null, "cost": {}, "effects": [] },
-      { "id": "efficient-generator", "parentId": "root", "cost": { "resource": 30 }, "effects": [{ "stat": "productionInterval", "operation": "multiply", "value": 0.85 }] },
-      { "id": "larger-generator", "parentId": "root", "cost": { "resource": 30 }, "effects": [{ "stat": "productionAmount", "operation": "add", "value": 5 }] }
+      { "id": "efficient-generator", "parentId": "root", "cost": { "matter": 30 }, "effects": [{ "stat": "productionInterval", "operation": "multiply", "value": 0.85 }] },
+      { "id": "larger-generator", "parentId": "root", "cost": { "matter": 30 }, "effects": [{ "stat": "productionAmount", "operation": "add", "value": 5 }] }
     ]
   }
 }

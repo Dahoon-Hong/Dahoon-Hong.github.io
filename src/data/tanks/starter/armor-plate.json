@@ -8,8 +8,8 @@
     "rootId": "root",
     "nodes": [
       { "id": "root", "parentId": null, "cost": {}, "effects": [] },
-      { "id": "thick-plate", "parentId": "root", "cost": { "resource": 35 }, "effects": [{ "stat": "armorValue", "operation": "add", "value": 10 }] },
-      { "id": "angled-plate", "parentId": "root", "cost": { "resource": 35 }, "effects": [{ "stat": "armorValue", "operation": "add", "value": 5 }] }
+      { "id": "thick-plate", "parentId": "root", "cost": { "matter": 35 }, "effects": [{ "stat": "armorValue", "operation": "add", "value": 10 }] },
+      { "id": "angled-plate", "parentId": "root", "cost": { "matter": 35 }, "effects": [{ "stat": "armorValue", "operation": "add", "value": 5 }] }
     ]
   }
 }

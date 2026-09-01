@@ -1,3 +1,35 @@
+export type EnemyType = 'standard' | 'tanker';
+
+export interface EnemyDefinition {
+  hp: number;
+  speed: number;
+  radius: number;
+  reward: number;
+  typeName: string;
+  contactDamage: number;
+  contactDamageInterval: number;
+}
+
+const DEFAULT_STANDARD_DEFINITION: EnemyDefinition = {
+  hp: 45,
+  speed: 95,
+  radius: 12,
+  reward: 10,
+  typeName: 'Standard',
+  contactDamage: 10,
+  contactDamageInterval: 0.2,
+};
+
+const DEFAULT_TANKER_DEFINITION: EnemyDefinition = {
+  hp: 160,
+  speed: 45,
+  radius: 18,
+  reward: 25,
+  typeName: 'Tanker',
+  contactDamage: 10,
+  contactDamageInterval: 0.2,
+};
+
 export abstract class Enemy {
   public x: number;
   public y: number;
@@ -7,7 +39,10 @@ export abstract class Enemy {
   public radius: number;
   public reward: number;
   public typeName: string;
+  public readonly contactDamage: number;
+  public readonly contactDamageInterval: number;
   private dead: boolean = false;
+  private contactDamageTimer = 0;
 
   constructor(
     x: number,
@@ -16,7 +51,9 @@ export abstract class Enemy {
     speed: number,
     radius: number,
     reward: number,
-    typeName: string
+    typeName: string,
+    contactDamage = 10,
+    contactDamageInterval = 0.2
   ) {
     this.x = x;
     this.y = y;
@@ -26,6 +63,8 @@ export abstract class Enemy {
     this.radius = radius;
     this.reward = reward;
     this.typeName = typeName;
+    this.contactDamage = contactDamage;
+    this.contactDamageInterval = contactDamageInterval;
   }
 
   public isDead(): boolean {
@@ -45,6 +84,8 @@ export abstract class Enemy {
   public update(dt: number, targetPos: { x: number; y: number }): void {
     if (this.isDead()) return;
 
+    this.contactDamageTimer = Math.max(0, this.contactDamageTimer - dt);
+
     const dx = targetPos.x - this.x;
     const dy = targetPos.y - this.y;
     const dist = Math.hypot(dx, dy);
@@ -53,6 +94,12 @@ export abstract class Enemy {
       this.x += (dx / dist) * this.speed * dt;
       this.y += (dy / dist) * this.speed * dt;
     }
+  }
+
+  public tryContactDamage(): boolean {
+    if (this.contactDamageTimer > 0) return false;
+    this.contactDamageTimer = this.contactDamageInterval;
+    return true;
   }
 
   public abstract render(ctx: CanvasRenderingContext2D): void;
@@ -75,8 +122,18 @@ export abstract class Enemy {
 }
 
 export class StandardEnemy extends Enemy {
-  constructor(x: number, y: number) {
-    super(x, y, 45, 95, 12, 10, 'Standard');
+  constructor(x: number, y: number, definition: EnemyDefinition = DEFAULT_STANDARD_DEFINITION) {
+    super(
+      x,
+      y,
+      definition.hp,
+      definition.speed,
+      definition.radius,
+      definition.reward,
+      definition.typeName,
+      definition.contactDamage,
+      definition.contactDamageInterval
+    );
   }
 
   public render(ctx: CanvasRenderingContext2D): void {
@@ -96,8 +153,18 @@ export class StandardEnemy extends Enemy {
 }
 
 export class TankerEnemy extends Enemy {
-  constructor(x: number, y: number) {
-    super(x, y, 160, 45, 18, 25, 'Tanker');
+  constructor(x: number, y: number, definition: EnemyDefinition = DEFAULT_TANKER_DEFINITION) {
+    super(
+      x,
+      y,
+      definition.hp,
+      definition.speed,
+      definition.radius,
+      definition.reward,
+      definition.typeName,
+      definition.contactDamage,
+      definition.contactDamageInterval
+    );
   }
 
   public render(ctx: CanvasRenderingContext2D): void {
