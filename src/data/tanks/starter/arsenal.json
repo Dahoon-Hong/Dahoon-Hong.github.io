@@ -3,7 +3,7 @@
   "kind": "builtin",
   "name": "Arsenal",
   "behavior": "arsenal",
-  "baseStats": { "productionInterval": 1, "inputAmount": 5, "productionAmount": 5 },
+  "baseStats": { "productionInterval": 3, "inputAmount": 5, "productionAmount": 5 },
   "upgradeTree": {
     "rootId": "root",
     "nodes": [

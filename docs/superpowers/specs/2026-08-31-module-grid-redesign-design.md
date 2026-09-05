@@ -335,8 +335,7 @@ Canvas를 유지하고 `HUDManager`가 우측 고정 패널을 그린다. 별도
 - `plans/system.md`: 내장 시스템/전투 모듈/JSON/다중 칸 규칙으로 갱신
 - `plans/user_guide.md`: 우측 업그레이드 패널과 전투 모듈 전용 그리드 안내로 갱신
 - `plans/implementation/07-progression-content.md`: 기존 일반 모듈·코어 레벨 업 계획을 새 트리 데이터 계획으로 갱신
-- `plans/implementation/08-ui-tutorial-polish.md`: 하단 상점 전제와 단일 업그레이드 버튼을 제거하고 그래프 UI 튜토리얼로 갱신
-- `plans/implementation/10-module-redesign.md`: 구현 단계·검증 시나리오·완료 기준 추가
+- `plans/implementation/99-ui-tutorial-polish.md`: 하단 상점 전제와 단일 업그레이드 버튼을 제거하고 그래프 UI 튜토리얼로 갱신
 
 ## 9. 구현 순서
 
