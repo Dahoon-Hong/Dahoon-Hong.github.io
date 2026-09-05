@@ -1,0 +1,253 @@
+{
+  "version": 1,
+  "sprites": {
+    "tank.starter.frame.center": {
+      "src": "/assets/game/tank/starter-frame-center.png",
+      "draw": { "width": 44, "height": 44 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.tank.starter"
+    },
+    "tank.starter.frame.edge": {
+      "src": "/assets/game/tank/starter-frame-edge.png",
+      "draw": { "width": 44, "height": 44 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.tank.frame.edge"
+    },
+    "tank.starter.frame.corner": {
+      "src": "/assets/game/tank/starter-frame-corner.png",
+      "draw": { "width": 44, "height": 44 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.tank.frame.corner"
+    },
+    "tank.grid.empty": {
+      "src": "/assets/game/tank/grid-empty.png",
+      "draw": { "width": 44, "height": 44 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.tank.grid.empty"
+    },
+    "tank.grid.blocked": {
+      "src": "/assets/game/tank/grid-blocked.png",
+      "draw": { "width": 44, "height": 44 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.tank.grid.blocked"
+    },
+    "tank.grid.core": {
+      "src": "/assets/game/tank/grid-core.png",
+      "draw": { "width": 44, "height": 44 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.tank.grid.core"
+    },
+    "tank.module.direct-weapon": {
+      "src": "/assets/game/tank/module-direct-weapon.png",
+      "draw": { "width": 44, "height": 44 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.tank.module.direct-weapon"
+    },
+    "tank.module.arc-weapon": {
+      "src": "/assets/game/tank/module-arc-weapon.png",
+      "draw": { "width": 88, "height": 44 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.tank.module.arc-weapon"
+    },
+    "enemy.standard.idle": {
+      "src": "/assets/game/enemies/standard-idle.png",
+      "draw": { "width": 24, "height": 24 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.enemy.standard"
+    },
+    "enemy.standard.hit": {
+      "src": "/assets/game/enemies/standard-hit.png",
+      "draw": { "width": 24, "height": 24 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.enemy.standard"
+    },
+    "enemy.standard.dead": {
+      "src": "/assets/game/enemies/standard-dead.png",
+      "draw": { "width": 24, "height": 24 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.enemy.standard"
+    },
+    "enemy.tanker.idle": {
+      "src": "/assets/game/enemies/tanker-idle.png",
+      "draw": { "width": 36, "height": 36 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.enemy.tanker"
+    },
+    "enemy.tanker.hit": {
+      "src": "/assets/game/enemies/tanker-hit.png",
+      "draw": { "width": 36, "height": 36 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.enemy.tanker"
+    },
+    "enemy.tanker.dead": {
+      "src": "/assets/game/enemies/tanker-dead.png",
+      "draw": { "width": 36, "height": 36 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.enemy.tanker"
+    },
+    "enemy.shadow.standard": {
+      "src": "/assets/game/enemies/shadow-standard.png",
+      "draw": { "width": 24, "height": 12 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "ground",
+      "fallback": "shape.shadow.enemy.standard"
+    },
+    "enemy.shadow.tanker": {
+      "src": "/assets/game/enemies/shadow-tanker.png",
+      "draw": { "width": 36, "height": 18 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "ground",
+      "fallback": "shape.shadow.enemy.tanker"
+    },
+    "effect.enemy.contact": {
+      "src": "/assets/game/enemies/contact-signal.png",
+      "draw": { "width": 48, "height": 48 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "effects",
+      "fallback": "shape.effect.enemy.contact"
+    },
+    "resource.resource.idle": {
+      "src": "/assets/game/resources/resource-idle.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.resource.resource"
+    },
+    "ui.icon.resource": {
+      "src": "/assets/game/ui/icon-resource.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.resource"
+    },
+    "ui.icon.core": {
+      "src": "/assets/game/ui/icon-core.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.core"
+    },
+    "ui.icon.resource-generator": {
+      "src": "/assets/game/ui/icon-resource-generator.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.resource-generator"
+    },
+    "ui.icon.gatherer": {
+      "src": "/assets/game/ui/icon-gatherer.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.gatherer"
+    },
+    "ui.icon.recycler": {
+      "src": "/assets/game/ui/icon-recycler.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.recycler"
+    },
+    "ui.icon.arsenal": {
+      "src": "/assets/game/ui/icon-arsenal.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.arsenal"
+    },
+    "ui.icon.composer": {
+      "src": "/assets/game/ui/icon-composer.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.composer"
+    },
+    "ui.icon.rail": {
+      "src": "/assets/game/ui/icon-rail.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.rail"
+    },
+    "ui.icon.power-pack": {
+      "src": "/assets/game/ui/icon-power-pack.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.power-pack"
+    },
+    "ui.icon.caterpillar-track": {
+      "src": "/assets/game/ui/icon-caterpillar-track.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.caterpillar-track"
+    },
+    "ui.icon.armor-plate": {
+      "src": "/assets/game/ui/icon-armor-plate.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.armor-plate"
+    },
+    "ui.icon.direct-weapon": {
+      "src": "/assets/game/ui/icon-direct-weapon.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.direct-weapon"
+    },
+    "ui.icon.arc-weapon": {
+      "src": "/assets/game/ui/icon-arc-weapon.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.arc-weapon"
+    }
+  }
+}
