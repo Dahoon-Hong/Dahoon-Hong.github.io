@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "maps": [
+    {
+      "planetId": "aurelia",
+      "regionId": "landing-zone",
+      "backgroundAsset": "map.aurelia.landing-zone.background",
+      "tileAssets": ["map.aurelia.landing-zone.tile-variant-1"],
+      "propAssets": ["map.aurelia.landing-zone.debris"],
+      "spawnEdgeAsset": "map.aurelia.landing-zone.spawn-edge",
+      "repeat": { "background": false, "tile": true },
+      "safeMargin": { "top": 64, "right": 64, "bottom": 64, "left": 64 },
+      "gameplay": { "decorativeOnly": true }
+    },
+    {
+      "planetId": "aurelia",
+      "regionId": "relay-fields",
+      "backgroundAsset": "map.aurelia.relay-fields.background",
+      "tileAssets": ["map.aurelia.relay-fields.tile-variant-1"],
+      "propAssets": ["map.aurelia.relay-fields.debris"],
+      "spawnEdgeAsset": "map.aurelia.relay-fields.spawn-edge",
+      "repeat": { "background": false, "tile": true },
+      "safeMargin": { "top": 64, "right": 64, "bottom": 64, "left": 64 },
+      "gameplay": { "decorativeOnly": true }
+    },
+    {
+      "planetId": "cinder",
+      "regionId": "ash-basin",
+      "backgroundAsset": "map.cinder.ash-basin.background",
+      "tileAssets": ["map.cinder.ash-basin.tile-variant-1"],
+      "propAssets": ["map.cinder.ash-basin.debris"],
+      "spawnEdgeAsset": "map.cinder.ash-basin.spawn-edge",
+      "repeat": { "background": false, "tile": true },
+      "safeMargin": { "top": 64, "right": 64, "bottom": 64, "left": 64 },
+      "gameplay": { "decorativeOnly": true }
+    },
+    {
+      "planetId": "cinder",
+      "regionId": "core-ruins",
+      "backgroundAsset": "map.cinder.core-ruins.background",
+      "tileAssets": ["map.cinder.core-ruins.tile-variant-1"],
+      "propAssets": ["map.cinder.core-ruins.debris"],
+      "spawnEdgeAsset": "map.cinder.core-ruins.spawn-edge",
+      "repeat": { "background": false, "tile": true },
+      "safeMargin": { "top": 64, "right": 64, "bottom": 64, "left": 64 },
+      "gameplay": { "decorativeOnly": true }
+    }
+  ]
+}

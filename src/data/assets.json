@@ -248,6 +248,262 @@
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "hud",
       "fallback": "shape.icon.arc-weapon"
+    },
+    "resource.resource.collect": {
+      "src": "/assets/game/resources/resource-collect.png",
+      "draw": { "width": 32, "height": 32 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "effects",
+      "fallback": "shape.effect.resource.collect"
+    },
+    "resource.debris.idle": {
+      "src": "/assets/game/resources/resource-debris.png",
+      "draw": { "width": 24, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "ground",
+      "fallback": "shape.resource.debris"
+    },
+    "effect.projectile.direct": {
+      "src": "/assets/game/effects/projectile-direct.png",
+      "draw": { "width": 16, "height": 8 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "projectiles",
+      "fallback": "shape.projectile.direct"
+    },
+    "effect.projectile.direct-hit": {
+      "src": "/assets/game/effects/projectile-direct-hit.png",
+      "draw": { "width": 24, "height": 24 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "effects",
+      "fallback": "shape.effect.projectile.direct-hit"
+    },
+    "effect.projectile.arc": {
+      "src": "/assets/game/effects/projectile-arc.png",
+      "draw": { "width": 14, "height": 14 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "projectiles",
+      "fallback": "shape.projectile.arc"
+    },
+    "effect.projectile.arc-target": {
+      "src": "/assets/game/effects/projectile-arc-target.png",
+      "draw": { "width": 64, "height": 64 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "effects",
+      "fallback": "shape.effect.projectile.arc-target"
+    },
+    "effect.explosion.arc": {
+      "src": "/assets/game/effects/explosion-arc.png",
+      "draw": { "width": 64, "height": 64 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "effects",
+      "fallback": "shape.effect.explosion.arc"
+    },
+    "effect.enemy.hit": {
+      "src": "/assets/game/effects/enemy-hit.png",
+      "draw": { "width": 28, "height": 28 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "effects",
+      "fallback": "shape.effect.enemy.hit"
+    },
+    "effect.enemy.dead": {
+      "src": "/assets/game/effects/enemy-dead.png",
+      "draw": { "width": 36, "height": 36 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "effects",
+      "fallback": "shape.effect.enemy.dead"
+    },
+    "effect.contact-damage": {
+      "src": "/assets/game/effects/contact-damage.png",
+      "draw": { "width": 48, "height": 48 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "effects",
+      "fallback": "shape.effect.contact-damage"
+    },
+    "effect.armor-absorb": {
+      "src": "/assets/game/effects/armor-absorb.png",
+      "draw": { "width": 32, "height": 32 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "effects",
+      "fallback": "shape.effect.armor-absorb"
+    },
+    "effect.core-damage": {
+      "src": "/assets/game/effects/core-damage.png",
+      "draw": { "width": 56, "height": 56 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "effects",
+      "fallback": "shape.effect.core-damage"
+    },
+    "resource.icon.matter": {
+      "src": "/assets/game/ui/icon-matter.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.matter"
+    },
+    "resource.icon.ammo": {
+      "src": "/assets/game/ui/icon-ammo.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.ammo"
+    },
+    "resource.icon.nano": {
+      "src": "/assets/game/ui/icon-nano.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.nano"
+    },
+    "map.common.field-base": {
+      "src": "/assets/game/maps/field-base.png",
+      "draw": { "width": 940, "height": 720 },
+      "pivot": { "x": 0, "y": 0 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "map",
+      "fallback": "shape.map.field-base"
+    },
+    "map.aurelia.landing-zone.background": {
+      "src": "/assets/game/maps/aurelia-landing-zone-background.png",
+      "draw": { "width": 940, "height": 720 },
+      "pivot": { "x": 0, "y": 0 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "map",
+      "fallback": "shape.map.background"
+    },
+    "map.aurelia.landing-zone.tile-variant-1": {
+      "src": "/assets/game/maps/aurelia-landing-zone-tile-variant-1.png",
+      "draw": { "width": 96, "height": 96 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "map",
+      "fallback": "shape.map.tile"
+    },
+    "map.aurelia.landing-zone.debris": {
+      "src": "/assets/game/maps/aurelia-landing-zone-debris.png",
+      "draw": { "width": 48, "height": 48 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "map",
+      "fallback": "shape.map.debris"
+    },
+    "map.aurelia.landing-zone.spawn-edge": {
+      "src": "/assets/game/maps/aurelia-landing-zone-spawn-edge.png",
+      "draw": { "width": 940, "height": 64 },
+      "pivot": { "x": 0, "y": 0 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "map",
+      "fallback": "shape.map.spawn-edge"
+    },
+    "map.aurelia.relay-fields.background": {
+      "src": "/assets/game/maps/aurelia-relay-fields-background.png",
+      "draw": { "width": 940, "height": 720 },
+      "pivot": { "x": 0, "y": 0 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "map",
+      "fallback": "shape.map.background"
+    },
+    "map.aurelia.relay-fields.tile-variant-1": {
+      "src": "/assets/game/maps/aurelia-relay-fields-tile-variant-1.png",
+      "draw": { "width": 96, "height": 96 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "map",
+      "fallback": "shape.map.tile"
+    },
+    "map.aurelia.relay-fields.debris": {
+      "src": "/assets/game/maps/aurelia-relay-fields-debris.png",
+      "draw": { "width": 48, "height": 48 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "map",
+      "fallback": "shape.map.debris"
+    },
+    "map.aurelia.relay-fields.spawn-edge": {
+      "src": "/assets/game/maps/aurelia-relay-fields-spawn-edge.png",
+      "draw": { "width": 940, "height": 64 },
+      "pivot": { "x": 0, "y": 0 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "map",
+      "fallback": "shape.map.spawn-edge"
+    },
+    "map.cinder.ash-basin.background": {
+      "src": "/assets/game/maps/cinder-ash-basin-background.png",
+      "draw": { "width": 940, "height": 720 },
+      "pivot": { "x": 0, "y": 0 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "map",
+      "fallback": "shape.map.background"
+    },
+    "map.cinder.ash-basin.tile-variant-1": {
+      "src": "/assets/game/maps/cinder-ash-basin-tile-variant-1.png",
+      "draw": { "width": 96, "height": 96 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "map",
+      "fallback": "shape.map.tile"
+    },
+    "map.cinder.ash-basin.debris": {
+      "src": "/assets/game/maps/cinder-ash-basin-debris.png",
+      "draw": { "width": 48, "height": 48 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "map",
+      "fallback": "shape.map.debris"
+    },
+    "map.cinder.ash-basin.spawn-edge": {
+      "src": "/assets/game/maps/cinder-ash-basin-spawn-edge.png",
+      "draw": { "width": 940, "height": 64 },
+      "pivot": { "x": 0, "y": 0 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "map",
+      "fallback": "shape.map.spawn-edge"
+    },
+    "map.cinder.core-ruins.background": {
+      "src": "/assets/game/maps/cinder-core-ruins-background.png",
+      "draw": { "width": 940, "height": 720 },
+      "pivot": { "x": 0, "y": 0 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "map",
+      "fallback": "shape.map.background"
+    },
+    "map.cinder.core-ruins.tile-variant-1": {
+      "src": "/assets/game/maps/cinder-core-ruins-tile-variant-1.png",
+      "draw": { "width": 96, "height": 96 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "map",
+      "fallback": "shape.map.tile"
+    },
+    "map.cinder.core-ruins.debris": {
+      "src": "/assets/game/maps/cinder-core-ruins-debris.png",
+      "draw": { "width": 48, "height": 48 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "map",
+      "fallback": "shape.map.debris"
+    },
+    "map.cinder.core-ruins.spawn-edge": {
+      "src": "/assets/game/maps/cinder-core-ruins-spawn-edge.png",
+      "draw": { "width": 940, "height": 64 },
+      "pivot": { "x": 0, "y": 0 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "map",
+      "fallback": "shape.map.spawn-edge"
     }
   }
 }
