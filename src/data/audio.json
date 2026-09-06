@@ -102,6 +102,23 @@
       "modificationSummary": "Web Audio synthesis at runtime",
       "attribution": "No third-party asset",
       "reviewNote": "No external recording or sample is used."
+    },
+    "music.gameplay.default": {
+      "src": "procedural://music-gameplay-default",
+      "kind": "music",
+      "bus": "music",
+      "licenseStatus": "approved",
+      "licenseName": "Direct synthesis (project-authored)",
+      "sourceUrl": "internal://audio-procedural",
+      "licenseUrl": "internal://audio-procedural",
+      "creator": "Platform Vehicle Defense project",
+      "downloadedAt": null,
+      "originalSha256": null,
+      "runtimeSha256": null,
+      "modified": false,
+      "modificationSummary": "Eight-second Web Audio synthesis buffer generated at runtime",
+      "attribution": "No third-party asset",
+      "reviewNote": "No external recording, loop, sample, or AI-generated music is used."
     }
   }
 }

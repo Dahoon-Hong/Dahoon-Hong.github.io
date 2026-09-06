@@ -12,6 +12,8 @@ interface HUDCallbacks {
   getUpgradeManager: () => UpgradeManager;
   spendCost: (cost: ResourceCost) => boolean;
   onUpgradeSuccess: () => void;
+  getMusicVolume: () => number;
+  onMusicControl: () => void;
 }
 
 interface Rect {
@@ -55,6 +57,9 @@ export class HUDManager {
   private installHitboxes: InstallHitbox[] = [];
   private subjectHitboxes: Array<Rect & { instanceId: string }> = [];
   private getUpgradeManager: (() => UpgradeManager) | null = null;
+  private getMusicVolume: (() => number) | null = null;
+  private onMusicControl: (() => void) | null = null;
+  private musicControlRect: Rect | null = null;
   private pointer: { x: number; y: number } | null = null;
 
   public setupMouseListeners(
@@ -63,6 +68,8 @@ export class HUDManager {
     viewport: LogicalViewport = { width: canvas.width, height: canvas.height },
   ): void {
     this.getUpgradeManager = callbacks.getUpgradeManager;
+    this.getMusicVolume = callbacks.getMusicVolume;
+    this.onMusicControl = callbacks.onMusicControl;
     canvas.addEventListener('mousemove', (event) => {
       this.pointer = this.toCanvasPoint(canvas, event, viewport);
     });
@@ -78,6 +85,11 @@ export class HUDManager {
 
       if (mouseX >= panelX) {
         if (this.handlePanelClick(mouseX, mouseY, callbacks, vehicle)) return;
+        return;
+      }
+
+      if (this.musicControlRect && this.contains(this.musicControlRect, mouseX, mouseY)) {
+        this.onMusicControl?.();
         return;
       }
 
@@ -249,6 +261,25 @@ export class HUDManager {
     ctx.fillText(`${enemiesRemaining} HOSTILES`, waveX + 20, 35);
 
     const controlsX = Math.max(waveX + 98, gameplayWidth - 178);
+    ctx.fillStyle = theme.textMuted;
+    ctx.font = '10px sans-serif';
+    const musicRect = { x: gameplayWidth - 88, y: 5, width: 84, height: 36 };
+    this.musicControlRect = musicRect;
+    const musicVolume = this.getMusicVolume?.() ?? 0;
+    ctx.fillStyle = musicVolume > 0 ? theme.surfaceSelected : theme.surfaceDisabled;
+    ctx.fillRect(musicRect.x, musicRect.y, musicRect.width, musicRect.height);
+    ctx.strokeStyle = musicVolume > 0 ? theme.accent : theme.borderMuted;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(musicRect.x, musicRect.y, musicRect.width, musicRect.height);
+    ctx.fillStyle = musicVolume > 0 ? theme.textPrimary : theme.textDisabled;
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(
+      musicVolume > 0 ? 'MUSIC ' + Math.round(musicVolume * 100) + '%' : 'MUSIC OFF',
+      musicRect.x + musicRect.width / 2,
+      musicRect.y + 22
+    );
+    ctx.textAlign = 'left';
     ctx.fillStyle = theme.textMuted;
     ctx.font = '10px sans-serif';
     ctx.fillText('WASD MOVE', controlsX, 19);

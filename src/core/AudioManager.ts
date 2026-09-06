@@ -11,6 +11,10 @@ export const SOUND_EFFECT_IDS = [
 
 export type SoundEffectId = (typeof SOUND_EFFECT_IDS)[number];
 
+export const MUSIC_IDS = ['music.gameplay.default'] as const;
+
+export type MusicId = (typeof MUSIC_IDS)[number];
+
 interface AudioManifestEntry {
   src: string;
   kind: string;
@@ -45,6 +49,13 @@ interface Voice {
   release: () => void;
 }
 
+interface StoredAudioSettings {
+  masterVolume?: number;
+  sfxVolume?: number;
+  musicVolume?: number;
+  muted?: boolean;
+}
+
 type AudioContextConstructor = new () => AudioContext;
 type AudioWindow = Window & {
   AudioContext?: AudioContextConstructor;
@@ -66,32 +77,44 @@ export class AudioManager {
   private context: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private sfxGain: GainNode | null = null;
+  private musicGain: GainNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
+  private musicBuffer: AudioBuffer | null = null;
+  private musicSource: AudioBufferSourceNode | null = null;
   private readonly activeSources = new Set<AudioScheduledSourceNode>();
   private readonly activeVoices = new Map<SoundEffectId, number>();
   private readonly cooldowns = new Map<string, number>();
   private readonly validationErrors: string[] = [];
   private masterVolume = 1;
   private sfxVolume = 0.8;
+  private musicVolume = 0.4;
   private muted = false;
+  private musicRequested = false;
+  private requestedMusicId: MusicId = 'music.gameplay.default';
+  private musicDucked = false;
+  private userGestureSeen = false;
+  private resumePending = false;
   private gestureTarget: Window | null = null;
 
   private readonly unlockAudio = (): void => {
+    this.userGestureSeen = true;
     void this.ensureReady();
   };
 
   public constructor() {
+    this.loadSettings();
     if (!Number.isInteger(manifest.version)) {
       this.validationErrors.push('Audio manifest version is invalid.');
     }
 
-    for (const id of SOUND_EFFECT_IDS) {
+    for (const id of [...SOUND_EFFECT_IDS, ...MUSIC_IDS]) {
       const entry = manifest.sounds?.[id];
       if (!entry) {
         this.validationErrors.push('Missing audio manifest entry: ' + id);
         continue;
       }
-      if (entry.kind !== 'sfx' || entry.bus !== 'sfx') {
+      const expectedKind = MUSIC_IDS.includes(id as MusicId) ? 'music' : 'sfx';
+      if (entry.kind !== expectedKind || entry.bus !== expectedKind) {
         this.validationErrors.push('Audio entry has an invalid kind or bus: ' + id);
       }
       if (entry.licenseStatus !== 'approved') {
@@ -122,28 +145,109 @@ export class AudioManager {
     owner.addEventListener('pointerdown', this.unlockAudio, { passive: true });
     owner.addEventListener('keydown', this.unlockAudio);
     owner.addEventListener('touchstart', this.unlockAudio, { passive: true });
+    owner.addEventListener('visibilitychange', () => {
+      if (!owner.document.hidden) void this.ensureReady();
+    });
   }
 
   public setMuted(muted: boolean): void {
     this.muted = muted;
-    if (this.sfxGain) this.sfxGain.gain.value = muted ? 0 : this.sfxVolume;
+    if (this.masterGain) this.masterGain.gain.value = muted ? 0 : this.masterVolume;
+    this.applyMusicGain();
+    this.saveSettings();
   }
 
   public setMasterVolume(volume: number): void {
     this.masterVolume = Math.max(0, Math.min(1, volume));
     if (this.masterGain) this.masterGain.gain.value = this.muted ? 0 : this.masterVolume;
+    this.saveSettings();
   }
 
   public setSfxVolume(volume: number): void {
     this.sfxVolume = Math.max(0, Math.min(1, volume));
-    if (this.sfxGain) this.sfxGain.gain.value = this.muted ? 0 : this.sfxVolume;
+    if (this.sfxGain) this.sfxGain.gain.value = this.sfxVolume;
+    this.saveSettings();
+  }
+
+  public setMusicVolume(volume: number): void {
+    this.musicVolume = Math.max(0, Math.min(1, volume));
+    this.applyMusicGain();
+    this.saveSettings();
+  }
+
+  public getMusicVolume(): number {
+    return this.musicVolume;
+  }
+
+  public isMusicMuted(): boolean {
+    return this.muted || this.musicVolume <= 0;
+  }
+
+  public cycleMusicVolume(): void {
+    const levels = [0, 0.2, 0.4];
+    const currentIndex = levels.findIndex((level) => Math.abs(level - this.musicVolume) < 0.01);
+    this.setMusicVolume(levels[currentIndex >= 0 ? (currentIndex + 1) % levels.length : 0]);
+  }
+
+  public setMusicDucked(ducked: boolean): void {
+    this.musicDucked = ducked;
+    this.applyMusicGain(0.12);
+  }
+
+  public playMusic(id: MusicId = 'music.gameplay.default'): void {
+    const entry = manifest.sounds?.[id];
+    if (!entry || entry.kind !== 'music' || entry.bus !== 'music' ||
+      entry.licenseStatus !== 'approved' || entry.src.indexOf('procedural://') !== 0) return;
+
+    this.requestedMusicId = id;
+    this.musicRequested = true;
+    this.startMusicIfReady();
+  }
+
+  public stopMusic(): void {
+    this.musicRequested = false;
+    this.stopMusicSource();
+  }
+
+  private loadSettings(): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem('pvd.audio.settings');
+      if (!raw) return;
+      const stored = JSON.parse(raw) as StoredAudioSettings;
+      if (typeof stored.masterVolume === 'number' && Number.isFinite(stored.masterVolume)) {
+        this.masterVolume = Math.max(0, Math.min(1, stored.masterVolume));
+      }
+      if (typeof stored.sfxVolume === 'number' && Number.isFinite(stored.sfxVolume)) {
+        this.sfxVolume = Math.max(0, Math.min(1, stored.sfxVolume));
+      }
+      if (typeof stored.musicVolume === 'number' && Number.isFinite(stored.musicVolume)) {
+        this.musicVolume = Math.max(0, Math.min(1, stored.musicVolume));
+      }
+      if (typeof stored.muted === 'boolean') this.muted = stored.muted;
+    } catch {
+      // Private browsing and malformed settings fall back to defaults.
+    }
+  }
+
+  private saveSettings(): void {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem('pvd.audio.settings', JSON.stringify({
+        masterVolume: this.masterVolume,
+        sfxVolume: this.sfxVolume,
+        musicVolume: this.musicVolume,
+        muted: this.muted,
+      }));
+    } catch {
+      // Storage failure must not interrupt audio or gameplay.
+    }
   }
 
   public ensureReady(): AudioContext | null {
+    if (!this.userGestureSeen) return null;
     if (this.context) {
-      if (this.context.state === 'suspended') {
-        void this.context.resume().catch(() => undefined);
-      }
+      this.resumeIfNeeded();
       return this.context;
     }
 
@@ -157,18 +261,41 @@ export class AudioManager {
       const context = new ContextConstructor();
       const masterGain = context.createGain();
       const sfxGain = context.createGain();
-      masterGain.gain.value = this.masterVolume;
-      sfxGain.gain.value = this.muted ? 0 : this.sfxVolume;
+      const musicGain = context.createGain();
+      masterGain.gain.value = this.muted ? 0 : this.masterVolume;
+      sfxGain.gain.value = this.sfxVolume;
+      musicGain.gain.value = 0;
       sfxGain.connect(masterGain);
+      musicGain.connect(masterGain);
       masterGain.connect(context.destination);
       this.context = context;
       this.masterGain = masterGain;
       this.sfxGain = sfxGain;
-      void context.resume().catch(() => undefined);
+      this.musicGain = musicGain;
+      this.resumeIfNeeded();
       return context;
     } catch {
       return null;
     }
+  }
+
+  private resumeIfNeeded(): void {
+    const context = this.context;
+    if (!context) return;
+    if (context.state !== 'suspended') {
+      this.startMusicIfReady();
+      return;
+    }
+    if (this.resumePending) return;
+    this.resumePending = true;
+    void context.resume()
+      .then(() => {
+        this.resumePending = false;
+        this.startMusicIfReady();
+      })
+      .catch(() => {
+        this.resumePending = false;
+      });
   }
 
   public playSfx(
@@ -215,6 +342,54 @@ export class AudioManager {
     this.activeSources.clear();
     this.activeVoices.clear();
     this.cooldowns.clear();
+    this.stopMusic();
+  }
+
+  private applyMusicGain(fadeSeconds = 0.06): void {
+    const context = this.context;
+    const gain = this.musicGain;
+    if (!context || !gain) return;
+
+    const target = this.muted ? 0 : this.musicVolume * (this.musicDucked ? 0.2 : 1);
+    const now = context.currentTime;
+    gain.gain.cancelScheduledValues(now);
+    gain.gain.setTargetAtTime(target, now, Math.max(0.01, fadeSeconds));
+  }
+
+  private startMusicIfReady(): void {
+    const context = this.context;
+    const musicGain = this.musicGain;
+    if (!context || !musicGain || context.state !== 'running' || !this.musicRequested || this.musicSource) return;
+    const entry = manifest.sounds?.[this.requestedMusicId];
+    if (!entry || entry.licenseStatus !== 'approved' || entry.src.indexOf('procedural://') !== 0) return;
+
+    const buffer = this.getMusicBuffer(context);
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.connect(musicGain);
+    source.onended = () => {
+      if (this.musicSource === source) this.musicSource = null;
+    };
+    try {
+      source.start();
+      this.musicSource = source;
+      this.applyMusicGain(0.2);
+    } catch {
+      source.disconnect();
+    }
+  }
+
+  private stopMusicSource(): void {
+    const source = this.musicSource;
+    this.musicSource = null;
+    if (!source) return;
+    try {
+      source.stop();
+    } catch {
+      // The source may already have ended.
+    }
+    source.disconnect();
   }
 
   private beginVoice(id: SoundEffectId, maxVoices: number): Voice | null {
@@ -332,6 +507,49 @@ export class AudioManager {
     this.trackSource(source);
     source.start(now);
     source.stop(now + duration);
+  }
+
+  private getMusicBuffer(context: AudioContext): AudioBuffer {
+    if (this.musicBuffer && this.musicBuffer.sampleRate === context.sampleRate) {
+      return this.musicBuffer;
+    }
+
+    const duration = 8;
+    const length = Math.floor(context.sampleRate * duration);
+    const buffer = context.createBuffer(2, length, context.sampleRate);
+    const left = buffer.getChannelData(0);
+    const right = buffer.getChannelData(1);
+    const roots = [65.406, 73.416, 77.782, 58.27];
+    const melody = [
+      261.626, 311.127, 349.228, 392,
+      349.228, 311.127, 261.626, 233.082,
+      261.626, 293.665, 311.127, 349.228,
+      392, 349.228, 293.665, 233.082,
+    ];
+    const twoPi = Math.PI * 2;
+
+    for (let index = 0; index < length; index++) {
+      const time = index / context.sampleRate;
+      const bar = Math.floor((time / 2) % roots.length);
+      const root = roots[bar];
+      const noteIndex = Math.min(melody.length - 1, Math.floor((time % duration) / 0.5));
+      const noteTime = (time % 0.5) / 0.5;
+      const noteEnvelope = Math.pow(Math.max(0, 1 - noteTime), 1.8);
+      const beatEnvelope = Math.max(0, 1 - ((time % 0.5) / 0.5));
+      const pad = Math.sin(twoPi * root * time)
+        + 0.45 * Math.sin(twoPi * root * Math.pow(2, 3 / 12) * time)
+        + 0.35 * Math.sin(twoPi * root * Math.pow(2, 7 / 12) * time);
+      const bass = Math.sin(twoPi * root * 0.5 * time) * (0.04 + beatEnvelope * 0.07);
+      const lead = Math.sin(twoPi * melody[noteIndex] * time) * noteEnvelope * 0.06;
+      const edgeFade = Math.min(1, Math.min(time, duration - time) * 12);
+      const signal = (pad * 0.045 + bass + lead) * edgeFade;
+      const pan = Math.sin(twoPi * time / 4) * 0.025;
+      left[index] = signal * (0.97 - pan);
+      right[index] = signal * (0.97 + pan);
+    }
+
+    this.musicBuffer = buffer;
+    return buffer;
   }
 
   private getNoiseBuffer(context: AudioContext): AudioBuffer {

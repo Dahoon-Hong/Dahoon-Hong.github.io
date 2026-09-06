@@ -199,3 +199,23 @@ ProgressionManager나 WaveManager가 음악을 직접 재생하지 않는다. Ga
     git diff --check:
     verification date:
 
+## 22단계 구현 기록
+
+구현일: 2026-09-06
+
+- 외부 파일을 배포물에 포함하지 않고, music.gameplay.default를 8초 프로젝트 직접 합성 AudioBuffer loop로 등록했다. manifest는 approved/procedural://이며 제3자 음원, AI 생성 음악, ChatGPT Voice를 사용하지 않는다.
+- Plan 21 AudioManager를 재사용해 master, sfx, music bus를 분리하고, loop source를 한 개만 유지한다.
+- PLAYING 진입 시 loop를 요청하고, PAUSED에서는 20% duck, 결과·게임오버·승리에서는 fade out/stop, restart·region transition에서는 gameplay loop를 한 번만 재요청하도록 GameState를 연결했다.
+- 첫 사용자 gesture 전에는 AudioContext를 생성하지 않고 pending 상태로 유지한다. gesture 이후 resume되면 pending music을 시작한다.
+- Canvas HUD top bar에 MUSIC 40% → MUSIC OFF → MUSIC 20% 순환 control을 추가하고, master/sfx/music 설정은 localStorage에 저장하되 저장 실패 시 기본값으로 계속 실행한다.
+- 누락·비승인·비절차 음원은 runtime에서 차단하고, qa:audio가 SFX 6개와 music 1개를 함께 검사한다.
+
+검증 결과:
+
+- npm run qa:audio: 통과, approved procedural entries 7개
+- npm run build: 통과, TypeScript 검사 및 Vite production build 완료
+- git diff --check: 통과
+- npm run qa:release: 통과. 기존 아트 경고 1건(grid-core.png 미등록) 외 오류 없음
+- 브라우저 수동 확인: MUSIC 40% 표시, 클릭 시 OFF/20%로 순환, 다음 region 진입, PAUSED overlay, PLAYING 복귀를 확인
+- 브라우저 console error/warn: 없음
+- 실제 청취 품질은 실행 환경의 오디오 출력 확인 한계로 별도 사용자 청취 튜닝 대상으로 남긴다

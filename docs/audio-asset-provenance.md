@@ -12,5 +12,6 @@ All Plan 21 entries are generated locally at runtime. Therefore there is no down
 | sfx.weapon.explosion | procedural://explosion | approved | Project-authored synthesis | None |
 | sfx.enemy.death | procedural://enemy-death | approved | Project-authored synthesis | None |
 | sfx.ui.upgrade-confirm | procedural://upgrade-confirm | approved | Project-authored synthesis | None |
+| music.gameplay.default | procedural://music-gameplay-default | approved | Project-authored synthesis | None |
 
 The manifest of record is src/data/audio.json. The runtime and npm run qa:audio both reject missing, unapproved, or non-procedural entries.

@@ -69,6 +69,7 @@ export class Game {
     this.ctx = context;
     this.audio.attachUserGestureListeners();
     void this.audio.preload();
+    this.audio.playMusic();
     this.resizeCanvas();
     this.assets = new AssetManager();
     this.renderer = new SpriteRenderer(this.assets);
@@ -111,6 +112,8 @@ export class Game {
       getUpgradeManager: () => this.upgradeManager,
       spendCost: (cost) => this.resources.spendCost(cost),
       onUpgradeSuccess: () => this.audio.playSfx('sfx.ui.upgrade-confirm'),
+      getMusicVolume: () => this.audio.getMusicVolume(),
+      onMusicControl: () => this.audio.cycleMusicVolume(),
     }, { width: this.logicalWidth, height: this.logicalHeight });
 
     this.canvas.addEventListener('click', (event) => this.handleRestartClick(event));
@@ -129,6 +132,19 @@ export class Game {
     return new WaveManager(this.progression.currentRegion, this.progression.enemyDefinitions);
   }
 
+  private setState(nextState: GameState): void {
+    if (this.state === nextState) return;
+    this.state = nextState;
+    if (nextState === GameState.PAUSED) {
+      this.audio.setMusicDucked(true);
+    } else if (nextState === GameState.PLAYING) {
+      this.audio.setMusicDucked(false);
+      this.audio.playMusic();
+    } else {
+      this.audio.stopMusic();
+    }
+  }
+
   private restartGame(): void {
     this.audio.stopAll();
     this.upgradeManager = new UpgradeManager(this.tankDefinition.modules);
@@ -137,14 +153,14 @@ export class Game {
     this.resetArtState();
     this.pickups = this.createInitialPickups();
     this.resources.reset();
-    this.state = GameState.PLAYING;
+    this.setState(GameState.PLAYING);
   }
 
   private advanceProgression(): void {
     const transition = this.progression.advance();
     if (transition === 'complete') {
       this.audio.stopAll();
-      this.state = GameState.VICTORY;
+      this.setState(GameState.VICTORY);
       return;
     }
 
@@ -159,7 +175,7 @@ export class Game {
     this.waveManager = this.createWaveManager();
     this.resetArtState();
     this.pickups = this.createInitialPickups();
-    this.state = GameState.PLAYING;
+    this.setState(GameState.PLAYING);
   }
 
   private createInitialPickups(): ResourcePickup[] {
@@ -183,8 +199,8 @@ export class Game {
 
   private update(dt: number): void {
     if (this.input.consumePauseRequest()) {
-      if (this.state === GameState.PLAYING) this.state = GameState.PAUSED;
-      else if (this.state === GameState.PAUSED) this.state = GameState.PLAYING;
+      if (this.state === GameState.PLAYING) this.setState(GameState.PAUSED);
+      else if (this.state === GameState.PAUSED) this.setState(GameState.PLAYING);
     }
 
     if (this.isTerminalState()) return;
@@ -233,9 +249,9 @@ export class Game {
     if (this.waveManager.waveCleared) {
       if (this.waveManager.currentWave >= this.waveManager.totalWaves) {
         this.audio.stopAll();
-        if (this.progression.hasNextRegion()) this.state = GameState.REGION_CLEARED;
-        else if (this.progression.hasNextPlanet()) this.state = GameState.PLANET_CLEARED;
-        else this.state = GameState.VICTORY;
+        if (this.progression.hasNextRegion()) this.setState(GameState.REGION_CLEARED);
+        else if (this.progression.hasNextPlanet()) this.setState(GameState.PLANET_CLEARED);
+        else this.setState(GameState.VICTORY);
         return;
       }
       this.waveManager.nextWave();
@@ -258,7 +274,7 @@ export class Game {
         this.addEffect(new VisualEffect(enemy.x, enemy.y, 25, '#ff1744', 'effect.contact-damage'));
         if (!this.vehicle.isCoreActive()) {
           this.audio.stopAll();
-          this.state = GameState.GAME_OVER;
+          this.setState(GameState.GAME_OVER);
         }
       }
 

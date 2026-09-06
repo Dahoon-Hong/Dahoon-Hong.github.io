@@ -1,6 +1,6 @@
 # Audio licensing policy
 
-The Plan 21 effects are project-authored procedural sounds generated at runtime with the browser Web Audio API. No third-party recording, sample, loop, voice, or ChatGPT Voice output is shipped.
+The Plan 21 effects and Plan 22 gameplay loop are project-authored procedural sounds generated at runtime with the browser Web Audio API. No third-party recording, sample, loop, voice, AI-generated music, or ChatGPT Voice output is shipped.
 
 The release gate is fail-closed:
 
