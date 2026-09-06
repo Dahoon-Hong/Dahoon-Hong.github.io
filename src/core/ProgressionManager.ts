@@ -1,4 +1,5 @@
 import progressionData from '../data/progression.json';
+import enemyData from '../data/enemies.json';
 import { EnemyDefinition, EnemyType } from '../entities/Enemy';
 
 export interface WaveDefinition {
@@ -22,13 +23,13 @@ export interface PlanetDefinition {
 }
 
 export interface ProgressionDefinition {
-  enemies: Record<EnemyType, EnemyDefinition>;
   planets: PlanetDefinition[];
 }
 
 export type ProgressionAdvance = 'region' | 'planet' | 'complete';
 
 const DEFINITION: ProgressionDefinition = progressionData;
+const ENEMY_DEFINITIONS: Readonly<Record<EnemyType, EnemyDefinition>> = enemyData;
 
 export class ProgressionManager {
   private readonly definition: ProgressionDefinition;
@@ -49,7 +50,7 @@ export class ProgressionManager {
   }
 
   public get enemyDefinitions(): Readonly<Record<EnemyType, EnemyDefinition>> {
-    return this.definition.enemies;
+    return ENEMY_DEFINITIONS;
   }
 
   public get location(): { planetIndex: number; regionIndex: number; planetName: string; regionName: string } {
@@ -84,7 +85,7 @@ export class ProgressionManager {
 
   private validate(definition: ProgressionDefinition): void {
     if (!definition.planets.length) throw new Error('[Progression] no planets found');
-    for (const [type, enemy] of Object.entries(definition.enemies)) {
+    for (const [type, enemy] of Object.entries(ENEMY_DEFINITIONS)) {
       if (!Number.isFinite(enemy.hp) || enemy.hp <= 0 || !Number.isFinite(enemy.speed) || enemy.speed < 0 ||
           !Number.isFinite(enemy.contactDamage) || enemy.contactDamage < 0 ||
           !Number.isFinite(enemy.contactDamageInterval) || enemy.contactDamageInterval <= 0) {

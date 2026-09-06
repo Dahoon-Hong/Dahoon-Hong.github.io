@@ -1,0 +1,20 @@
+{
+  "standard": {
+    "hp": 45,
+    "speed": 95,
+    "radius": 12,
+    "reward": 10,
+    "typeName": "Standard",
+    "contactDamage": 10,
+    "contactDamageInterval": 0.2
+  },
+  "tanker": {
+    "hp": 160,
+    "speed": 45,
+    "radius": 18,
+    "reward": 25,
+    "typeName": "Tanker",
+    "contactDamage": 5,
+    "contactDamageInterval": 0.2
+  }
+}

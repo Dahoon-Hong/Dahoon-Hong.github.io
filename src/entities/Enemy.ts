@@ -13,26 +13,6 @@ export interface EnemyDefinition {
   contactDamageInterval: number;
 }
 
-const DEFAULT_STANDARD_DEFINITION: EnemyDefinition = {
-  hp: 45,
-  speed: 95,
-  radius: 12,
-  reward: 10,
-  typeName: 'Standard',
-  contactDamage: 10,
-  contactDamageInterval: 0.2,
-};
-
-const DEFAULT_TANKER_DEFINITION: EnemyDefinition = {
-  hp: 160,
-  speed: 45,
-  radius: 18,
-  reward: 25,
-  typeName: 'Tanker',
-  contactDamage: 10,
-  contactDamageInterval: 0.2,
-};
-
 export abstract class Enemy {
   public x: number;
   public y: number;
@@ -137,7 +117,7 @@ export abstract class Enemy {
 }
 
 export class StandardEnemy extends Enemy {
-  constructor(x: number, y: number, definition: EnemyDefinition = DEFAULT_STANDARD_DEFINITION) {
+  constructor(x: number, y: number, definition: EnemyDefinition) {
     super(
       x,
       y,
@@ -160,7 +140,7 @@ export class StandardEnemy extends Enemy {
 }
 
 export class TankerEnemy extends Enemy {
-  constructor(x: number, y: number, definition: EnemyDefinition = DEFAULT_TANKER_DEFINITION) {
+  constructor(x: number, y: number, definition: EnemyDefinition) {
     super(
       x,
       y,
