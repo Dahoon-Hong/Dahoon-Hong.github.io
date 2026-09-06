@@ -180,17 +180,34 @@ export class Vehicle {
     const frameY = gridBounds.top - 6;
     const frameWidth = this.gridCols * this.tileSize + 12;
     const frameHeight = this.gridRows * this.tileSize + 12;
-    ctx.fillStyle = 'rgba(30, 30, 45, 0.24)';
-    ctx.strokeStyle = 'rgba(77, 234, 234, 0.48)';
+    ctx.fillStyle = 'rgba(15, 24, 34, 0.82)';
+    ctx.strokeStyle = 'rgba(77, 234, 234, 0.24)';
     ctx.lineWidth = 1.5;
     ctx.fillRect(frameX, frameY, frameWidth, frameHeight);
     ctx.strokeRect(frameX, frameY, frameWidth, frameHeight);
+
+    // Assemble the tank body first. The grid is a separate translucent overlay.
+    render.renderer.drawSprite(
+      render,
+      'tank.starter.frame.center',
+      (gridBounds.left + gridBounds.right) / 2,
+      (gridBounds.top + gridBounds.bottom) / 2,
+      { scale: Math.max(this.gridCols, this.gridRows) },
+    );
+
+    for (let gy = 0; gy < this.gridRows; gy++) {
+      for (let gx = 0; gx < this.gridCols; gx++) {
+        const pos = this.getModuleWorldPos(gx, gy);
+        const frame = this.getFramePiece(gx, gy);
+        if (!frame) continue;
+        render.renderer.drawSprite(render, frame.assetId, pos.x, pos.y, { rotation: frame.rotation });
+      }
+    }
 
     for (let gy = 0; gy < this.gridRows; gy++) {
       for (let gx = 0; gx < this.gridCols; gx++) {
         const pos = this.getModuleWorldPos(gx, gy);
         const cell = { x: gx, y: gy };
-        render.renderer.drawSprite(render, this.getFrameAsset(gx, gy), pos.x, pos.y, { alpha: 0.34 });
         ctx.fillStyle = this.combatGrid.isBlocked(cell) ? 'rgba(90, 90, 110, 0.22)' : 'rgba(255, 255, 255, 0.012)';
         ctx.fillRect(pos.x - this.tileSize / 2 + 2, pos.y - this.tileSize / 2 + 2, this.tileSize - 4, this.tileSize - 4);
         ctx.strokeStyle = this.combatGrid.isBlocked(cell) ? 'rgba(97, 97, 97, 0.38)' : 'rgba(255, 255, 255, 0.08)';
@@ -244,13 +261,20 @@ export class Vehicle {
     ctx.restore();
   }
 
-  private getFrameAsset(gridX: number, gridY: number): string {
+  private getFramePiece(gridX: number, gridY: number): { assetId: string; rotation: number } | null {
     const onLeft = gridX === 0;
     const onRight = gridX === this.gridCols - 1;
     const onTop = gridY === 0;
     const onBottom = gridY === this.gridRows - 1;
-    if ((onLeft || onRight) && (onTop || onBottom)) return 'tank.starter.frame.corner';
-    if (onLeft || onRight || onTop || onBottom) return 'tank.starter.frame.edge';
-    return 'tank.starter.frame.center';
+
+    if (onTop && onLeft) return { assetId: 'tank.starter.frame.corner', rotation: 0 };
+    if (onTop && onRight) return { assetId: 'tank.starter.frame.corner', rotation: Math.PI / 2 };
+    if (onBottom && onRight) return { assetId: 'tank.starter.frame.corner', rotation: Math.PI };
+    if (onBottom && onLeft) return { assetId: 'tank.starter.frame.corner', rotation: -Math.PI / 2 };
+    if (onTop) return { assetId: 'tank.starter.frame.edge', rotation: 0 };
+    if (onRight) return { assetId: 'tank.starter.frame.edge', rotation: Math.PI / 2 };
+    if (onBottom) return { assetId: 'tank.starter.frame.edge', rotation: Math.PI };
+    if (onLeft) return { assetId: 'tank.starter.frame.edge', rotation: -Math.PI / 2 };
+    return null;
   }
 }
