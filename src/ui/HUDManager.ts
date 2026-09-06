@@ -249,14 +249,12 @@ export class HUDManager {
 
     for (const hitbox of this.purchaseHitboxes) {
       if (!this.contains(hitbox, mouseX, mouseY)) continue;
-      if (!callbacks.isPaused()) {
-        this.setFeedback('Pause before changing Armory inventory.');
-        return true;
-      }
       if (hitbox.action === 'purchase') {
         const purchased = callbacks.getArmory().purchase(hitbox.moduleId, callbacks.spendCost);
         if (purchased) callbacks.onArmoryPurchaseSuccess();
         this.setFeedback(purchased ? 'Combat module purchased.' : 'Purchase unavailable or too expensive.', purchased ? VisualTheme.color.success : VisualTheme.color.danger);
+      } else if (!callbacks.isPaused()) {
+        this.setFeedback('Pause before installing modules.');
       } else if (callbacks.getArmory().getStock(hitbox.moduleId) > 0) {
         this.selectedInstallModuleId = hitbox.moduleId;
         this.selectedInstallOrientation = vehicle.getCombatModuleDefinitions()
@@ -894,7 +892,7 @@ export class HUDManager {
       const researched = armory.isResearched(definition.id);
       const stock = armory.getStock(definition.id);
       const purchaseCost = armory.getPurchaseCost(definition.id);
-      const canPurchase = isPaused && researched && storage.canAfford(purchaseCost);
+      const canPurchase = researched && storage.canAfford(purchaseCost);
       const action = !researched ? 'LOCKED' : stock > 0 ? 'INSTALL' : 'PURCHASE';
       const enabled = action === 'INSTALL' ? isPaused : canPurchase;
       ctx.fillStyle = enabled ? theme.surfaceAvailable : theme.surfaceDisabled;
