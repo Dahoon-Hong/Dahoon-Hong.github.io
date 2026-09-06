@@ -3,6 +3,8 @@ import { ResourceCost, TankModuleDefinition, UpgradeNodeDefinition } from '../co
 import { UpgradeManager, UpgradeNodeState } from '../core/UpgradeManager';
 import { CombatModule } from '../entities/Module';
 import { Vehicle } from '../entities/Vehicle';
+import type { RenderContext } from '../rendering/RenderContext';
+import { VisualTheme } from '../rendering/VisualTheme';
 
 interface HUDCallbacks {
   getVehicle: () => Vehicle;
@@ -17,6 +19,8 @@ interface Rect {
   width: number;
   height: number;
 }
+
+type MarkerKind = 'selected' | 'available' | 'insufficient' | 'locked' | 'disabled';
 
 interface Subject {
   instanceId: string;
@@ -40,18 +44,25 @@ export class HUDManager {
   private selectedCell: { gx: number; gy: number } | null = null;
   private selectedInstanceId: string | null = null;
   private feedbackMessage: string | null = null;
-  private feedbackColor = '#e57373';
+  private feedbackColor: string = VisualTheme.color.danger;
   private nodeHitboxes: NodeHitbox[] = [];
   private installHitboxes: InstallHitbox[] = [];
   private subjectHitboxes: Array<Rect & { instanceId: string }> = [];
   private getUpgradeManager: (() => UpgradeManager) | null = null;
+  private pointer: { x: number; y: number } | null = null;
 
   public setupMouseListeners(canvas: HTMLCanvasElement, callbacks: HUDCallbacks): void {
     this.getUpgradeManager = callbacks.getUpgradeManager;
+    canvas.addEventListener('mousemove', (event) => {
+      this.pointer = this.toCanvasPoint(canvas, event);
+    });
+    canvas.addEventListener('mouseleave', () => {
+      this.pointer = null;
+    });
     canvas.addEventListener('click', (event) => {
-      const rect = canvas.getBoundingClientRect();
-      const mouseX = (event.clientX - rect.left) * (canvas.width / rect.width);
-      const mouseY = (event.clientY - rect.top) * (canvas.height / rect.height);
+      const point = this.toCanvasPoint(canvas, event);
+      const mouseX = point.x;
+      const mouseY = point.y;
       const vehicle = callbacks.getVehicle();
       const panelX = canvas.width - HUDManager.PANEL_WIDTH;
 
@@ -86,7 +97,7 @@ export class HUDManager {
   }
 
   public render(
-    ctx: CanvasRenderingContext2D,
+    render: RenderContext,
     canvasWidth: number,
     canvasHeight: number,
     vehicle: Vehicle,
@@ -95,23 +106,19 @@ export class HUDManager {
     enemiesRemaining: number,
     isPaused: boolean
   ): void {
+    const ctx = render.ctx;
     const gameplayWidth = canvasWidth - HUDManager.PANEL_WIDTH;
     this.ensureSelectedSubject(vehicle);
 
     ctx.save();
-    this.renderTopBar(ctx, canvasWidth, vehicle, storage, wave, enemiesRemaining, isPaused, gameplayWidth);
+    this.renderTopBar(render, canvasWidth, vehicle, storage, wave, enemiesRemaining, isPaused, gameplayWidth);
     this.renderSelection(ctx, vehicle);
 
     if (isPaused) {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-      ctx.fillRect(0, 50, gameplayWidth, Math.max(0, canvasHeight - 50));
-      ctx.fillStyle = '#ffd54f';
-      ctx.font = 'bold 28px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('PAUSED - Manage & Upgrade Modules', gameplayWidth / 2, 90);
+      this.renderPauseOverlay(render, gameplayWidth, canvasHeight);
     }
 
-    this.renderPanel(ctx, canvasWidth, canvasHeight, vehicle, storage);
+    this.renderPanel(render, canvasWidth, canvasHeight, vehicle, storage);
     ctx.restore();
   }
 
@@ -134,7 +141,7 @@ export class HUDManager {
       if (!this.contains(hitbox, mouseX, mouseY)) continue;
       const manager = callbacks.getUpgradeManager();
       const selected = manager.select(hitbox.instanceId, hitbox.nodeId, callbacks.spendCost);
-      this.setFeedback(selected ? 'Upgrade selected.' : 'Upgrade unavailable or too expensive.', selected ? '#81c784' : '#e57373');
+      this.setFeedback(selected ? 'Upgrade selected.' : 'Upgrade unavailable or too expensive.', selected ? VisualTheme.color.success : VisualTheme.color.danger);
       return true;
     }
 
@@ -167,7 +174,7 @@ export class HUDManager {
       }
       this.selectedInstanceId = installed.instanceId;
       this.selectedCell = null;
-      this.setFeedback('Combat module installed.', '#81c784');
+      this.setFeedback('Combat module installed.', VisualTheme.color.success);
       return true;
     }
 
@@ -175,7 +182,7 @@ export class HUDManager {
   }
 
   private renderTopBar(
-    ctx: CanvasRenderingContext2D,
+    render: RenderContext,
     canvasWidth: number,
     vehicle: Vehicle,
     storage: ResourceStorage,
@@ -184,34 +191,57 @@ export class HUDManager {
     isPaused: boolean,
     gameplayWidth: number
   ): void {
-    ctx.fillStyle = 'rgba(20, 20, 30, 0.9)';
-    ctx.fillRect(0, 0, canvasWidth, 50);
+    const ctx = render.ctx;
+    const theme = VisualTheme.color;
+    ctx.fillStyle = theme.surfaceTopbar;
+    ctx.fillRect(0, 0, canvasWidth, VisualTheme.spacing.topBarHeight);
 
     const coreHp = vehicle.getCoreHp();
     const coreMaxHp = vehicle.getCoreMaxHp();
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 15px sans-serif';
+    this.drawIcon(render, 'ui.icon.core', 22, 25, 0.8);
+    ctx.fillStyle = theme.textPrimary;
+    ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(`CORE HP: ${Math.ceil(coreHp)} / ${Math.ceil(coreMaxHp)}`, 20, 30);
-    ctx.fillStyle = '#333344';
-    ctx.fillRect(180, 15, 150, 18);
-    ctx.fillStyle = coreHp > coreMaxHp * 0.4 ? '#00e676' : '#ff3d00';
-    ctx.fillRect(180, 15, Math.max(0, Math.min(150, (coreHp / Math.max(1, coreMaxHp)) * 150)), 18);
+    ctx.fillText('CORE', 38, 15);
+    ctx.fillStyle = theme.surfaceElevated;
+    ctx.fillRect(38, 22, 150, 10);
+    ctx.fillStyle = coreHp > coreMaxHp * 0.4 ? theme.success : theme.danger;
+    ctx.fillRect(38, 22, Math.max(0, Math.min(150, (coreHp / Math.max(1, coreMaxHp)) * 150)), 10);
+    ctx.fillStyle = theme.textSecondary;
+    ctx.font = '10px monospace';
+    ctx.fillText(`${Math.ceil(coreHp)} / ${Math.ceil(coreMaxHp)}`, 38, 42);
 
-    ctx.fillStyle = '#ffd54f';
-    ctx.font = 'bold 14px sans-serif';
-    ctx.fillText(
-      `R:${Math.floor(storage.get('resource'))}/${storage.getCapacity('resource')}  M:${Math.floor(storage.get('matter'))}/${storage.getCapacity('matter')}  A:${Math.floor(storage.get('ammo'))}/${storage.getCapacity('ammo')}  N:${Math.floor(storage.get('nano'))}/${storage.getCapacity('nano')}`,
-      350,
-      30
-    );
+    const resourceItems = [
+      { label: 'RES', icon: 'ui.icon.resource', type: 'resource' as const },
+      { label: 'MAT', icon: 'ui.icon.matter', type: 'matter' as const },
+      { label: 'AMM', icon: 'ui.icon.ammo', type: 'ammo' as const },
+      { label: 'NAN', icon: 'ui.icon.nano', type: 'nano' as const },
+    ];
+    resourceItems.forEach((item, index) => {
+      const x = 210 + index * 106;
+      this.drawIcon(render, item.icon, x + 10, 25, 0.72);
+      ctx.fillStyle = theme.textSecondary;
+      ctx.font = 'bold 10px monospace';
+      ctx.fillText(item.label, x + 23, 19);
+      ctx.fillStyle = theme.resource;
+      ctx.font = '10px monospace';
+      ctx.fillText(`${Math.floor(storage.get(item.type))}/${storage.getCapacity(item.type)}`, x + 23, 35);
+    });
 
-    ctx.fillStyle = '#4deaea';
-    ctx.font = 'bold 16px sans-serif';
-    ctx.fillText(`WAVE: ${wave} (${enemiesRemaining})`, Math.max(650, gameplayWidth - 280), 30);
-    ctx.fillStyle = '#aaaaaa';
-    ctx.font = '13px sans-serif';
-    ctx.fillText(`[WASD]: Move | [Space]: ${isPaused ? 'RESUME' : 'PAUSE'}`, Math.max(650, gameplayWidth - 145), 30);
+    const waveX = Math.max(650, gameplayWidth - 280);
+    this.drawDiamond(ctx, waveX + 8, 22, 6, theme.accent, false);
+    ctx.fillStyle = theme.accent;
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText(`WAVE ${wave}`, waveX + 20, 20);
+    ctx.fillStyle = theme.textSecondary;
+    ctx.font = '10px monospace';
+    ctx.fillText(`${enemiesRemaining} HOSTILES`, waveX + 20, 35);
+
+    const controlsX = Math.max(waveX + 98, gameplayWidth - 178);
+    ctx.fillStyle = theme.textMuted;
+    ctx.font = '10px sans-serif';
+    ctx.fillText('WASD MOVE', controlsX, 19);
+    ctx.fillText(`SPACE ${isPaused ? 'RESUME' : 'PAUSE'}`, controlsX, 35);
   }
 
   private renderSelection(ctx: CanvasRenderingContext2D, vehicle: Vehicle): void {
@@ -225,42 +255,74 @@ export class HUDManager {
           width: vehicle.tileSize,
           height: vehicle.tileSize,
         };
-    ctx.strokeStyle = selectedModule ? '#4deaea' : '#ffff00';
+    ctx.strokeStyle = selectedModule ? VisualTheme.color.accent : VisualTheme.color.warning;
     ctx.lineWidth = 3;
     ctx.strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2);
   }
 
+  private renderPauseOverlay(render: RenderContext, gameplayWidth: number, canvasHeight: number): void {
+    const ctx = render.ctx;
+    const theme = VisualTheme.color;
+    const panelWidth = 460;
+    const panelHeight = 150;
+    const panelX = gameplayWidth / 2 - panelWidth / 2;
+    const panelY = Math.max(110, canvasHeight / 2 - panelHeight / 2);
+
+    ctx.save();
+    ctx.fillStyle = theme.overlaySoft;
+    ctx.fillRect(0, VisualTheme.spacing.topBarHeight, gameplayWidth, Math.max(0, canvasHeight - VisualTheme.spacing.topBarHeight));
+    ctx.fillStyle = theme.surfacePanel;
+    ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+    ctx.strokeStyle = theme.accent;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
+    this.drawPauseMarker(ctx, panelX + 42, panelY + 44, 10);
+    ctx.fillStyle = theme.accent;
+    ctx.font = 'bold 26px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('PAUSED', panelX + 66, panelY + 52);
+    ctx.fillStyle = theme.textPrimary;
+    ctx.font = '13px sans-serif';
+    ctx.fillText('Install and upgrade modules while simulation is stopped.', panelX + 24, panelY + 88);
+    ctx.fillStyle = theme.textSecondary;
+    ctx.font = '11px monospace';
+    ctx.fillText('SPACE / P  RESUME', panelX + 24, panelY + 119);
+    ctx.restore();
+  }
+
   private renderPanel(
-    ctx: CanvasRenderingContext2D,
+    render: RenderContext,
     canvasWidth: number,
     canvasHeight: number,
     vehicle: Vehicle,
     storage: ResourceStorage
   ): void {
+    const ctx = render.ctx;
+    const theme = VisualTheme.color;
     const panelX = canvasWidth - HUDManager.PANEL_WIDTH;
-    ctx.fillStyle = 'rgba(16, 18, 30, 0.97)';
-    ctx.fillRect(panelX, 50, HUDManager.PANEL_WIDTH, canvasHeight - 50);
-    ctx.strokeStyle = '#263c58';
+    ctx.fillStyle = theme.surfacePanel;
+    ctx.fillRect(panelX, VisualTheme.spacing.topBarHeight, HUDManager.PANEL_WIDTH, canvasHeight - VisualTheme.spacing.topBarHeight);
+    ctx.strokeStyle = theme.divider;
     ctx.lineWidth = 1;
-    ctx.strokeRect(panelX, 50, HUDManager.PANEL_WIDTH, canvasHeight - 50);
+    ctx.strokeRect(panelX, VisualTheme.spacing.topBarHeight, HUDManager.PANEL_WIDTH, canvasHeight - VisualTheme.spacing.topBarHeight);
 
-    ctx.fillStyle = '#4deaea';
+    ctx.fillStyle = theme.accent;
     ctx.font = 'bold 16px sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText('UPGRADE WEB', panelX + 12, 73);
     ctx.textAlign = 'right';
     ctx.font = 'bold 12px sans-serif';
     ctx.fillText(`GRID ${vehicle.gridCols}x${vehicle.gridRows}`, canvasWidth - 12, 73);
-    ctx.fillStyle = '#899bb1';
+    ctx.fillStyle = theme.textSecondary;
     ctx.font = '11px sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText('Built-in systems are active from start', panelX + 12, 89);
 
-    this.renderSubjectList(ctx, panelX, vehicle);
+    this.renderSubjectList(render, panelX, vehicle);
     if (this.selectedCell && !vehicle.getModuleAt(this.selectedCell.gx, this.selectedCell.gy)) {
-      this.renderInstallPanel(ctx, panelX, canvasHeight, vehicle, storage);
+      this.renderInstallPanel(render, panelX, canvasHeight, vehicle, storage);
     } else {
-      this.renderUpgradePanel(ctx, panelX, canvasHeight, vehicle, storage);
+      this.renderUpgradePanel(render, panelX, canvasHeight, vehicle, storage);
     }
 
     if (this.feedbackMessage) {
@@ -271,9 +333,11 @@ export class HUDManager {
     }
   }
 
-  private renderSubjectList(ctx: CanvasRenderingContext2D, panelX: number, vehicle: Vehicle): void {
+  private renderSubjectList(render: RenderContext, panelX: number, vehicle: Vehicle): void {
+    const ctx = render.ctx;
+    const theme = VisualTheme.color;
     this.subjectHitboxes = [];
-    ctx.fillStyle = '#b4c7dc';
+    ctx.fillStyle = theme.textPrimary;
     ctx.font = 'bold 11px sans-serif';
     ctx.fillText('SYSTEMS', panelX + 12, 108);
 
@@ -282,84 +346,95 @@ export class HUDManager {
       const column = Math.floor(index / 5);
       const row = index % 5;
       const instanceId = vehicle.systems.getInstanceId(builtinIds[index]);
-      this.renderSubjectButton(ctx, panelX + 8 + column * 164, 114 + row * 20, 158, instanceId, vehicle);
+      this.renderSubjectButton(render, panelX + 8 + column * 164, 114 + row * 20, 158, instanceId, vehicle);
     }
 
     const combatModules = vehicle.getCombatModules();
     const combatY = 222;
-    ctx.fillStyle = '#b4c7dc';
+    ctx.fillStyle = theme.textPrimary;
     ctx.font = 'bold 11px sans-serif';
     ctx.fillText('COMBAT MODULES', panelX + 12, combatY);
     for (let index = 0; index < combatModules.length; index++) {
-      this.renderSubjectButton(ctx, panelX + 8 + (index % 2) * 164, combatY + 6 + Math.floor(index / 2) * 20, 158, combatModules[index].instanceId, vehicle);
+      this.renderSubjectButton(render, panelX + 8 + (index % 2) * 164, combatY + 6 + Math.floor(index / 2) * 20, 158, combatModules[index].instanceId, vehicle);
     }
   }
 
   private renderSubjectButton(
-    ctx: CanvasRenderingContext2D,
+    render: RenderContext,
     x: number,
     y: number,
     width: number,
     instanceId: string,
     vehicle: Vehicle
   ): void {
+    const ctx = render.ctx;
+    const theme = VisualTheme.color;
     const subject = this.getSubject(instanceId, vehicle);
     if (!subject) return;
     const selected = this.selectedInstanceId === instanceId && !this.selectedCell;
-    ctx.fillStyle = selected ? '#204b5e' : '#1c2636';
+    const hovered = this.isHovered({ x, y, width, height: 18 });
+    ctx.fillStyle = selected ? theme.surfaceSelected : hovered ? theme.surfaceNode : theme.surfaceElevated;
     ctx.fillRect(x, y, width, 18);
-    ctx.strokeStyle = selected ? '#4deaea' : '#33445d';
+    ctx.strokeStyle = selected || hovered ? theme.accent : theme.border;
+    ctx.lineWidth = selected ? 2 : 1;
     ctx.strokeRect(x, y, width, 18);
-    ctx.fillStyle = selected ? '#ffffff' : '#afbed0';
+    this.drawIcon(render, this.moduleIcon(subject.moduleId), x + 12, y + 9, 0.72);
+    if (selected) this.drawStatusMarker(ctx, x + width - 10, y + 9, 'selected', 5);
+    ctx.fillStyle = selected ? theme.white : theme.textPrimary;
     ctx.font = '11px sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(this.truncate(subject.definition.name, 20), x + 5, y + 13);
-    ctx.fillStyle = '#81c784';
+    ctx.fillText(this.truncate(subject.definition.name, 17), x + 24, y + 13);
+    ctx.fillStyle = theme.success;
     ctx.textAlign = 'right';
     ctx.fillText(subject.combatModule ? `Lv.${subject.combatModule.level}` : 'WEB', x + width - 5, y + 13);
     this.subjectHitboxes.push({ x, y, width, height: 18, instanceId });
   }
 
   private renderUpgradePanel(
-    ctx: CanvasRenderingContext2D,
+    render: RenderContext,
     panelX: number,
     canvasHeight: number,
     vehicle: Vehicle,
     storage: ResourceStorage
   ): void {
+    const ctx = render.ctx;
+    const theme = VisualTheme.color;
     this.nodeHitboxes = [];
     this.installHitboxes = [];
     const subject = this.selectedInstanceId ? this.getSubject(this.selectedInstanceId, vehicle) : null;
     if (!subject || !this.selectedInstanceId) {
-      ctx.fillStyle = '#68778c';
+      ctx.fillStyle = theme.textMuted;
       ctx.font = '12px sans-serif';
       ctx.fillText('Select a system or combat module.', panelX + 12, 280);
       return;
     }
 
-    ctx.fillStyle = '#ffffff';
+    this.drawIcon(render, this.moduleIcon(subject.moduleId), panelX + 22, 266, 0.8);
+    ctx.fillStyle = theme.textPrimary;
     ctx.font = 'bold 13px sans-serif';
-    ctx.fillText(subject.definition.name, panelX + 12, 272);
-    ctx.fillStyle = '#8295aa';
+    ctx.fillText(this.truncate(subject.definition.name, 28), panelX + 38, 272);
+    ctx.fillStyle = theme.textSecondary;
     ctx.font = '11px sans-serif';
     ctx.fillText(subject.combatModule ? `HP ${Math.ceil(subject.combatModule.currentHp)} / ${Math.ceil(subject.combatModule.maxHp)}` : 'BUILT-IN / ACTIVE', panelX + 12, 288);
-    this.renderUpgradeWeb(ctx, panelX, 300, canvasHeight - 32, this.selectedInstanceId, storage);
+    this.renderUpgradeWeb(render, panelX, 300, canvasHeight - 32, this.selectedInstanceId, storage);
   }
 
   private renderInstallPanel(
-    ctx: CanvasRenderingContext2D,
+    render: RenderContext,
     panelX: number,
     canvasHeight: number,
     vehicle: Vehicle,
     storage: ResourceStorage
   ): void {
     if (!this.selectedCell) return;
+    const ctx = render.ctx;
+    const theme = VisualTheme.color;
     this.nodeHitboxes = [];
     this.installHitboxes = [];
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = theme.textPrimary;
     ctx.font = 'bold 13px sans-serif';
     ctx.fillText(`INSTALL AT [${this.selectedCell.gx}, ${this.selectedCell.gy}]`, panelX + 12, 272);
-    ctx.fillStyle = '#8295aa';
+    ctx.fillStyle = theme.textSecondary;
     ctx.font = '11px sans-serif';
     ctx.fillText('Combat modules only · footprint anchor is top-left', panelX + 12, 288);
 
@@ -370,31 +445,37 @@ export class HUDManager {
       const canFit = vehicle.canInstallModule(definition.id, { x: this.selectedCell.gx, y: this.selectedCell.gy });
       const canAfford = storage.canAfford(definition.installCost ?? {});
       const enabled = canFit && canAfford;
-      ctx.fillStyle = enabled ? '#1d4960' : '#292d39';
+      ctx.fillStyle = enabled ? theme.surfaceAvailable : theme.surfaceDisabled;
       ctx.fillRect(panelX + 12, y, HUDManager.PANEL_WIDTH - 24, 30);
-      ctx.strokeStyle = enabled ? '#4deaea' : '#525868';
+      ctx.strokeStyle = enabled ? theme.accent : theme.borderMuted;
+      ctx.lineWidth = enabled ? 2 : 1;
       ctx.strokeRect(panelX + 12, y, HUDManager.PANEL_WIDTH - 24, 30);
-      ctx.fillStyle = enabled ? '#ffffff' : '#858b99';
+      this.drawIcon(render, this.moduleIcon(definition.id), panelX + 29, y + 15, 0.72);
+      const status = enabled ? 'available' : canFit ? 'insufficient' : 'disabled';
+      this.drawStatusMarker(ctx, panelX + HUDManager.PANEL_WIDTH - 24, y + 15, status, 6);
+      ctx.fillStyle = enabled ? theme.textPrimary : theme.textDisabled;
       ctx.font = 'bold 11px sans-serif';
-      ctx.fillText(`${this.truncate(definition.name, 21)} ${definition.size?.width}x${definition.size?.height}`, panelX + 20, y + 13);
+      ctx.fillText(`${this.truncate(definition.name, 17)} ${definition.size?.width}x${definition.size?.height}`, panelX + 42, y + 13);
       ctx.font = '10px sans-serif';
-      ctx.fillText(`Cost ${this.formatCost(definition.installCost ?? {})}`, panelX + 20, y + 24);
+      ctx.fillText(`Cost ${this.formatCost(definition.installCost ?? {})}`, panelX + 42, y + 24);
       this.installHitboxes.push({ x: panelX + 12, y, width: HUDManager.PANEL_WIDTH - 24, height: 30, moduleId: definition.id });
     }
 
-    ctx.fillStyle = '#718096';
+    ctx.fillStyle = theme.textMuted;
     ctx.font = '11px sans-serif';
     ctx.fillText('Multi-cell modules occupy every cell in their footprint.', panelX + 12, Math.min(canvasHeight - 32, 405));
   }
 
   private renderUpgradeWeb(
-    ctx: CanvasRenderingContext2D,
+    render: RenderContext,
     panelX: number,
     top: number,
     bottom: number,
     instanceId: string,
     storage: ResourceStorage
   ): void {
+    const ctx = render.ctx;
+    const theme = VisualTheme.color;
     const states = this.lastUpgradeStates(instanceId);
     const graphX = panelX + 10;
     const graphWidth = HUDManager.PANEL_WIDTH - 20;
@@ -430,7 +511,7 @@ export class HUDManager {
     }
 
     ctx.save();
-    ctx.strokeStyle = '#46627b';
+    ctx.strokeStyle = theme.borderMuted;
     ctx.lineWidth = 1;
     for (const state of states) {
       if (!state.definition.parentId) continue;
@@ -447,23 +528,134 @@ export class HUDManager {
     for (const state of states) {
       const rect = positions.get(state.definition.id);
       if (!rect) continue;
-      const color = state.status === 'selected' ? '#1b7c62' : state.status === 'available' && storage.canAfford(state.definition.cost) ? '#164f81' : state.status === 'disabled' ? '#3d3545' : '#2b3443';
-      ctx.fillStyle = color;
+      const affordable = state.status === 'available' && storage.canAfford(state.definition.cost);
+      const hovered = this.isHovered(rect);
+      ctx.fillStyle = state.status === 'selected'
+        ? theme.surfaceSelected
+        : state.status === 'available' && affordable
+          ? theme.surfaceAvailable
+          : state.status === 'available' || state.status === 'disabled'
+            ? theme.surfaceDisabled
+            : theme.surfaceNode;
       ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
-      ctx.strokeStyle = state.status === 'available' ? '#4deaea' : state.status === 'selected' ? '#81c784' : '#566275';
-      ctx.lineWidth = state.status === 'available' ? 2 : 1;
+      ctx.strokeStyle = state.status === 'selected'
+        ? theme.success
+        : state.status === 'available' && affordable
+          ? theme.accent
+          : state.status === 'available'
+            ? theme.warning
+            : hovered
+              ? theme.accent
+              : theme.borderMuted;
+      ctx.lineWidth = state.status === 'selected' || hovered || affordable ? 2 : 1;
       ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
-      ctx.fillStyle = state.status === 'locked' || state.status === 'disabled' ? '#7f8998' : '#ffffff';
+      const marker: MarkerKind = state.status === 'available' && !affordable ? 'insufficient' : state.status;
+      this.drawStatusMarker(ctx, rect.x + 10, rect.y + 10, marker, 6);
+      ctx.fillStyle = state.status === 'locked' || state.status === 'disabled' || !affordable ? theme.textDisabled : theme.textPrimary;
       ctx.font = 'bold 10px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(this.truncate(state.definition.id, 15), rect.x + rect.width / 2, rect.y + 17);
+      ctx.fillText(this.truncate(state.definition.id, 13), rect.x + rect.width / 2 + 4, rect.y + 17);
       ctx.font = '10px sans-serif';
-      ctx.fillText(state.status === 'selected' ? 'SELECTED' : this.formatCost(state.definition.cost), rect.x + rect.width / 2, rect.y + 31);
-      ctx.fillStyle = '#b7c8d8';
-      ctx.fillText(this.truncate(this.formatEffects(state.definition), 18), rect.x + rect.width / 2, rect.y + 44);
+      ctx.fillText(state.status === 'selected' ? 'SELECTED' : this.formatCost(state.definition.cost), rect.x + rect.width / 2 + 4, rect.y + 31);
+      ctx.fillStyle = theme.textSecondary;
+      ctx.fillText(this.truncate(this.formatEffects(state.definition), 16), rect.x + rect.width / 2 + 4, rect.y + 44);
       this.nodeHitboxes.push({ ...rect, instanceId, nodeId: state.definition.id });
     }
     ctx.restore();
+  }
+
+  private drawIcon(render: RenderContext, id: string, x: number, y: number, scale = 1): void {
+    render.renderer.drawSprite(render, id, x, y, { scale });
+  }
+
+  private moduleIcon(moduleId: string): string {
+    return `ui.icon.${moduleId}`;
+  }
+
+  private drawStatusMarker(ctx: CanvasRenderingContext2D, x: number, y: number, status: MarkerKind, size: number): void {
+    const theme = VisualTheme.color;
+    const color = status === 'selected'
+      ? theme.success
+      : status === 'available'
+        ? theme.accent
+        : status === 'insufficient'
+          ? theme.warning
+          : theme.textDisabled;
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 1.5;
+    if (status === 'available') {
+      this.drawDiamond(ctx, x, y, size, color, false);
+    } else if (status === 'selected') {
+      ctx.fillRect(x - size / 2, y - size / 2, size, size);
+      ctx.strokeStyle = theme.surfacePanel;
+      ctx.beginPath();
+      ctx.moveTo(x - size * 0.3, y);
+      ctx.lineTo(x - size * 0.05, y + size * 0.28);
+      ctx.lineTo(x + size * 0.38, y - size * 0.3);
+      ctx.stroke();
+    } else if (status === 'insufficient') {
+      ctx.beginPath();
+      ctx.moveTo(x, y - size / 2);
+      ctx.lineTo(x + size / 2, y + size / 2);
+      ctx.lineTo(x - size / 2, y + size / 2);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, y - size * 0.16);
+      ctx.lineTo(x, y + size * 0.18);
+      ctx.stroke();
+      ctx.fillRect(x - 0.75, y + size * 0.28, 1.5, 1.5);
+    } else if (status === 'locked') {
+      ctx.strokeRect(x - size * 0.42, y - size * 0.02, size * 0.84, size * 0.58);
+      ctx.beginPath();
+      ctx.arc(x, y - size * 0.02, size * 0.3, Math.PI, 0);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(x - size / 2, y - size / 2);
+      ctx.lineTo(x + size / 2, y + size / 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  private drawPauseMarker(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
+    const theme = VisualTheme.color;
+    ctx.save();
+    ctx.fillStyle = theme.resource;
+    ctx.fillRect(x - size * 0.55, y - size, size * 0.35, size * 2);
+    ctx.fillRect(x + size * 0.2, y - size, size * 0.35, size * 2);
+    ctx.restore();
+  }
+
+  private drawDiamond(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string, filled: boolean): void {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x, y - size);
+    ctx.lineTo(x + size, y);
+    ctx.lineTo(x, y + size);
+    ctx.lineTo(x - size, y);
+    ctx.closePath();
+    if (filled) ctx.fill();
+    else ctx.stroke();
+    ctx.restore();
+  }
+
+  private isHovered(rect: Rect): boolean {
+    return this.pointer ? this.contains(rect, this.pointer.x, this.pointer.y) : false;
+  }
+
+  private toCanvasPoint(canvas: HTMLCanvasElement, event: MouseEvent): { x: number; y: number } {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left) * (canvas.width / rect.width),
+      y: (event.clientY - rect.top) * (canvas.height / rect.height),
+    };
   }
 
   private lastUpgradeStates(instanceId: string): UpgradeNodeState[] {
@@ -492,7 +684,7 @@ export class HUDManager {
     return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
   }
 
-  private setFeedback(message: string, color = '#e57373'): void {
+  private setFeedback(message: string, color: string = VisualTheme.color.danger): void {
     this.feedbackMessage = message;
     this.feedbackColor = color;
   }

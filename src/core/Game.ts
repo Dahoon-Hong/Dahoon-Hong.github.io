@@ -13,6 +13,7 @@ import mapData from '../data/maps.json';
 import { AssetManager } from './AssetManager';
 import { RenderContext } from '../rendering/RenderContext';
 import { SpriteRenderer } from '../rendering/SpriteRenderer';
+import { VisualTheme } from '../rendering/VisualTheme';
 
 export enum GameState {
   PLAYING = 'PLAYING',
@@ -268,7 +269,7 @@ export class Game {
       this.waveManager.totalWaveEnemies - this.waveManager.spawnedEnemiesCount + liveEnemyCount
     );
     this.hud.render(
-      this.ctx,
+      this.renderContext,
       this.canvas.width,
       this.canvas.height,
       this.vehicle,
@@ -328,9 +329,20 @@ export class Game {
         ? 'NEXT PLANET'
         : 'RESTART REGION';
     this.ctx.save();
-    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+    this.ctx.fillStyle = VisualTheme.color.overlay;
     this.ctx.fillRect(0, 0, gameplayWidth, this.canvas.height);
-    this.ctx.fillStyle = isGameOver ? '#ff1744' : '#00e676';
+    const statusColor = isGameOver ? VisualTheme.color.danger : VisualTheme.color.success;
+    const panelWidth = 460;
+    const panelHeight = 220;
+    const panelX = gameplayWidth / 2 - panelWidth / 2;
+    const panelY = this.canvas.height / 2 - 110;
+    this.ctx.fillStyle = VisualTheme.color.surfacePanel;
+    this.ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+    this.ctx.strokeStyle = statusColor;
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
+    this.renderResultMarker(gameplayWidth / 2, this.canvas.height / 2 - 62, statusColor, isGameOver);
+    this.ctx.fillStyle = statusColor;
     this.ctx.font = 'bold 34px sans-serif';
     this.ctx.textAlign = 'center';
     this.ctx.fillText(
@@ -338,17 +350,40 @@ export class Game {
       gameplayWidth / 2,
       this.canvas.height / 2 - 20
     );
-    this.ctx.fillStyle = '#d0d8e0';
+    this.ctx.fillStyle = VisualTheme.color.textPrimary;
     this.ctx.font = '16px sans-serif';
     this.ctx.fillText(`${location.planetName} · ${location.regionName}`, gameplayWidth / 2, this.canvas.height / 2 + 10);
 
     const buttonX = gameplayWidth / 2 - 100;
     const buttonY = this.canvas.height / 2 + 30;
-    this.ctx.fillStyle = '#00e676';
+    this.ctx.fillStyle = statusColor;
     this.ctx.fillRect(buttonX, buttonY, 200, 50);
-    this.ctx.fillStyle = '#000000';
+    this.ctx.fillStyle = VisualTheme.color.black;
     this.ctx.font = 'bold 20px sans-serif';
     this.ctx.fillText(buttonLabel, gameplayWidth / 2, buttonY + 32);
+    this.ctx.restore();
+  }
+
+  private renderResultMarker(x: number, y: number, color: string, danger: boolean): void {
+    this.ctx.save();
+    this.ctx.strokeStyle = color;
+    this.ctx.lineWidth = 3;
+    if (danger) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(x - 10, y - 10);
+      this.ctx.lineTo(x + 10, y + 10);
+      this.ctx.moveTo(x + 10, y - 10);
+      this.ctx.lineTo(x - 10, y + 10);
+      this.ctx.stroke();
+    } else {
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, y - 12);
+      this.ctx.lineTo(x + 12, y);
+      this.ctx.lineTo(x, y + 12);
+      this.ctx.lineTo(x - 12, y);
+      this.ctx.closePath();
+      this.ctx.stroke();
+    }
     this.ctx.restore();
   }
 

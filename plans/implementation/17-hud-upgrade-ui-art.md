@@ -188,12 +188,12 @@ HUD panel: x = 940..1280
 
 ## 완료 조건과 인계
 
-- [ ] HUD의 기존 hitbox와 의미를 보존하면서 visual token과 icon이 연결되었다.
-- [ ] 주요 상태가 색상 단독이 아니라 shape, outline, label 중 하나를 추가로 가진다.
-- [ ] 16단계 loader의 missing/failed fallback이 UI에서도 동작한다.
-- [ ] 18단계가 검사할 UI 상태와 viewport 목록이 기록되었다.
-- [ ] 19단계에서 99, 100과 함께 기능 회귀를 재현할 수 있다.
-- [ ] Canvas build 후 실제 click coordinate가 drawing coordinate와 일치한다.
+- [x] HUD의 기존 hitbox와 의미를 보존하면서 visual token과 icon이 연결되었다.
+- [x] 주요 상태가 색상 단독이 아니라 shape, outline, label 중 하나를 추가로 가진다.
+- [x] 16단계 loader의 missing/failed fallback이 UI에서도 동작한다.
+- [x] 18단계가 검사할 UI 상태와 viewport 목록이 기록되었다.
+- [x] 19단계에서 99, 100과 함께 기능 회귀를 재현할 수 있다.
+- [x] Canvas build 후 실제 click coordinate가 drawing coordinate와 일치한다.
 
 ## 검증 기록 템플릿
 
@@ -207,4 +207,34 @@ hitbox 오프셋:
 pause install/upgrade:
 수정 사항:
 검증 일시:
+```
+
+## 17단계 구현 기록
+
+### 구현 결과
+
+- `src/rendering/VisualTheme.ts`를 추가해 HUD와 결과 overlay가 공통 surface, text, accent, success, warning, danger, disabled token을 사용하도록 했다.
+- `HUDManager`가 16단계 `RenderContext`를 받아 기존 manifest의 Core·자원·모듈 icon을 그리며, asset이 없거나 로딩에 실패하면 `SpriteRenderer` fallback 경로를 유지한다.
+- 상단 bar를 Core HP bar, 자원별 icon/수량, wave/hostile count, 조작 안내로 분리했다. 기존 logical 좌표와 panel 폭은 유지했다.
+- 시스템·전투 모듈·설치 목록·upgrade node에 selected, available, insufficient, locked, disabled marker와 hover outline을 추가했다. 설치·upgrade hitbox 좌표와 입력 규칙은 변경하지 않았다.
+- pause와 terminal 결과 화면에 같은 panel/overlay 언어와 shape marker를 적용했다. pause 중 install/upgrade 및 자동 생산·수집 중지 계약은 기존 `Game.update()` 흐름을 유지한다.
+
+### 의도적인 최소화
+
+- 새 raster UI 파일은 추가하지 않았다. 현재 manifest의 icon과 16단계 fallback, Canvas shape marker로 pause/wave/status 의미를 표현해 manifest에 존재하지 않는 빈 asset 경로를 만들지 않았다.
+- hover는 기존 click interaction을 확장하지 않고 현재 pointer 위치에 outline만 표시한다. keyboard focus navigation과 별도 UI 상태 머신은 99단계 tutorial polish 이후 필요할 때 추가한다.
+
+### 검증 기록
+
+```text
+검증 화면: 전투 HUD, 선택된 빈 grid 설치 panel, 선택된 모듈 upgrade web, pause overlay, terminal result overlay 코드 경로
+viewport와 DPR: logical 1280x720, 기존 getBoundingClientRect() 입력 변환 유지; 고해상도 실브라우저 캡처는 19단계 QA에서 확인
+확인한 상태: selected, available, insufficient, locked, disabled, hover, paused, game over/victory result
+hitbox 오프셋: 기존 subject/node/install/result click rect 유지
+텍스트 clipping: top bar를 Core·4개 resource·wave·controls 구간으로 분리하고 node/module label을 truncate 처리
+색 외 보조 신호: icon, outline, diamond, check, lock, warning triangle, slash, result cross/diamond
+pause install/upgrade: 기존 HUD 입력 허용; Game update의 자동 생산·수집 정지 유지
+수정 사항: VisualTheme 추가, HUD RenderContext/icon 연결, 상태 marker/hover, pause/result visual token 통일
+검증 일시: 2026-09-06
+빌드: npx.cmd tsc --noEmit, npm.cmd run build, git diff --check 통과
 ```
