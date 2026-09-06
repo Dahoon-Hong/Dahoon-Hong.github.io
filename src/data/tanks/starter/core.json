@@ -9,11 +9,7 @@
     "nodes": [
       { "id": "root", "parentId": null, "cost": {}, "effects": [] },
       { "id": "reinforced-core", "parentId": "root", "cost": { "matter": 40 }, "effects": [{ "stat": "maxHp", "operation": "add", "value": 50 }] },
-      { "id": "overclocked-core", "parentId": "root", "cost": { "matter": 40 }, "effects": [{ "stat": "maxHp", "operation": "add", "value": 25 }] },
-      { "id": "expanded-frame", "parentId": "root", "cost": { "matter": 80 }, "effects": [
-        { "stat": "gridColumns", "operation": "add", "value": 2 },
-        { "stat": "gridRows", "operation": "add", "value": 2 }
-      ] }
+      { "id": "overclocked-core", "parentId": "root", "cost": { "matter": 40 }, "effects": [{ "stat": "maxHp", "operation": "add", "value": 25 }] }
     ]
   }
 }

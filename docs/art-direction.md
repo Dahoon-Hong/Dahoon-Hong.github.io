@@ -45,7 +45,7 @@ Reading this as: PC 브라우저용 2D 탑다운 차량 방어 게임, 전투 �
 - HUD panel 폭은 `HUDManager.PANEL_WIDTH = 340`이다.
 - 전투 viewport는 Canvas 오른쪽 340px을 제외한다.
 - 차량 grid 한 칸은 `44x44` 논리 크기다.
-- Core와 actor의 world position은 sprite pivot의 중심과 일치한다.
+- Core Engine의 world position은 차량 중심이며, grid 좌표나 설치 모듈을 소유하지 않는다.
 - 1x1 module은 `44x44`, 2x1 module은 `88x44`, 2x2 module은 `88x88` draw box를 사용한다.
 - standard enemy는 `24x24` draw box와 `radius = 12`, tanker는 `36x36` draw box와 `radius = 18`을 기준으로 한다.
 - resource pickup은 `20x20` draw box를 사용한다.
@@ -56,7 +56,7 @@ Reading this as: PC 브라우저용 2D 탑다운 차량 방어 게임, 전투 �
 ## View and shape rules
 
 - 모든 월드 asset은 2D top-down orthographic 시점이다.
-- 탱크는 중심 Core, frame, module footprint가 먼저 읽힌다.
+- 탱크는 frame과 module footprint가 먼저 읽히고, Core 상태는 HUD에서 읽힌다.
 - standard enemy는 작고 날카로운 실루엣, tanker는 크고 무거운 실루엣으로 구분한다.
 - resource는 형태와 semantic color를 함께 사용한다.
 - UI icon은 월드 sprite의 축소 복사본이 아니라 16~20px에서 읽히는 단순 문양이다.

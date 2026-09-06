@@ -30,15 +30,11 @@ export class CombatGrid {
   }
 
   public get columns(): number {
-    return this.getExpandedDimension('gridColumns', this.baseColumns);
+    return this.baseColumns;
   }
 
   public get rows(): number {
-    return this.getExpandedDimension('gridRows', this.baseRows);
-  }
-
-  public getCoreCell(): GridCell {
-    return { ...this.definition.coreCell };
+    return this.baseRows;
   }
 
   public getCombatModuleDefinitions(): TankModuleDefinition[] {
@@ -113,29 +109,16 @@ export class CombatGrid {
     return cell.x >= 0 && cell.x < this.columns && cell.y >= 0 && cell.y < this.rows;
   }
 
-  public isCoreCell(cell: GridCell): boolean {
-    return cell.x === this.definition.coreCell.x && cell.y === this.definition.coreCell.y;
-  }
-
   public isBlocked(cell: GridCell): boolean {
     return this.definition.blockedCells.some((blocked) => blocked.x === cell.x && blocked.y === cell.y);
   }
 
   private isInstallableCell(cell: GridCell): boolean {
-    return this.isInside(cell) && !this.isCoreCell(cell) && !this.isBlocked(cell) && !this.getModuleAtCell(cell.x, cell.y);
+    return this.isInside(cell) && !this.isBlocked(cell) && !this.getModuleAtCell(cell.x, cell.y);
   }
 
   private isIntegerCell(cell: GridCell): boolean {
     return Number.isInteger(cell.x) && Number.isInteger(cell.y);
-  }
-
-  private getExpandedDimension(stat: 'gridColumns' | 'gridRows', base: number): number {
-    try {
-      const expansion = this.upgrades.getEffectiveStats('builtin:core')[stat] ?? 0;
-      return base + Math.max(0, Math.floor(expansion));
-    } catch {
-      return base;
-    }
   }
 
   private key(x: number, y: number): string {

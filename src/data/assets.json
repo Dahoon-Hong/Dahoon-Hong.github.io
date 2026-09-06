@@ -41,14 +41,6 @@
       "layer": "actors",
       "fallback": "shape.tank.grid.blocked"
     },
-    "tank.grid.core": {
-      "src": "/assets/game/tank/grid-core.png",
-      "draw": { "width": 44, "height": 44 },
-      "pivot": { "x": 0.5, "y": 0.5 },
-      "frames": { "columns": 1, "rows": 1, "duration": 0 },
-      "layer": "actors",
-      "fallback": "shape.tank.grid.core"
-    },
     "tank.module.direct-weapon": {
       "src": "/assets/game/tank/module-direct-weapon.png",
       "draw": { "width": 44, "height": 44 },

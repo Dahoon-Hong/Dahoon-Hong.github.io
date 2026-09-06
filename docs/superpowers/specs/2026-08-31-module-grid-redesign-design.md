@@ -74,7 +74,6 @@ src/data/tanks/
   "grid": {
     "columns": 3,
     "rows": 3,
-    "coreCell": { "x": 1, "y": 1 },
     "blockedCells": []
   },
   "builtinModuleIds": [
@@ -97,8 +96,8 @@ src/data/tanks/
 
 규칙:
 
-- 그리드 크기와 코어 기준 칸은 탱크마다 다를 수 있다.
-- `coreCell`과 `blockedCells`에는 전투 모듈을 설치할 수 없다.
+- 그리드 크기와 금지 칸은 탱크마다 다를 수 있다.
+- `blockedCells`에는 전투 모듈을 설치할 수 없다.
 - `builtinModuleIds`의 모든 시스템은 레벨 1·활성 상태로 시작한다.
 - `initialCombatModules`의 크기는 모듈 JSON에서 읽으며, 초기 배치는 시작 시 겹침과 경계 검사를 받는다.
 
@@ -249,7 +248,7 @@ type CombatPlacement = {
 - `anchor`는 좌상단 칸이다.
 - 점유 칸은 `[anchor.x, anchor.x + width)` × `[anchor.y, anchor.y + height)` 범위다.
 - 모든 점유 칸이 그리드 내부여야 한다.
-- 코어 칸과 금지 칸을 점유할 수 없다.
+- 금지 칸을 점유할 수 없다.
 - 기존 모듈 점유 칸과 하나라도 겹치면 설치할 수 없다.
 - 초기 버전은 회전 입력을 지원하지 않는다.
 - 설치 비용은 모듈 JSON의 `installCost`를 사용한다.

@@ -11,7 +11,6 @@ export interface GridCell {
 export interface GridDefinition {
   columns: number;
   rows: number;
-  coreCell: GridCell;
   blockedCells: GridCell[];
 }
 
@@ -83,8 +82,6 @@ const ALLOWED_STATS = new Set([
   'trackMaxSpeed',
   'rotationSpeed',
   'armorValue',
-  'gridColumns',
-  'gridRows',
   'productionAmount',
   'productionInterval',
   'collectionRadius',
@@ -164,13 +161,6 @@ function parseEffects(value: unknown, path: string): UpgradeEffect[] {
     if (operation !== 'add' && operation !== 'multiply') {
       fail(`${effectPath}.operation`, `unsupported operation '${operation}'`);
     }
-    if (stat === 'gridColumns' || stat === 'gridRows') {
-      if (operation !== 'add') fail(`${effectPath}.operation`, `${stat} only supports 'add'`);
-      if (!Number.isInteger(record.value) || Number(record.value) <= 0) {
-        fail(`${effectPath}.value`, `${stat} must be a positive integer`);
-      }
-    }
-
     return {
       stat,
       operation,
@@ -239,22 +229,16 @@ function parseGrid(value: unknown, path: string): GridDefinition {
   const grid: GridDefinition = {
     columns: requiredInteger(record.columns, `${path}.columns`, 1),
     rows: requiredInteger(record.rows, `${path}.rows`, 1),
-    coreCell: parseCell(record.coreCell, `${path}.coreCell`),
     blockedCells: requiredArray(record.blockedCells ?? [], `${path}.blockedCells`).map((cell, index) =>
       parseCell(cell, `${path}.blockedCells[${index}]`)
     ),
   };
-
-  if (!isInside(grid.coreCell, grid)) fail(`${path}.coreCell`, 'cell is outside the grid');
 
   const seen = new Set<string>();
   for (const [index, cell] of grid.blockedCells.entries()) {
     if (!isInside(cell, grid)) fail(`${path}.blockedCells[${index}]`, 'cell is outside the grid');
     const key = `${cell.x},${cell.y}`;
     if (seen.has(key)) fail(`${path}.blockedCells[${index}]`, 'duplicate blocked cell');
-    if (cell.x === grid.coreCell.x && cell.y === grid.coreCell.y) {
-      fail(`${path}.blockedCells[${index}]`, 'core cell is blocked automatically');
-    }
     seen.add(key);
   }
 
@@ -298,13 +282,6 @@ function parseModuleDefinition(value: unknown, path: string, expectedId: string)
   }
   if (definition.id === 'core' && definition.behavior !== 'core') {
     fail(`${path}.behavior`, 'core must use core behavior');
-  }
-
-  if (kind !== 'builtin' || definition.behavior !== 'core') {
-    const hasGridEffect = definition.upgradeTree.nodes.some((node) =>
-      node.effects.some((effect) => effect.stat === 'gridColumns' || effect.stat === 'gridRows')
-    );
-    if (hasGridEffect) fail(`${path}.upgradeTree`, 'grid expansion effects are only allowed on the core');
   }
 
   return definition;
@@ -379,9 +356,6 @@ function validateManifestReferences(
         const cell = { x: placement.anchor.x + x, y: placement.anchor.y + y };
         if (!isInside(cell, manifest.grid)) fail(`${path}.initialCombatModules`, 'placement is outside the grid');
         const key = `${cell.x},${cell.y}`;
-        if (cell.x === manifest.grid.coreCell.x && cell.y === manifest.grid.coreCell.y) {
-          fail(`${path}.initialCombatModules`, 'placement overlaps the core cell');
-        }
         if (blocked.has(key)) fail(`${path}.initialCombatModules`, 'placement overlaps a blocked cell');
         if (occupied.has(key)) fail(`${path}.initialCombatModules`, 'initial placements overlap');
         occupied.add(key);

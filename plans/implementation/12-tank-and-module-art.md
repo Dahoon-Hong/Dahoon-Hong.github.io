@@ -22,7 +22,7 @@
 전투 화면에서 다음 정보를 짧은 시간 안에 읽을 수 있게 한다.
 
 1. 플레이어 탱크의 전체 외곽과 이동 중심
-2. 중앙 Core의 위치와 생존 상태
+2. Core Engine의 생존 상태와 시스템 UI
 3. 빈 격자, 막힌 격자, 장착된 전투 모듈의 차이
 4. `direct-weapon`과 `arc-weapon`의 차이
 5. 다중 셀 모듈의 실제 footprint와 발사 중심
@@ -35,8 +35,8 @@
 | 논리 Canvas | `1280x720` | 탱크 asset은 논리 좌표에서 그릴 크기를 기준으로 만든다. |
 | HUD panel | `HUDManager.PANEL_WIDTH = 340` | 탱크와 전투 영역은 오른쪽 panel 영역을 침범하지 않는다. |
 | grid cell | `Vehicle.tileSize = 44` | 1칸 모듈의 draw box는 `44x44`다. |
-| 기본 grid | `3x3` | 코어는 `coreCell: { x: 1, y: 1 }`에 있다. |
-| 초기 전투 배치 | `direct-weapon` at `{ x: 1, y: 0 }` | 첫 화면에서 Core와 직사 무기가 즉시 구분되어야 한다. |
+| 기본 grid | `3x3` | grid 중심은 vehicle world position으로 계산한다. |
+| 초기 전투 배치 | `direct-weapon` at `{ x: 1, y: 0 }` | 첫 화면에 Gatling Cannon 하나만 기본 설치한다. |
 | 모듈 footprint | `1x1`, `2x1`, `2x2` | 하나의 모듈 instance와 하나의 visual footprint로 표현한다. |
 | 내장 시스템 | grid 설치 대상이 아님 | world grid에 억지로 그리지 않고 UI icon과 tank 상태로 표현한다. |
 | 차량 충돌 경계 | grid bounds와 padding으로 계산 | frame 장식과 그림자는 경계를 변경하지 않는다. |
@@ -54,7 +54,7 @@
 ### 포함
 
 - starter 탱크 frame과 grid 조립 조각
-- Core, 빈 cell, blocked cell, selected cell asset
+- 빈 cell, blocked cell, selected cell asset
 - `direct-weapon`, `arc-weapon` body와 icon
 - built-in module의 UI용 icon 목록
 - module active, damaged, disabled 상태의 시각 규칙
@@ -82,7 +82,6 @@
 | `tank.starter.frame.corner` | `idle`, `damaged` | cell 단위 조각 | 방향별 flip 가능 여부를 manifest에 기록한다. |
 | `tank.grid.empty` | `idle`, `selected`, `preview-valid`, `preview-invalid` | `44x44` | 설치 상태 overlay와 충돌하지 않아야 한다. |
 | `tank.grid.blocked` | `idle`, `selected` | `44x44` | 막힌 셀은 색상 외에 pattern이 있어야 한다. |
-| `tank.grid.core` | `active`, `damaged`, `disabled` | `44x44` | 실제 Core cell 중심과 일치한다. |
 | `tank.module.direct-weapon` | `active`, `damaged`, `disabled` | `44x44` | 발사점 위치를 manifest에 기록한다. |
 | `tank.module.arc-weapon` | `active`, `damaged`, `disabled` | `88x44` | footprint 중앙에서 발사한다. |
 
@@ -143,7 +142,7 @@ arc-weapon
 ## 이미지 생성과 정규화 순서
 
 1. 11단계의 starter 기준 샘플을 먼저 확인한다.
-2. `tank.starter.frame.center`와 `tank.grid.core`를 기준으로 탱크의 광원·외곽선·픽셀 크기를 고정한다.
+2. `tank.starter.frame.center`를 기준으로 탱크의 광원·외곽선·픽셀 크기를 고정한다.
 3. 기준 탱크를 참조해 `direct-weapon`과 `arc-weapon`을 생성한다.
 4. 1x1 모듈을 먼저 확정하고, 2x1 모듈은 같은 장비 언어를 가로로 확장한다.
 5. 각 결과를 100%와 50% 크기로 확인한다.
@@ -166,14 +165,14 @@ no perspective, no isometric view, no 3D render, no soft bloom.
 
 ### 12.1 기준선과 데이터 대조
 
-- `module.json`의 `starter`, `coreCell`, `blockedCells`, `initialCombatModules`를 확인한다.
+- `module.json`의 `starter`, `blockedCells`, `initialCombatModules`를 확인한다.
 - 모든 module JSON의 `id`, `kind`, `size`를 수집한다.
 - 코드에 존재하는 render 대상과 UI icon 대상의 목록을 분리한다.
 - 11단계의 palette와 draw box를 변경하지 않고 누락된 항목만 추가한다.
 
 ### 12.2 샘플 제작
 
-- Core, frame center, direct weapon, arc weapon을 먼저 만든다.
+- frame center, direct weapon, arc weapon을 먼저 만든다.
 - 2x1 모듈의 중심이 양쪽 셀 사이에서 어긋나지 않는지 확인한다.
 - damaged와 disabled는 동일한 body를 재사용할 수 있는지 먼저 검토한다.
 
@@ -195,7 +194,7 @@ no perspective, no isometric view, no 3D render, no soft bloom.
 ### asset
 
 - [x] starter frame center, edge, corner의 조립 규칙이 정해져 있다.
-- [x] Core, 빈 cell, blocked cell, direct weapon, arc weapon 기준 asset이 있다.
+- [x] 빈 cell, blocked cell, direct weapon, arc weapon 기준 asset이 있다.
 - [x] built-in module과 combat module의 UI icon 목록이 완성되어 있다.
 - [x] 1x1, 2x1, 2x2 draw box와 pivot이 11단계 계약과 일치한다.
 - [x] asset 안에 텍스트, 수치, UI가 없다.
@@ -234,8 +233,8 @@ Notes:
 
 ## 12단계 구현 기록
 
-- [x] 12.1 data audit: `starter`, `coreCell`, `blockedCells`, `initialCombatModules`, module `id`·`kind`·`size` 기준을 현재 코드와 대조했다.
-- [x] 12.2 imagegen: `tank.grid.core`, `tank.module.direct-weapon`, `tank.module.arc-weapon`을 생성하고 투명 bounds crop, padding, nearest-neighbor 정규화를 적용했다.
+- [x] 12.1 data audit: `starter`, `blockedCells`, `initialCombatModules`, module `id`·`kind`·`size` 기준을 현재 코드와 대조했다.
+- [x] 12.2 imagegen: `tank.module.direct-weapon`, `tank.module.arc-weapon`을 생성하고 투명 bounds crop, padding, nearest-neighbor 정규화를 적용했다.
 - [x] 12.2 deterministic raster: starter frame edge/corner, empty/blocked grid, built-in/combat UI icon 12종을 동일 palette의 투명 PNG로 제작했다.
 - [x] 12.3 manifest: `src/data/assets.json`에 world asset 7종과 UI icon 12종의 logical ID, runtime path, draw box, pivot, layer, fallback을 등록했다.
 - [x] 12.3 provenance: 생성 원본, 폐기된 direct weapon 시도, prompt set, 정규화 규칙, runtime 파일 목록을 `docs/art-asset-provenance.md`에 기록했다.
@@ -252,7 +251,7 @@ Date: 2026-09-05
 Scope: 12 tank and module art
 Reference contract: 11-art-direction-and-asset-contract.md
 Module IDs checked: core, resource-generator, gatherer, recycler, arsenal, composer, rail, power-pack, caterpillar-track, armor-plate, direct-weapon, arc-weapon
-World assets: starter frame edge/corner, empty grid, blocked grid, Core, direct weapon, arc weapon
+World assets: starter frame edge/corner, empty grid, blocked grid, direct weapon, arc weapon
 UI icon assets: 12 built-in/combat icons at 20x20
 Draw box/pivot check: pass, 19 manifest entries and runtime files validated
 Transparency check: pass, transparent corners validated for all 19 new files

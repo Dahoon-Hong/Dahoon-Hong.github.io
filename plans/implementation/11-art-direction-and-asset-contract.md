@@ -92,8 +92,8 @@
 |---|---|---|
 | 논리 Canvas | `1280x720` | asset draw 좌표와 게임 좌표를 분리하지 않고 논리 좌표를 그대로 사용한다. |
 | 게임 영역 | 전체 폭에서 `HUDManager.PANEL_WIDTH`인 `340px`를 제외 | 오른쪽 패널 영역에 전장 asset을 그리지 않는다. |
-| 차량 격자 | `Vehicle.tileSize = 44`, 기본 `3x3`, 코어 중심 | 1칸 asset은 `44x44` 논리 draw box를 기준으로 한다. |
-| 코어 | `CombatGrid`의 `coreCell`이 원점 | 코어 sprite와 grid 원점의 pivot을 중앙으로 고정한다. |
+| 차량 격자 | `Vehicle.tileSize = 44`, 기본 `3x3`, vehicle 중심 | 1칸 asset은 `44x44` 논리 draw box를 기준으로 한다. |
+| 코어 | Core Engine system과 HUD 상태 | grid cell이나 world module sprite를 소유하지 않는다. |
 | 다중 모듈 | `1x1`, `2x1`, `2x2` footprint | footprint 전체를 하나의 모듈 인스턴스로 보이게 하고 anchor를 좌상단으로 유지한다. |
 | 표준 적 | `radius = 12` | 중심 pivot과 충돌 반경을 일치시키고, sprite 투명 여백이 반경을 속이지 않게 한다. |
 | 탱커 적 | `radius = 18` | 표준 적과 다른 실루엣과 크기로 표현하되 데이터의 반경을 변경하지 않는다. |
@@ -175,11 +175,10 @@
 - `tank.frame.corner`
 - `tank.grid.empty`
 - `tank.grid.blocked`
-- `tank.grid.core`
 - 모듈별 1칸·다중 칸 body
 - 선택·설치 미리보기용 overlay
 
-이렇게 하면 코어 업그레이드로 grid가 확장되어도 3x3, 5x5를 별도 대형 이미지로 다시 제작하지 않아도 된다. 조립 규칙은 12단계에서 탱크 asset을 제작할 때 사용하고, 실제 조합 renderer는 16단계에서 구현한다.
+이렇게 하면 grid 크기와 Core Engine system을 분리한 채 탱크 frame을 여러 grid 크기에 재사용할 수 있다. 조립 규칙은 12단계에서 탱크 asset을 제작할 때 사용하고, 실제 조합 renderer는 16단계에서 구현한다.
 
 ### 5. 상태 모델
 
@@ -207,7 +206,6 @@ logical ID는 월드 타입, 대상 ID, 상태를 점으로 연결한다.
 
 ```text
 tank.starter.frame.center
-tank.starter.grid.core
 tank.module.direct-weapon.active
 tank.module.arc-weapon.active
 enemy.standard.idle
@@ -230,7 +228,6 @@ map.aurelia.landing-zone.background
 public/assets/game/
   tank/
     starter-frame-center.png
-    starter-grid-core.png
     module-direct-weapon-active.png
     module-arc-weapon-active.png
   enemies/

@@ -28,11 +28,6 @@ export class Vehicle {
     return this.combatGrid.columns;
   }
 
-  public getCoreGridPosition(): { gx: number; gy: number } {
-    const cell = this.combatGrid.getCoreCell();
-    return { gx: cell.x, gy: cell.y };
-  }
-
   public getCoreHp(): number {
     return this.systems.getCoreHp();
   }
@@ -82,16 +77,12 @@ export class Vehicle {
     return gridX >= 0 && gridX < this.gridCols && gridY >= 0 && gridY < this.gridRows;
   }
 
-  public isCorePosition(gridX: number, gridY: number): boolean {
-    const core = this.getCoreGridPosition();
-    return gridX === core.gx && gridY === core.gy;
-  }
-
   public getModuleWorldPos(gridX: number, gridY: number): { x: number; y: number } {
-    const core = this.getCoreGridPosition();
+    const centerX = (this.gridCols - 1) / 2;
+    const centerY = (this.gridRows - 1) / 2;
     return {
-      x: this.x + (gridX - core.gx) * this.tileSize,
-      y: this.y + (gridY - core.gy) * this.tileSize,
+      x: this.x + (gridX - centerX) * this.tileSize,
+      y: this.y + (gridY - centerY) * this.tileSize,
     };
   }
 
@@ -157,13 +148,10 @@ export class Vehicle {
     this.x += moveInput.x * movementSpeed * dt;
     this.y += moveInput.y * movementSpeed * dt;
 
-    const core = this.getCoreGridPosition();
-    const leftPadding = core.gx * this.tileSize + this.tileSize / 2 + 6;
-    const topPadding = core.gy * this.tileSize + this.tileSize / 2 + 6;
-    const rightPadding = (this.gridCols - 1 - core.gx) * this.tileSize + this.tileSize / 2 + 6;
-    const bottomPadding = (this.gridRows - 1 - core.gy) * this.tileSize + this.tileSize / 2 + 6;
-    this.x = Math.max(leftPadding, Math.min(Math.max(leftPadding, bounds.width - rightPadding), this.x));
-    this.y = Math.max(topPadding, Math.min(Math.max(topPadding, bounds.height - bottomPadding), this.y));
+    const horizontalPadding = this.gridCols * this.tileSize / 2 + 6;
+    const verticalPadding = this.gridRows * this.tileSize / 2 + 6;
+    this.x = Math.max(horizontalPadding, Math.min(Math.max(horizontalPadding, bounds.width - horizontalPadding), this.x));
+    this.y = Math.max(verticalPadding, Math.min(Math.max(verticalPadding, bounds.height - verticalPadding), this.y));
   }
 
   public resetRuntime(): void {
@@ -233,10 +221,10 @@ export class Vehicle {
   }
 
   private getImpactModule(direction: { x: number; y: number }): CombatModule | null {
-    const core = this.getCoreGridPosition();
-    const targetX = core.gx + Math.sign(direction.x);
-    const targetY = core.gy + Math.sign(direction.y);
-    if (targetX === core.gx && targetY === core.gy) return null;
+    const centerX = (this.gridCols - 1) / 2;
+    const centerY = (this.gridRows - 1) / 2;
+    const targetX = Math.round(centerX + Math.sign(direction.x));
+    const targetY = Math.round(centerY + Math.sign(direction.y));
     return this.getModuleAt(targetX, targetY);
   }
 

@@ -70,13 +70,12 @@ Asset-specific subject notes:
 
 | Logical ID | Accepted generated source | Runtime file | Logical draw box |
 | --- | --- | --- | ---: |
-| `tank.grid.core` | `exec-b7be5370-61cd-4d6e-8e64-dd108fff440b.png` | `public/assets/game/tank/grid-core.png` | 44x44 |
 | `tank.module.direct-weapon` | `exec-7c256317-f4c0-42fc-aa26-69509262baa6.png` | `public/assets/game/tank/module-direct-weapon.png` | 44x44 |
 | `tank.module.arc-weapon` | `exec-63d188e5-f752-43f7-b420-b0cc1198f1bd.png` | `public/assets/game/tank/module-arc-weapon.png` | 88x44 |
 
 첫 direct weapon 생성 결과 `exec-952f6e8a-fb0c-4cd5-9673-572a7de00d49.png`는 탱크 전체에 가까운 구성이어서 폐기했다. 최종 결과는 섀시가 없는 독립형 1x1 포탑으로 다시 생성했다.
 
-공통 prompt set은 `stylized-concept`, top-down detached module, hard-edged pixel clusters, transparent background, no text/UI를 사용했고, Core는 cyan reactor, direct weapon은 detached gatling turret, arc weapon은 2-cell horizontal mortar를 주제로 분리했다.
+공통 prompt set은 `stylized-concept`, top-down detached module, hard-edged pixel clusters, transparent background, no text/UI를 사용했고, direct weapon은 detached gatling turret, arc weapon은 2-cell horizontal mortar를 주제로 분리했다. Core Engine은 월드 grid asset을 사용하지 않는다.
 
 ### Deterministic raster 결과
 

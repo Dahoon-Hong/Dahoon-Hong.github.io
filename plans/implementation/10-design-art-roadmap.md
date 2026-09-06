@@ -123,7 +123,7 @@ starter 탱크와 현재 모듈 구조를 유지하면서 플레이어 탈것과
 - Core와 코어 손상 상태
 - 내장 시스템의 시각 구분: resource, gatherer, recycler, arsenal, composer, rail, power pack, caterpillar track, armor plate
 - 전투 모듈: `direct-weapon`, `arc-weapon` 및 이후 탱크별 전투 모듈
-- 격자 타일, 코어 셀, 빈 셀, 설치 미리보기, 선택 outline
+- 격자 타일, 빈 셀, 설치 미리보기, 선택 outline
 - 모듈 HP 손상·비활성 상태
 
 ### 작업
