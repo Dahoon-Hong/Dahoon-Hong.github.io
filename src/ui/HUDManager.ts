@@ -11,6 +11,7 @@ interface HUDCallbacks {
   getStorage: () => ResourceStorage;
   getUpgradeManager: () => UpgradeManager;
   spendCost: (cost: ResourceCost) => boolean;
+  onUpgradeSuccess: () => void;
 }
 
 interface Rect {
@@ -150,6 +151,7 @@ export class HUDManager {
       if (!this.contains(hitbox, mouseX, mouseY)) continue;
       const manager = callbacks.getUpgradeManager();
       const selected = manager.select(hitbox.instanceId, hitbox.nodeId, callbacks.spendCost);
+      if (selected) callbacks.onUpgradeSuccess();
       this.setFeedback(selected ? 'Upgrade selected.' : 'Upgrade unavailable or too expensive.', selected ? VisualTheme.color.success : VisualTheme.color.danger);
       return true;
     }

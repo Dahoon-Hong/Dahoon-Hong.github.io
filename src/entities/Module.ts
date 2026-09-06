@@ -5,6 +5,12 @@ import { Enemy } from './Enemy';
 import { ArcProjectile, DirectProjectile, Projectile } from './Projectile';
 import type { RenderContext } from '../rendering/RenderContext';
 
+export type CombatSoundEvent = {
+  type: 'weapon-fired';
+  weapon: 'direct' | 'arc';
+  position: { x: number; y: number };
+};
+
 export abstract class CombatModule {
   public readonly type = 'COMBAT';
   public readonly moduleId: string;
@@ -67,7 +73,8 @@ export abstract class CombatModule {
     moduleWorldPos: { x: number; y: number },
     enemies: Enemy[],
     spawnProjectile: (projectile: Projectile) => void,
-    spendResource: (type: ResourceType, amount: number) => boolean
+    spendResource: (type: ResourceType, amount: number) => boolean,
+    emitSound: (event: CombatSoundEvent) => void
   ): void;
 
   public abstract render(
@@ -107,7 +114,8 @@ export class DirectWeaponModule extends CombatModule {
     modulePos: { x: number; y: number },
     enemies: Enemy[],
     spawnProjectile: (projectile: Projectile) => void,
-    spendResource: (type: ResourceType, amount: number) => boolean
+    spendResource: (type: ResourceType, amount: number) => boolean,
+    emitSound: (event: CombatSoundEvent) => void
   ): void {
     if (!this.isActive() || dt <= 0) return;
     this.cooldownTimer -= dt;
@@ -129,6 +137,7 @@ export class DirectWeaponModule extends CombatModule {
         this.getStat('maxDistance', 1000)
       )
     );
+    emitSound({ type: 'weapon-fired', weapon: 'direct', position: { x: modulePos.x, y: modulePos.y } });
   }
 
   public getRange(): number {
@@ -164,7 +173,8 @@ export class ArcWeaponModule extends CombatModule {
     modulePos: { x: number; y: number },
     enemies: Enemy[],
     spawnProjectile: (projectile: Projectile) => void,
-    spendResource: (type: ResourceType, amount: number) => boolean
+    spendResource: (type: ResourceType, amount: number) => boolean,
+    emitSound: (event: CombatSoundEvent) => void
   ): void {
     if (!this.isActive() || dt <= 0) return;
     this.cooldownTimer -= dt;
@@ -185,6 +195,7 @@ export class ArcWeaponModule extends CombatModule {
         this.getStat('aoeRadius', 120)
       )
     );
+    emitSound({ type: 'weapon-fired', weapon: 'arc', position: { x: modulePos.x, y: modulePos.y } });
   }
 
   public getRange(): number {

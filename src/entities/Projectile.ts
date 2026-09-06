@@ -34,6 +34,10 @@ function distanceSquaredToSegment(
   return dx * dx + dy * dy;
 }
 
+export type ProjectileSoundEvent =
+  | { type: 'projectile-impact'; position: { x: number; y: number } }
+  | { type: 'explosion'; position: { x: number; y: number } };
+
 export abstract class Projectile {
   public x: number;
   public y: number;
@@ -50,7 +54,12 @@ export abstract class Projectile {
     return this.dead;
   }
 
-  public abstract update(dt: number, enemies: Enemy[], spawnEffect: (effect: VisualEffect) => void): void;
+  public abstract update(
+    dt: number,
+    enemies: Enemy[],
+    spawnEffect: (effect: VisualEffect) => void,
+    emitSound: (event: ProjectileSoundEvent) => void
+  ): void;
   public abstract render(render: RenderContext): void;
 }
 
@@ -134,7 +143,12 @@ export class DirectProjectile extends Projectile {
     this.maxDistance = maxDistance;
   }
 
-  public update(dt: number, enemies: Enemy[], spawnEffect: (e: VisualEffect) => void): void {
+  public update(
+    dt: number,
+    enemies: Enemy[],
+    spawnEffect: (e: VisualEffect) => void,
+    emitSound: (event: ProjectileSoundEvent) => void
+  ): void {
     if (this.dead) return;
 
     const previousX = this.x;
@@ -154,6 +168,7 @@ export class DirectProjectile extends Projectile {
       ) {
         enemy.takeDamage(this.damage);
         spawnEffect(new VisualEffect(this.x, this.y, 15, '#29b6f6', 'effect.projectile.direct-hit'));
+        emitSound({ type: 'projectile-impact', position: { x: this.x, y: this.y } });
         this.dead = true;
         break;
       }
@@ -200,7 +215,12 @@ export class ArcProjectile extends Projectile {
     this.aoeRadius = aoeRadius;
   }
 
-  public update(dt: number, enemies: Enemy[], spawnEffect: (e: VisualEffect) => void): void {
+  public update(
+    dt: number,
+    enemies: Enemy[],
+    spawnEffect: (e: VisualEffect) => void,
+    emitSound: (event: ProjectileSoundEvent) => void
+  ): void {
     if (this.dead) return;
 
     this.elapsedTime = Math.min(this.totalTime, this.elapsedTime + dt);
@@ -223,6 +243,7 @@ export class ArcProjectile extends Projectile {
       }
 
       spawnEffect(new VisualEffect(this.targetX, this.targetY, this.aoeRadius, '#ab47bc', 'effect.explosion.arc'));
+      emitSound({ type: 'explosion', position: { x: this.targetX, y: this.targetY } });
       this.dead = true;
     }
   }

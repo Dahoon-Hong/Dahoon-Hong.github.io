@@ -1,6 +1,8 @@
 import { HUDManager } from '../ui/HUDManager';
 import { Enemy } from '../entities/Enemy';
 import { Projectile, VisualEffect } from '../entities/Projectile';
+import type { ProjectileSoundEvent } from '../entities/Projectile';
+import type { CombatSoundEvent } from '../entities/Module';
 import { ResourcePickup } from '../entities/ResourcePickup';
 import { Vehicle } from '../entities/Vehicle';
 import { InputManager } from './InputManager';
@@ -14,6 +16,7 @@ import { AssetManager } from './AssetManager';
 import { RenderContext } from '../rendering/RenderContext';
 import { SpriteRenderer } from '../rendering/SpriteRenderer';
 import { VisualTheme } from '../rendering/VisualTheme';
+import { AudioManager } from './AudioManager';
 
 export enum GameState {
   PLAYING = 'PLAYING',
@@ -43,6 +46,7 @@ export class Game {
   private readonly input: InputManager;
   private readonly hud: HUDManager;
   private readonly tankDefinition: TankDefinition;
+  private readonly audio = new AudioManager();
   private readonly progression = new ProgressionManager();
   private readonly logicalWidth = LOGICAL_CANVAS_WIDTH;
   private readonly logicalHeight = LOGICAL_CANVAS_HEIGHT;
@@ -63,6 +67,8 @@ export class Game {
     const context = canvas.getContext('2d');
     if (!context) throw new Error('2D canvas context is unavailable');
     this.ctx = context;
+    this.audio.attachUserGestureListeners();
+    void this.audio.preload();
     this.resizeCanvas();
     this.assets = new AssetManager();
     this.renderer = new SpriteRenderer(this.assets);
@@ -104,6 +110,7 @@ export class Game {
       getStorage: () => this.resources,
       getUpgradeManager: () => this.upgradeManager,
       spendCost: (cost) => this.resources.spendCost(cost),
+      onUpgradeSuccess: () => this.audio.playSfx('sfx.ui.upgrade-confirm'),
     }, { width: this.logicalWidth, height: this.logicalHeight });
 
     this.canvas.addEventListener('click', (event) => this.handleRestartClick(event));
@@ -123,6 +130,7 @@ export class Game {
   }
 
   private restartGame(): void {
+    this.audio.stopAll();
     this.upgradeManager = new UpgradeManager(this.tankDefinition.modules);
     this.vehicle = this.createVehicle();
     this.waveManager = this.createWaveManager();
@@ -135,6 +143,7 @@ export class Game {
   private advanceProgression(): void {
     const transition = this.progression.advance();
     if (transition === 'complete') {
+      this.audio.stopAll();
       this.state = GameState.VICTORY;
       return;
     }
@@ -201,7 +210,8 @@ export class Game {
           this.vehicle.getModuleWorldCenter(module),
           this.enemies,
           (projectile) => this.projectiles.push(projectile),
-          (type, amount) => this.resources.spend(type, amount)
+          (type, amount) => this.resources.spend(type, amount),
+          (event) => this.handleCombatSound(event)
         );
       }
     }
@@ -222,6 +232,7 @@ export class Game {
 
     if (this.waveManager.waveCleared) {
       if (this.waveManager.currentWave >= this.waveManager.totalWaves) {
+        this.audio.stopAll();
         if (this.progression.hasNextRegion()) this.state = GameState.REGION_CLEARED;
         else if (this.progression.hasNextPlanet()) this.state = GameState.PLANET_CLEARED;
         else this.state = GameState.VICTORY;
@@ -245,7 +256,10 @@ export class Game {
       if (this.resolveEnemyAgainstGrid(enemy, this.vehicle.getGridBounds(), previousPos) && enemy.tryContactDamage()) {
         this.vehicle.takeDamage(enemy.contactDamage, 0, { x: enemy.x - corePos.x, y: enemy.y - corePos.y });
         this.addEffect(new VisualEffect(enemy.x, enemy.y, 25, '#ff1744', 'effect.contact-damage'));
-        if (!this.vehicle.isCoreActive()) this.state = GameState.GAME_OVER;
+        if (!this.vehicle.isCoreActive()) {
+          this.audio.stopAll();
+          this.state = GameState.GAME_OVER;
+        }
       }
 
       if (enemy.isDead()) {
@@ -257,7 +271,12 @@ export class Game {
 
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const projectile = this.projectiles[i];
-      projectile.update(dt, this.enemies, (effect) => this.addEffect(effect));
+      projectile.update(
+        dt,
+        this.enemies,
+        (effect) => this.addEffect(effect),
+        (event) => this.handleProjectileSound(event)
+      );
       if (projectile.isDead()) this.projectiles.splice(i, 1);
     }
 
@@ -477,8 +496,21 @@ export class Game {
   }
 
   private addEnemyDeathEffect(enemy: Enemy): void {
+    this.audio.playSfx('sfx.enemy.death');
     const color = enemy.enemyType === 'tanker' ? '#ff9f43' : '#ff5252';
     this.addEffect(new VisualEffect(enemy.x, enemy.y, enemy.radius * 1.6, color, 'effect.enemy.dead'));
+  }
+
+  private handleCombatSound(event: CombatSoundEvent): void {
+    this.audio.playSfx(
+      event.weapon === 'direct' ? 'sfx.weapon.direct-fire' : 'sfx.weapon.arc-fire'
+    );
+  }
+
+  private handleProjectileSound(event: ProjectileSoundEvent): void {
+    this.audio.playSfx(
+      event.type === 'projectile-impact' ? 'sfx.weapon.impact' : 'sfx.weapon.explosion'
+    );
   }
 
   private handleRestartClick(event: MouseEvent): void {
