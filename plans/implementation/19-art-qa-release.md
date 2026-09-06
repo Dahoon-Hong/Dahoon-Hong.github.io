@@ -204,3 +204,30 @@ warning 수:
 최종 승인자:
 검증 일시:
 ```
+
+## 19단계 구현 기록
+
+### release QA 산출물
+
+- `scripts/qa-art.mjs`와 `npm run qa:art`를 추가했다. manifest version/ID, 실제 파일 경로, PNG frame 분할, draw/pivot/layer/fallback 계약, runtime literal 참조, enemy state, tank module icon, 네 region map asset을 한 번에 검사한다.
+- release candidate에서 `npx.cmd tsc --noEmit`, `npm.cmd run build`, `npm.cmd run qa:art`, `git diff --check`를 실행했다.
+- 정적 asset QA는 manifest 62개에 error 0개로 통과했다. 기존 manifest 미등록 파일 `public/assets/game/tank/grid-core.png`만 warning으로 기록했으며, 자동 삭제하지 않았다.
+- 브라우저 수동 검증에서 초기 전투 화면, 적 밀집 상태, pause overlay, pause 중 subject 선택·upgrade panel 입력, resume 후 전투 재개를 확인했다. DPR 1.75 환경에서 backing 2240x1260과 logical 1280x720 좌표가 일치하며 browser warning/error는 0건이었다.
+
+### 승인 판정
+
+```text
+release candidate: defence branch, 2026-09-06 art QA candidate
+검증 환경과 viewport: local Vite dev server, logical 1280x720, DPR 1.75
+검증한 지역: static map matrix 4/4, browser manual aurelia/landing-zone
+검증한 상태: initial, combat density, pause, selected subject, upgrade panel, resumed combat, fallback contract
+TypeScript 결과: 통과
+build 결과: 통과
+fallback 결과: manifest/renderer fallback contract error 0
+성능 결과: render loop 내 Image/fetch 없음, fallback polygon frame allocation 제거, effect cap 적용
+blocker 수: 0
+warning 수: 1 (unlisted legacy grid-core.png)
+캡처 또는 로그 위치: browser QA screenshots in task run; npm run qa:art -- --json output
+최종 승인자: Codex
+검증 일시: 2026-09-06
+```

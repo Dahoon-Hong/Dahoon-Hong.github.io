@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "qa:art": "node scripts/qa-art.mjs",
+    "qa:release": "npm run qa:art && npm run build"
   },
   "devDependencies": {
     "typescript": "^5.3.3",
