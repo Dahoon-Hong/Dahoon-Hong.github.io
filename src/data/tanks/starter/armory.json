@@ -1,0 +1,14 @@
+{
+  "id": "armory",
+  "kind": "builtin",
+  "name": "Armory",
+  "behavior": "armory",
+  "baseStats": {},
+  "upgradeTree": {
+    "rootId": "root",
+    "nodes": [
+      { "id": "root", "parentId": null, "cost": {}, "effects": [], "unlocksModuleId": "direct-weapon" },
+      { "id": "research-arc-weapon", "parentId": "root", "cost": { "matter": 30 }, "effects": [], "unlocksModuleId": "arc-weapon" }
+    ]
+  }
+}

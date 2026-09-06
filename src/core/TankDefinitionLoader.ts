@@ -27,6 +27,7 @@ export interface UpgradeNodeDefinition {
   parentId: string | null;
   cost: ResourceCost;
   effects: UpgradeEffect[];
+  unlocksModuleId?: string;
 }
 
 export interface UpgradeTreeDefinition {
@@ -46,6 +47,10 @@ export interface TankModuleDefinition {
   behavior: string;
   size?: ModuleSize;
   installCost?: ResourceCost;
+  researchCost?: ResourceCost;
+  purchaseCost?: ResourceCost;
+  fireArcDegrees?: number;
+  defaultOrientation?: number;
   baseStats: Record<string, number>;
   upgradeTree: UpgradeTreeDefinition;
 }
@@ -185,6 +190,9 @@ function parseUpgradeTree(value: unknown, path: string): UpgradeTreeDefinition {
       parentId: rawParentId as string | null,
       cost: parseCost(node.cost, `${nodePath}.cost`),
       effects: parseEffects(node.effects, `${nodePath}.effects`),
+      ...(node.unlocksModuleId === undefined
+        ? {}
+        : { unlocksModuleId: requiredString(node.unlocksModuleId, `${nodePath}.unlocksModuleId`) }),
     };
   });
 
@@ -275,6 +283,12 @@ function parseModuleDefinition(value: unknown, path: string, expectedId: string)
       height: requiredInteger(sizeRecord.height, `${path}.size.height`, 1),
     };
     definition.installCost = parseCost(record.installCost, `${path}.installCost`);
+    if (record.researchCost !== undefined) definition.researchCost = parseCost(record.researchCost, `${path}.researchCost`);
+    if (record.purchaseCost !== undefined) definition.purchaseCost = parseCost(record.purchaseCost, `${path}.purchaseCost`);
+    definition.fireArcDegrees = requiredNumber(record.fireArcDegrees, `${path}.fireArcDegrees`);
+    if (definition.fireArcDegrees > 360) fail(`${path}.fireArcDegrees`, 'must be <= 360');
+    definition.defaultOrientation = requiredInteger(record.defaultOrientation ?? 0, `${path}.defaultOrientation`);
+    if (definition.defaultOrientation > 3) fail(`${path}.defaultOrientation`, 'must be between 0 and 3');
   }
 
   if (definition.behavior === 'core' && definition.kind !== 'builtin') {
@@ -341,6 +355,16 @@ function validateManifestReferences(
 
   const coreModules = manifest.builtinModuleIds.filter((moduleId) => modules[moduleId]?.behavior === 'core');
   if (coreModules.length !== 1) fail(`${path}.builtinModuleIds`, 'manifest must contain exactly one core system');
+
+  for (const module of Object.values(modules)) {
+    for (const node of module.upgradeTree.nodes) {
+      if (!node.unlocksModuleId) continue;
+      const unlocked = modules[node.unlocksModuleId];
+      if (!unlocked || unlocked.kind !== 'combat') {
+        fail(`${path}.modules.${module.id}.upgradeTree.nodes.${node.id}.unlocksModuleId`, `must reference a combat module '${node.unlocksModuleId}'`);
+      }
+    }
+  }
 
   const blocked = new Set(manifest.grid.blockedCells.map((cell) => `${cell.x},${cell.y}`));
   const occupied = new Set<string>();

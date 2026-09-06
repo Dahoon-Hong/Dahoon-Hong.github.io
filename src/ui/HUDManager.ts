@@ -6,6 +6,7 @@ import { Vehicle } from '../entities/Vehicle';
 import type { RenderContext } from '../rendering/RenderContext';
 import { VisualTheme } from '../rendering/VisualTheme';
 import type { Camera } from '../core/Camera';
+import type { ArmoryManager } from '../core/ArmoryManager';
 
 interface HUDCallbacks {
   getVehicle: () => Vehicle;
@@ -16,6 +17,11 @@ interface HUDCallbacks {
   getMusicVolume: () => number;
   onMusicControl: () => void;
   screenToWorld: (point: { x: number; y: number }) => { x: number; y: number };
+  getArmory: () => ArmoryManager;
+  isPaused: () => boolean;
+  onArmoryResearchSuccess: () => void;
+  onArmoryPurchaseSuccess: () => void;
+  installPurchasedModule: (moduleId: string, anchor: { x: number; y: number }) => CombatModule | null;
 }
 
 interface Rect {
@@ -43,6 +49,11 @@ interface InstallHitbox extends Rect {
   moduleId: string;
 }
 
+interface PurchaseHitbox extends Rect {
+  moduleId: string;
+  action: 'purchase' | 'install';
+}
+
 interface LogicalViewport {
   width: number;
   height: number;
@@ -53,12 +64,15 @@ export class HUDManager {
 
   private selectedCell: { gx: number; gy: number } | null = null;
   private selectedInstanceId: string | null = null;
+  private selectedInstallModuleId: string | null = null;
   private feedbackMessage: string | null = null;
   private feedbackColor: string = VisualTheme.color.danger;
   private nodeHitboxes: NodeHitbox[] = [];
   private installHitboxes: InstallHitbox[] = [];
+  private purchaseHitboxes: PurchaseHitbox[] = [];
   private subjectHitboxes: Array<Rect & { instanceId: string }> = [];
   private getUpgradeManager: (() => UpgradeManager) | null = null;
+  private getArmory: (() => ArmoryManager) | null = null;
   private getMusicVolume: (() => number) | null = null;
   private onMusicControl: (() => void) | null = null;
   private musicControlRect: Rect | null = null;
@@ -70,6 +84,7 @@ export class HUDManager {
     viewport: LogicalViewport = { width: canvas.width, height: canvas.height },
   ): void {
     this.getUpgradeManager = callbacks.getUpgradeManager;
+    this.getArmory = callbacks.getArmory;
     this.getMusicVolume = callbacks.getMusicVolume;
     this.onMusicControl = callbacks.onMusicControl;
     canvas.addEventListener('mousemove', (event) => {
@@ -98,8 +113,20 @@ export class HUDManager {
       const worldPoint = callbacks.screenToWorld(point);
       const cell = vehicle.getGridCellAtWorldPoint(worldPoint);
       if (cell) {
-        this.selectedCell = { gx: cell.x, gy: cell.y };
         const module = vehicle.getModuleAt(cell.x, cell.y);
+        if (this.selectedInstallModuleId && !module) {
+          const installed = callbacks.installPurchasedModule(this.selectedInstallModuleId, cell);
+          if (installed) {
+            this.selectedInstanceId = installed.instanceId;
+            this.selectedCell = null;
+            this.selectedInstallModuleId = null;
+            this.setFeedback('Combat module installed.', VisualTheme.color.success);
+          } else {
+            this.setFeedback('The module footprint does not fit here.');
+          }
+          return;
+        }
+        this.selectedCell = { gx: cell.x, gy: cell.y };
         this.selectedInstanceId = module?.instanceId ?? null;
         this.feedbackMessage = null;
         return;
@@ -110,9 +137,11 @@ export class HUDManager {
   public resetSelection(): void {
     this.selectedCell = null;
     this.selectedInstanceId = null;
+    this.selectedInstallModuleId = null;
     this.feedbackMessage = null;
     this.nodeHitboxes = [];
     this.installHitboxes = [];
+    this.purchaseHitboxes = [];
     this.subjectHitboxes = [];
   }
 
@@ -139,7 +168,7 @@ export class HUDManager {
       this.renderPauseOverlay(render, gameplayWidth, canvasHeight);
     }
 
-    this.renderPanel(render, canvasWidth, canvasHeight, vehicle, storage);
+    this.renderPanel(render, canvasWidth, canvasHeight, vehicle, storage, isPaused);
     ctx.restore();
   }
 
@@ -161,9 +190,36 @@ export class HUDManager {
     for (const hitbox of this.nodeHitboxes) {
       if (!this.contains(hitbox, mouseX, mouseY)) continue;
       const manager = callbacks.getUpgradeManager();
+      const isArmoryNode = hitbox.instanceId === vehicle.systems.getInstanceId('armory');
+      if (isArmoryNode && !callbacks.isPaused()) {
+        this.setFeedback('Pause before researching Armory modules.');
+        return true;
+      }
       const selected = manager.select(hitbox.instanceId, hitbox.nodeId, callbacks.spendCost);
-      if (selected) callbacks.onUpgradeSuccess();
+      if (selected) {
+        if (isArmoryNode) callbacks.onArmoryResearchSuccess();
+        else callbacks.onUpgradeSuccess();
+      }
       this.setFeedback(selected ? 'Upgrade selected.' : 'Upgrade unavailable or too expensive.', selected ? VisualTheme.color.success : VisualTheme.color.danger);
+      return true;
+    }
+
+    for (const hitbox of this.purchaseHitboxes) {
+      if (!this.contains(hitbox, mouseX, mouseY)) continue;
+      if (!callbacks.isPaused()) {
+        this.setFeedback('Pause before changing Armory inventory.');
+        return true;
+      }
+      if (hitbox.action === 'purchase') {
+        const purchased = callbacks.getArmory().purchase(hitbox.moduleId, callbacks.spendCost);
+        if (purchased) callbacks.onArmoryPurchaseSuccess();
+        this.setFeedback(purchased ? 'Combat module purchased.' : 'Purchase unavailable or too expensive.', purchased ? VisualTheme.color.success : VisualTheme.color.danger);
+      } else if (callbacks.getArmory().getStock(hitbox.moduleId) > 0) {
+        this.selectedInstallModuleId = hitbox.moduleId;
+        this.selectedCell = null;
+        this.selectedInstanceId = vehicle.systems.getInstanceId('armory');
+        this.setFeedback('Select an empty grid cell to install.', VisualTheme.color.success);
+      }
       return true;
     }
 
@@ -173,29 +229,24 @@ export class HUDManager {
         this.setFeedback('Select an empty grid cell first.');
         return true;
       }
+      if (!callbacks.isPaused()) {
+        this.setFeedback('Pause before installing modules.');
+        return true;
+      }
       const anchor = { x: this.selectedCell.gx, y: this.selectedCell.gy };
       if (!vehicle.canInstallModule(hitbox.moduleId, anchor)) {
         this.setFeedback('The module footprint does not fit here.');
         return true;
       }
 
-      const definition = vehicle.getCombatModuleDefinitions().find((module) => module.id === hitbox.moduleId);
-      if (!definition || !callbacks.getStorage().canAfford(definition.installCost ?? {})) {
-        this.setFeedback('Not enough resource for this combat module.');
-        return true;
-      }
-
-      if (!callbacks.spendCost(definition.installCost ?? {})) {
-        this.setFeedback('Module installation failed.');
-        return true;
-      }
-      const installed = vehicle.installModule(hitbox.moduleId, anchor);
+      const installed = callbacks.installPurchasedModule(hitbox.moduleId, anchor);
       if (!installed) {
         this.setFeedback('Module installation failed.');
         return true;
       }
       this.selectedInstanceId = installed.instanceId;
       this.selectedCell = null;
+      this.selectedInstallModuleId = null;
       this.setFeedback('Combat module installed.', VisualTheme.color.success);
       return true;
     }
@@ -337,7 +388,8 @@ export class HUDManager {
     canvasWidth: number,
     canvasHeight: number,
     vehicle: Vehicle,
-    storage: ResourceStorage
+    storage: ResourceStorage,
+    isPaused: boolean,
   ): void {
     const ctx = render.ctx;
     const theme = VisualTheme.color;
@@ -361,10 +413,13 @@ export class HUDManager {
     ctx.fillText('Built-in systems are active from start', panelX + 12, 89);
 
     this.renderSubjectList(render, panelX, vehicle);
+    const contentTop = this.getPanelContentTop(vehicle);
     if (this.selectedCell && !vehicle.getModuleAt(this.selectedCell.gx, this.selectedCell.gy)) {
-      this.renderInstallPanel(render, panelX, canvasHeight, vehicle, storage);
+      this.renderInstallPanel(render, panelX, canvasHeight, vehicle, contentTop, isPaused);
+    } else if (this.selectedInstanceId === vehicle.systems.getInstanceId('armory')) {
+      this.renderArmoryPanel(render, panelX, canvasHeight, vehicle, storage, contentTop, isPaused);
     } else {
-      this.renderUpgradePanel(render, panelX, canvasHeight, vehicle, storage);
+      this.renderUpgradePanel(render, panelX, canvasHeight, vehicle, storage, contentTop);
     }
 
     if (this.feedbackMessage) {
@@ -384,15 +439,16 @@ export class HUDManager {
     ctx.fillText('SYSTEMS', panelX + 12, 108);
 
     const builtinIds = vehicle.getBuiltInModuleIds();
+    const builtinRows = Math.ceil(builtinIds.length / 2);
     for (let index = 0; index < builtinIds.length; index++) {
-      const column = Math.floor(index / 5);
-      const row = index % 5;
+      const column = Math.floor(index / builtinRows);
+      const row = index % builtinRows;
       const instanceId = vehicle.systems.getInstanceId(builtinIds[index]);
       this.renderSubjectButton(render, panelX + 8 + column * 164, 114 + row * 20, 158, instanceId, vehicle);
     }
 
     const combatModules = vehicle.getCombatModules();
-    const combatY = 222;
+    const combatY = this.getCombatSectionY(vehicle);
     ctx.fillStyle = theme.textPrimary;
     ctx.font = 'bold 11px sans-serif';
     ctx.fillText('COMBAT MODULES', panelX + 12, combatY);
@@ -437,12 +493,14 @@ export class HUDManager {
     panelX: number,
     canvasHeight: number,
     vehicle: Vehicle,
-    storage: ResourceStorage
+    storage: ResourceStorage,
+    top: number,
   ): void {
     const ctx = render.ctx;
     const theme = VisualTheme.color;
     this.nodeHitboxes = [];
     this.installHitboxes = [];
+    this.purchaseHitboxes = [];
     const subject = this.selectedInstanceId ? this.getSubject(this.selectedInstanceId, vehicle) : null;
     if (!subject || !this.selectedInstanceId) {
       ctx.fillStyle = theme.textMuted;
@@ -451,14 +509,14 @@ export class HUDManager {
       return;
     }
 
-    this.drawIcon(render, this.moduleIcon(subject.moduleId), panelX + 22, 266, 0.8);
+    this.drawIcon(render, this.moduleIcon(subject.moduleId), panelX + 22, top, 0.8);
     ctx.fillStyle = theme.textPrimary;
     ctx.font = 'bold 13px sans-serif';
-    ctx.fillText(this.truncate(subject.definition.name, 28), panelX + 38, 272);
+    ctx.fillText(this.truncate(subject.definition.name, 28), panelX + 38, top + 6);
     ctx.fillStyle = theme.textSecondary;
     ctx.font = '11px sans-serif';
-    ctx.fillText(subject.combatModule ? `HP ${Math.ceil(subject.combatModule.currentHp)} / ${Math.ceil(subject.combatModule.maxHp)}` : 'BUILT-IN / ACTIVE', panelX + 12, 288);
-    this.renderUpgradeWeb(render, panelX, 300, canvasHeight - 32, this.selectedInstanceId, storage);
+    ctx.fillText(subject.combatModule ? `HP ${Math.ceil(subject.combatModule.currentHp)} / ${Math.ceil(subject.combatModule.maxHp)}` : 'BUILT-IN / ACTIVE', panelX + 12, top + 22);
+    this.renderUpgradeWeb(render, panelX, top + 34, canvasHeight - 32, this.selectedInstanceId, storage);
   }
 
   private renderInstallPanel(
@@ -466,27 +524,34 @@ export class HUDManager {
     panelX: number,
     canvasHeight: number,
     vehicle: Vehicle,
-    storage: ResourceStorage
+    top: number,
+    isPaused: boolean,
   ): void {
     if (!this.selectedCell) return;
     const ctx = render.ctx;
     const theme = VisualTheme.color;
     this.nodeHitboxes = [];
     this.installHitboxes = [];
+    this.purchaseHitboxes = [];
     ctx.fillStyle = theme.textPrimary;
     ctx.font = 'bold 13px sans-serif';
-    ctx.fillText(`INSTALL AT [${this.selectedCell.gx}, ${this.selectedCell.gy}]`, panelX + 12, 272);
+    ctx.fillText(`INSTALL AT [${this.selectedCell.gx}, ${this.selectedCell.gy}]`, panelX + 12, top);
     ctx.fillStyle = theme.textSecondary;
     ctx.font = '11px sans-serif';
-    ctx.fillText('Combat modules only · footprint anchor is top-left', panelX + 12, 288);
+    ctx.fillText('Purchased combat modules only · footprint anchor is top-left', panelX + 12, top + 16);
 
-    const modules = vehicle.getCombatModuleDefinitions();
+    const armory = this.getArmory?.();
+    const modules = vehicle.getCombatModuleDefinitions().filter((module) => (armory?.getStock(module.id) ?? 0) > 0);
+    if (modules.length === 0) {
+      ctx.fillStyle = theme.textMuted;
+      ctx.fillText('Purchase a module from ARMORY first.', panelX + 12, top + 48);
+      return;
+    }
     for (let index = 0; index < modules.length; index++) {
       const definition = modules[index];
-      const y = 305 + index * 38;
+      const y = top + 33 + index * 38;
       const canFit = vehicle.canInstallModule(definition.id, { x: this.selectedCell.gx, y: this.selectedCell.gy });
-      const canAfford = storage.canAfford(definition.installCost ?? {});
-      const enabled = canFit && canAfford;
+      const enabled = isPaused && canFit;
       ctx.fillStyle = enabled ? theme.surfaceAvailable : theme.surfaceDisabled;
       ctx.fillRect(panelX + 12, y, HUDManager.PANEL_WIDTH - 24, 30);
       ctx.strokeStyle = enabled ? theme.accent : theme.borderMuted;
@@ -499,13 +564,107 @@ export class HUDManager {
       ctx.font = 'bold 11px sans-serif';
       ctx.fillText(`${this.truncate(definition.name, 17)} ${definition.size?.width}x${definition.size?.height}`, panelX + 42, y + 13);
       ctx.font = '10px sans-serif';
-      ctx.fillText(`Cost ${this.formatCost(definition.installCost ?? {})}`, panelX + 42, y + 24);
+      ctx.fillText(`Owned ${armory?.getStock(definition.id) ?? 0}`, panelX + 42, y + 24);
       this.installHitboxes.push({ x: panelX + 12, y, width: HUDManager.PANEL_WIDTH - 24, height: 30, moduleId: definition.id });
     }
 
     ctx.fillStyle = theme.textMuted;
     ctx.font = '11px sans-serif';
-    ctx.fillText('Multi-cell modules occupy every cell in their footprint.', panelX + 12, Math.min(canvasHeight - 32, 405));
+    ctx.fillText('Multi-cell modules occupy every cell in their footprint.', panelX + 12, Math.min(canvasHeight - 32, top + 33 + modules.length * 38 + 10));
+  }
+
+  private renderArmoryPanel(
+    render: RenderContext,
+    panelX: number,
+    canvasHeight: number,
+    vehicle: Vehicle,
+    storage: ResourceStorage,
+    top: number,
+    isPaused: boolean,
+  ): void {
+    const ctx = render.ctx;
+    const theme = VisualTheme.color;
+    this.nodeHitboxes = [];
+    this.installHitboxes = [];
+    this.purchaseHitboxes = [];
+    this.drawIcon(render, this.moduleIcon('armory'), panelX + 22, top, 0.8);
+    ctx.fillStyle = theme.textPrimary;
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillText('ARMORY RESEARCH', panelX + 38, top + 6);
+    ctx.fillStyle = theme.textSecondary;
+    ctx.font = '11px sans-serif';
+    ctx.fillText('Research modules, then purchase stock.', panelX + 12, top + 22);
+    this.renderUpgradeWeb(
+      render,
+      panelX,
+      top + 34,
+      Math.min(canvasHeight - 190, top + 190),
+      vehicle.systems.getInstanceId('armory'),
+      storage,
+    );
+    this.renderArmoryModuleCards(render, panelX, top + 210, storage, isPaused);
+  }
+
+  private renderArmoryModuleCards(
+    render: RenderContext,
+    panelX: number,
+    top: number,
+    storage: ResourceStorage,
+    isPaused: boolean,
+  ): void {
+    const ctx = render.ctx;
+    const theme = VisualTheme.color;
+    const armory = this.getArmory?.();
+    if (!armory) return;
+    ctx.fillStyle = theme.textPrimary;
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillText('COMBAT MODULE STOCK', panelX + 12, top);
+
+    for (const [index, definition] of armory.getCombatModuleDefinitions().entries()) {
+      const y = top + 8 + index * 38;
+      const researched = armory.isResearched(definition.id);
+      const stock = armory.getStock(definition.id);
+      const purchaseCost = armory.getPurchaseCost(definition.id);
+      const canPurchase = isPaused && researched && storage.canAfford(purchaseCost);
+      const action = !researched ? 'LOCKED' : stock > 0 ? 'INSTALL' : 'PURCHASE';
+      const enabled = action === 'INSTALL' ? isPaused : canPurchase;
+      ctx.fillStyle = enabled ? theme.surfaceAvailable : theme.surfaceDisabled;
+      ctx.fillRect(panelX + 12, y, HUDManager.PANEL_WIDTH - 24, 30);
+      ctx.strokeStyle = enabled ? theme.accent : theme.borderMuted;
+      ctx.lineWidth = enabled ? 2 : 1;
+      ctx.strokeRect(panelX + 12, y, HUDManager.PANEL_WIDTH - 24, 30);
+      this.drawIcon(render, this.moduleIcon(definition.id), panelX + 29, y + 15, 0.72);
+      ctx.fillStyle = enabled ? theme.textPrimary : theme.textDisabled;
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillText(`${this.truncate(definition.name, 18)} · ${definition.size?.width}x${definition.size?.height}`, panelX + 42, y + 13);
+      ctx.font = '10px sans-serif';
+      ctx.fillText(researched ? `Owned ${stock} · ${this.formatCost(purchaseCost)}` : 'Research required', panelX + 42, y + 24);
+      ctx.fillStyle = enabled ? theme.accent : theme.textDisabled;
+      ctx.textAlign = 'right';
+      ctx.font = 'bold 10px monospace';
+      ctx.fillText(action, panelX + HUDManager.PANEL_WIDTH - 18, y + 18);
+      ctx.textAlign = 'left';
+      if (enabled) {
+        this.purchaseHitboxes.push({
+          x: panelX + HUDManager.PANEL_WIDTH - 92,
+          y: y + 4,
+          width: 74,
+          height: 22,
+          moduleId: definition.id,
+          action: action === 'INSTALL' ? 'install' : 'purchase',
+        });
+      }
+    }
+  }
+
+  private getCombatSectionY(vehicle: Vehicle): number {
+    const builtinRows = Math.ceil(vehicle.getBuiltInModuleIds().length / 2);
+    return 114 + builtinRows * 20 + 8;
+  }
+
+  private getPanelContentTop(vehicle: Vehicle): number {
+    const combatRows = Math.max(1, Math.ceil(vehicle.getCombatModules().length / 2));
+    return this.getCombatSectionY(vehicle) + 6 + combatRows * 20 + 18;
   }
 
   private renderUpgradeWeb(

@@ -193,6 +193,14 @@
       "layer": "hud",
       "fallback": "shape.icon.arsenal"
     },
+    "ui.icon.armory": {
+      "src": "/assets/game/ui/icon-arsenal.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.arsenal"
+    },
     "ui.icon.composer": {
       "src": "/assets/game/ui/icon-composer.png",
       "draw": { "width": 20, "height": 20 },

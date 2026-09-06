@@ -18,6 +18,7 @@ import { SpriteRenderer } from '../rendering/SpriteRenderer';
 import { VisualTheme } from '../rendering/VisualTheme';
 import { AudioManager } from './AudioManager';
 import { Camera } from './Camera';
+import { ArmoryManager } from './ArmoryManager';
 
 export enum GameState {
   PLAYING = 'PLAYING',
@@ -57,6 +58,7 @@ export class Game {
 
   private state: GameState = GameState.PLAYING;
   private vehicle: Vehicle;
+  private armory: ArmoryManager;
   private upgradeManager: UpgradeManager;
   private waveManager: WaveManager;
   private enemies: Enemy[] = [];
@@ -113,6 +115,7 @@ export class Game {
     this.tankDefinition = new TankDefinitionLoader().getDefault();
     this.upgradeManager = new UpgradeManager(this.tankDefinition.modules);
     this.vehicle = this.createVehicle();
+    this.armory = this.createArmory();
     this.camera.snapTo(this.vehicle);
     this.waveManager = this.createWaveManager();
     this.pickups = this.createInitialPickups();
@@ -126,6 +129,11 @@ export class Game {
       getMusicVolume: () => this.audio.getMusicVolume(),
       onMusicControl: () => this.audio.cycleMusicVolume(),
       screenToWorld: (point) => this.camera.screenToWorld(point),
+      getArmory: () => this.armory,
+      isPaused: () => this.state === GameState.PAUSED,
+      onArmoryResearchSuccess: () => this.audio.playSfx('sfx.ui.upgrade-confirm'),
+      onArmoryPurchaseSuccess: () => this.audio.playSfx('sfx.ui.upgrade-confirm'),
+      installPurchasedModule: (moduleId, anchor) => this.installPurchasedModule(moduleId, anchor),
     }, { width: this.logicalWidth, height: this.logicalHeight });
 
     this.canvas.addEventListener('click', (event) => this.handleRestartClick(event));
@@ -142,6 +150,10 @@ export class Game {
 
   private createWaveManager(): WaveManager {
     return new WaveManager(this.progression.currentRegion, this.progression.enemyDefinitions);
+  }
+
+  private createArmory(): ArmoryManager {
+    return new ArmoryManager(this.tankDefinition, this.upgradeManager);
   }
 
   private setState(nextState: GameState): void {
@@ -161,6 +173,7 @@ export class Game {
     this.audio.stopAll();
     this.upgradeManager = new UpgradeManager(this.tankDefinition.modules);
     this.vehicle = this.createVehicle();
+    this.armory = this.createArmory();
     this.waveManager = this.createWaveManager();
     this.resetArtState();
     this.pickups = this.createInitialPickups();
@@ -180,6 +193,7 @@ export class Game {
     if (transition === 'planet') {
       this.upgradeManager = new UpgradeManager(this.tankDefinition.modules);
       this.vehicle = this.createVehicle();
+      this.armory = this.createArmory();
       this.resources.reset();
     } else {
       this.vehicle.resetRuntime();
@@ -201,6 +215,14 @@ export class Game {
         INITIAL_PICKUP_AMOUNT
       );
     });
+  }
+
+  private installPurchasedModule(moduleId: string, anchor: { x: number; y: number }): import('../entities/Module').CombatModule | null {
+    if (this.state !== GameState.PAUSED || this.armory.getStock(moduleId) <= 0) return null;
+    const installed = this.vehicle.installModule(moduleId, anchor);
+    if (!installed) return null;
+    this.armory.consume(moduleId);
+    return installed;
   }
 
   private gameLoop(time: number): void {

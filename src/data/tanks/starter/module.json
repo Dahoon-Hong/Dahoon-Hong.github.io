@@ -16,7 +16,8 @@
     "rail",
     "power-pack",
     "caterpillar-track",
-    "armor-plate"
+    "armor-plate",
+    "armory"
   ],
   "initialCombatModules": [
     { "moduleId": "direct-weapon", "anchor": { "x": 1, "y": 0 } }
