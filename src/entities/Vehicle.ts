@@ -214,16 +214,13 @@ export class Vehicle {
         ctx.lineWidth = 1;
         ctx.strokeRect(pos.x - this.tileSize / 2 + 2, pos.y - this.tileSize / 2 + 2, this.tileSize - 4, this.tileSize - 4);
 
-        if (this.isCorePosition(gx, gy)) this.renderCore(render, pos.x, pos.y);
-        else {
-          render.renderer.drawSprite(
-            render,
-            this.combatGrid.isBlocked(cell) ? 'tank.grid.blocked' : 'tank.grid.empty',
-            pos.x,
-            pos.y,
-            { alpha: this.combatGrid.isBlocked(cell) ? 0.24 : 0.08 },
-          );
-        }
+        render.renderer.drawSprite(
+          render,
+          this.combatGrid.isBlocked(cell) ? 'tank.grid.blocked' : 'tank.grid.empty',
+          pos.x,
+          pos.y,
+          { alpha: this.combatGrid.isBlocked(cell) ? 0.24 : 0.08 },
+        );
       }
     }
 
@@ -241,24 +238,6 @@ export class Vehicle {
     const targetY = core.gy + Math.sign(direction.y);
     if (targetX === core.gx && targetY === core.gy) return null;
     return this.getModuleAt(targetX, targetY);
-  }
-
-  private renderCore(render: RenderContext, worldX: number, worldY: number): void {
-    const ctx = render.ctx;
-    const ratio = this.getCoreMaxHp() > 0 ? this.getCoreHp() / this.getCoreMaxHp() : 0;
-    render.renderer.drawSprite(render, 'tank.grid.core', worldX, worldY, {
-      scale: render.reducedMotion ? 1 : 1 + Math.sin(render.time * 5) * 0.08,
-      alpha: ratio > 0 ? 1 : 0.55,
-      tint: ratio > 0 ? undefined : '#17232d',
-    });
-    ctx.save();
-    ctx.fillStyle = ratio > 0 ? '#00e676' : '#424242';
-    ctx.fillRect(worldX - this.tileSize / 2 + 5, worldY - this.tileSize / 2 + 5, 4, 4);
-    ctx.fillStyle = '#000000';
-    ctx.font = '10px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('CORE', worldX, worldY + 14);
-    ctx.restore();
   }
 
   private getFramePiece(gridX: number, gridY: number): { assetId: string; rotation: number } | null {
