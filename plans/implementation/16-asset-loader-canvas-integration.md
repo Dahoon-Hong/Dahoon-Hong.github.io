@@ -262,6 +262,11 @@ high-DPI 확인:
 - `prefers-reduced-motion`을 `RenderContext`에 전달하고 Core pulse, arc shell scale, effect scale을 정적 또는 짧은 fade로 낮춘다. pause 중 simulation time과 기존 자동 시스템 update는 진행하지 않는다.
 - Canvas logical size와 기존 `getBoundingClientRect()` 입력 변환은 유지하고 `imageSmoothingEnabled = false`를 기본값으로 고정했다. CSS resize는 기존 1280x720 logical coordinate를 보존한다.
 
+### 후속 가독성 조정
+
+- `Vehicle.render()`의 외곽 프레임, 셀 배경/선, 빈·차단 상태 스프라이트를 반투명하게 조정해 탱크 프레임과 모듈 디자인이 그리드에 묻히지 않도록 했다.
+- Core와 설치된 전투 모듈은 전경 레이어의 가시성을 유지하며, 배치·충돌·피해 계산은 변경하지 않았다.
+
 ### 의도적인 최소화
 
 - 별도 `VisualTheme` 파일은 추가하지 않고 SpriteRenderer의 fallback 색상과 기존 HUD token을 작은 범위에서 유지했다. 색상 토큰이 여러 renderer로 확장될 때 19단계에서 분리한다.

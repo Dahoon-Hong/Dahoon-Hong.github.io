@@ -180,9 +180,9 @@ export class Vehicle {
     const frameY = gridBounds.top - 6;
     const frameWidth = this.gridCols * this.tileSize + 12;
     const frameHeight = this.gridRows * this.tileSize + 12;
-    ctx.fillStyle = '#1e1e2d';
-    ctx.strokeStyle = '#4deaea';
-    ctx.lineWidth = 2;
+    ctx.fillStyle = 'rgba(30, 30, 45, 0.24)';
+    ctx.strokeStyle = 'rgba(77, 234, 234, 0.48)';
+    ctx.lineWidth = 1.5;
     ctx.fillRect(frameX, frameY, frameWidth, frameHeight);
     ctx.strokeRect(frameX, frameY, frameWidth, frameHeight);
 
@@ -190,10 +190,10 @@ export class Vehicle {
       for (let gx = 0; gx < this.gridCols; gx++) {
         const pos = this.getModuleWorldPos(gx, gy);
         const cell = { x: gx, y: gy };
-        render.renderer.drawSprite(render, this.getFrameAsset(gx, gy), pos.x, pos.y);
-        ctx.fillStyle = this.combatGrid.isBlocked(cell) ? 'rgba(90, 90, 110, 0.65)' : 'rgba(255, 255, 255, 0.03)';
+        render.renderer.drawSprite(render, this.getFrameAsset(gx, gy), pos.x, pos.y, { alpha: 0.34 });
+        ctx.fillStyle = this.combatGrid.isBlocked(cell) ? 'rgba(90, 90, 110, 0.22)' : 'rgba(255, 255, 255, 0.012)';
         ctx.fillRect(pos.x - this.tileSize / 2 + 2, pos.y - this.tileSize / 2 + 2, this.tileSize - 4, this.tileSize - 4);
-        ctx.strokeStyle = this.combatGrid.isBlocked(cell) ? '#616161' : 'rgba(255, 255, 255, 0.15)';
+        ctx.strokeStyle = this.combatGrid.isBlocked(cell) ? 'rgba(97, 97, 97, 0.38)' : 'rgba(255, 255, 255, 0.08)';
         ctx.lineWidth = 1;
         ctx.strokeRect(pos.x - this.tileSize / 2 + 2, pos.y - this.tileSize / 2 + 2, this.tileSize - 4, this.tileSize - 4);
 
@@ -204,6 +204,7 @@ export class Vehicle {
             this.combatGrid.isBlocked(cell) ? 'tank.grid.blocked' : 'tank.grid.empty',
             pos.x,
             pos.y,
+            { alpha: this.combatGrid.isBlocked(cell) ? 0.24 : 0.08 },
           );
         }
       }
