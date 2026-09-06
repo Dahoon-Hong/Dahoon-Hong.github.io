@@ -13,6 +13,7 @@ export interface SpriteAsset {
 }
 
 export interface AssetLoadReport {
+  manifestVersion: number;
   ready: string[];
   failed: Array<{ id: string; reason: string }>;
   missing: string[];
@@ -33,17 +34,25 @@ export class AssetManager {
   private readonly errors = new Map<string, string>();
   private readonly validationErrors: string[] = [];
   private readonly warned = new Set<string>();
+  private readonly manifestVersion: number;
 
   public constructor(manifest: AssetManifest = MANIFEST) {
     if (!manifest || typeof manifest !== 'object') {
+      this.manifestVersion = 0;
       this.validationErrors.push('manifest must be an object');
       return;
     }
+    this.manifestVersion = Number.isInteger(manifest.version) ? manifest.version : 0;
     if (!Number.isInteger(manifest.version) || manifest.version < 1) {
       this.validationErrors.push('manifest version must be a positive integer');
     }
 
-    for (const [id, rawEntry] of Object.entries(manifest.sprites ?? {})) {
+    if (!manifest.sprites || typeof manifest.sprites !== 'object' || Array.isArray(manifest.sprites)) {
+      this.validationErrors.push('manifest sprites must be an object');
+      return;
+    }
+
+    for (const [id, rawEntry] of Object.entries(manifest.sprites)) {
       const entry = { id, ...rawEntry };
       const reason = this.validateEntry(entry);
       if (reason) {
@@ -57,7 +66,8 @@ export class AssetManager {
   }
 
   public preload(ids: readonly string[] = [...this.entries.keys()]): Promise<AssetLoadReport> {
-    return Promise.all(ids.map((id) => this.load(id))).then(() => this.getLoadReport(ids));
+    const requestedIds = [...new Set(ids)];
+    return Promise.all(requestedIds.map((id) => this.load(id))).then(() => this.getLoadReport(requestedIds));
   }
 
   public get(id: string): SpriteAsset | null {
@@ -80,6 +90,10 @@ export class AssetManager {
     return this.validationErrors;
   }
 
+  public getManifestVersion(): number {
+    return this.manifestVersion;
+  }
+
   private load(id: string): Promise<void> {
     const entry = this.entries.get(id);
     if (!entry) return Promise.resolve();
@@ -98,9 +112,19 @@ export class AssetManager {
       const image = new Image();
       image.decoding = 'async';
       image.onload = () => {
-        this.images.set(id, image);
-        this.statuses.set(id, 'ready');
-        resolve();
+        void Promise.resolve()
+          .then(() => image.decode?.())
+          .then(() => {
+            const reason = this.validateImage(image, entry);
+            if (reason) {
+              this.fail(id, reason);
+              return;
+            }
+            this.images.set(id, image);
+            this.statuses.set(id, 'ready');
+          })
+          .catch(() => this.fail(id, `could not decode ${entry.src}`))
+          .finally(resolve);
       };
       image.onerror = () => {
         this.fail(id, `could not load ${entry.src}`);
@@ -113,9 +137,9 @@ export class AssetManager {
     return promise;
   }
 
-  private getLoadReport(ids: readonly string[]): AssetLoadReport {
-    const report: AssetLoadReport = { ready: [], failed: [], missing: [] };
-    for (const id of ids) {
+  public getLoadReport(ids: readonly string[] = [...this.entries.keys()]): AssetLoadReport {
+    const report: AssetLoadReport = { manifestVersion: this.getManifestVersion(), ready: [], failed: [], missing: [] };
+    for (const id of new Set(ids)) {
       const status = this.getStatus(id);
       if (status === 'ready') report.ready.push(id);
       else if (status === 'failed') report.failed.push({ id, reason: this.errors.get(id) ?? 'unknown load error' });
@@ -126,10 +150,21 @@ export class AssetManager {
 
   private fail(id: string, reason: string): void {
     this.statuses.set(id, 'failed');
+    this.images.delete(id);
     this.errors.set(id, reason);
     if (this.warned.has(id)) return;
     this.warned.add(id);
     console.warn(`[AssetManager] ${id}: ${reason}`);
+  }
+
+  private validateImage(image: HTMLImageElement, entry: SpriteAsset): string | null {
+    const width = image.naturalWidth || image.width;
+    const height = image.naturalHeight || image.height;
+    if (!this.isPositive(width) || !this.isPositive(height)) return 'image dimensions are unavailable';
+    if (width % entry.frames.columns !== 0 || height % entry.frames.rows !== 0) {
+      return `image dimensions ${width}x${height} do not divide into ${entry.frames.columns}x${entry.frames.rows} frames`;
+    }
+    return null;
   }
 
   private validateEntry(entry: SpriteAsset): string | null {

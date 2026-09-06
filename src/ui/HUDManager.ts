@@ -38,6 +38,11 @@ interface InstallHitbox extends Rect {
   moduleId: string;
 }
 
+interface LogicalViewport {
+  width: number;
+  height: number;
+}
+
 export class HUDManager {
   public static readonly PANEL_WIDTH = 340;
 
@@ -51,20 +56,24 @@ export class HUDManager {
   private getUpgradeManager: (() => UpgradeManager) | null = null;
   private pointer: { x: number; y: number } | null = null;
 
-  public setupMouseListeners(canvas: HTMLCanvasElement, callbacks: HUDCallbacks): void {
+  public setupMouseListeners(
+    canvas: HTMLCanvasElement,
+    callbacks: HUDCallbacks,
+    viewport: LogicalViewport = { width: canvas.width, height: canvas.height },
+  ): void {
     this.getUpgradeManager = callbacks.getUpgradeManager;
     canvas.addEventListener('mousemove', (event) => {
-      this.pointer = this.toCanvasPoint(canvas, event);
+      this.pointer = this.toCanvasPoint(canvas, event, viewport);
     });
     canvas.addEventListener('mouseleave', () => {
       this.pointer = null;
     });
     canvas.addEventListener('click', (event) => {
-      const point = this.toCanvasPoint(canvas, event);
+      const point = this.toCanvasPoint(canvas, event, viewport);
       const mouseX = point.x;
       const mouseY = point.y;
       const vehicle = callbacks.getVehicle();
-      const panelX = canvas.width - HUDManager.PANEL_WIDTH;
+      const panelX = viewport.width - HUDManager.PANEL_WIDTH;
 
       if (mouseX >= panelX) {
         if (this.handlePanelClick(mouseX, mouseY, callbacks, vehicle)) return;
@@ -213,9 +222,9 @@ export class HUDManager {
 
     const resourceItems = [
       { label: 'RES', icon: 'ui.icon.resource', type: 'resource' as const },
-      { label: 'MAT', icon: 'ui.icon.matter', type: 'matter' as const },
-      { label: 'AMM', icon: 'ui.icon.ammo', type: 'ammo' as const },
-      { label: 'NAN', icon: 'ui.icon.nano', type: 'nano' as const },
+      { label: 'MAT', icon: 'resource.icon.matter', type: 'matter' as const },
+      { label: 'AMM', icon: 'resource.icon.ammo', type: 'ammo' as const },
+      { label: 'NAN', icon: 'resource.icon.nano', type: 'nano' as const },
     ];
     resourceItems.forEach((item, index) => {
       const x = 210 + index * 106;
@@ -650,11 +659,11 @@ export class HUDManager {
     return this.pointer ? this.contains(rect, this.pointer.x, this.pointer.y) : false;
   }
 
-  private toCanvasPoint(canvas: HTMLCanvasElement, event: MouseEvent): { x: number; y: number } {
+  private toCanvasPoint(canvas: HTMLCanvasElement, event: MouseEvent, viewport: LogicalViewport): { x: number; y: number } {
     const rect = canvas.getBoundingClientRect();
     return {
-      x: (event.clientX - rect.left) * (canvas.width / rect.width),
-      y: (event.clientY - rect.top) * (canvas.height / rect.height),
+      x: (event.clientX - rect.left) * (viewport.width / rect.width),
+      y: (event.clientY - rect.top) * (viewport.height / rect.height),
     };
   }
 

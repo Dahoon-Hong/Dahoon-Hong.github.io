@@ -4,6 +4,7 @@ export class ResourcePickup {
   public x: number;
   public y: number;
   public amount: number;
+  private collectionEffectPending = false;
 
   constructor(x: number, y: number, amount: number) {
     this.x = x;
@@ -20,7 +21,14 @@ export class ResourcePickup {
 
     const collected = Math.min(amount, this.amount);
     this.amount -= collected;
+    if (collected > 0) this.collectionEffectPending = true;
     return collected;
+  }
+
+  public consumeCollectionEffect(): boolean {
+    if (!this.collectionEffectPending) return false;
+    this.collectionEffectPending = false;
+    return true;
   }
 
   public render(render: RenderContext): void {

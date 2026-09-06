@@ -1,6 +1,7 @@
 import type { RenderContext } from '../rendering/RenderContext';
 
 export type EnemyType = 'standard' | 'tanker';
+type EnemyVisualState = 'idle' | 'hit' | 'dead';
 
 export interface EnemyDefinition {
   hp: number;
@@ -43,8 +44,10 @@ export abstract class Enemy {
   public typeName: string;
   public readonly contactDamage: number;
   public readonly contactDamageInterval: number;
+  public readonly enemyType: EnemyType;
   private dead: boolean = false;
   private contactDamageTimer = 0;
+  private hitTimer = 0;
 
   constructor(
     x: number,
@@ -54,6 +57,7 @@ export abstract class Enemy {
     radius: number,
     reward: number,
     typeName: string,
+    enemyType: EnemyType,
     contactDamage = 10,
     contactDamageInterval = 0.2
   ) {
@@ -65,6 +69,7 @@ export abstract class Enemy {
     this.radius = radius;
     this.reward = reward;
     this.typeName = typeName;
+    this.enemyType = enemyType;
     this.contactDamage = contactDamage;
     this.contactDamageInterval = contactDamageInterval;
   }
@@ -77,6 +82,7 @@ export abstract class Enemy {
     if (this.isDead()) return;
 
     this.hp -= Math.max(0, amount);
+    this.hitTimer = 0.12;
     if (this.hp <= 0) {
       this.hp = 0;
       this.dead = true;
@@ -87,6 +93,7 @@ export abstract class Enemy {
     if (this.isDead()) return;
 
     this.contactDamageTimer = Math.max(0, this.contactDamageTimer - dt);
+    this.hitTimer = Math.max(0, this.hitTimer - dt);
 
     const dx = targetPos.x - this.x;
     const dy = targetPos.y - this.y;
@@ -122,6 +129,11 @@ export abstract class Enemy {
     ctx.fillRect(barX, barY, barW * healthRatio, barH);
     ctx.restore();
   }
+
+  protected getVisualState(): EnemyVisualState {
+    if (this.isDead()) return 'dead';
+    return this.hitTimer > 0 ? 'hit' : 'idle';
+  }
 }
 
 export class StandardEnemy extends Enemy {
@@ -134,6 +146,7 @@ export class StandardEnemy extends Enemy {
       definition.radius,
       definition.reward,
       definition.typeName,
+      'standard',
       definition.contactDamage,
       definition.contactDamageInterval
     );
@@ -141,8 +154,8 @@ export class StandardEnemy extends Enemy {
 
   public render(render: RenderContext): void {
     render.renderer.drawSprite(render, 'enemy.shadow.standard', this.x, this.y + this.radius * 0.35);
-    render.renderer.drawSprite(render, 'enemy.standard.idle', this.x, this.y);
-    this.renderHpBar(render);
+    render.renderer.drawSprite(render, `enemy.standard.${this.getVisualState()}`, this.x, this.y);
+    if (!this.isDead()) this.renderHpBar(render);
   }
 }
 
@@ -156,6 +169,7 @@ export class TankerEnemy extends Enemy {
       definition.radius,
       definition.reward,
       definition.typeName,
+      'tanker',
       definition.contactDamage,
       definition.contactDamageInterval
     );
@@ -163,7 +177,7 @@ export class TankerEnemy extends Enemy {
 
   public render(render: RenderContext): void {
     render.renderer.drawSprite(render, 'enemy.shadow.tanker', this.x, this.y + this.radius * 0.35);
-    render.renderer.drawSprite(render, 'enemy.tanker.idle', this.x, this.y);
-    this.renderHpBar(render);
+    render.renderer.drawSprite(render, `enemy.tanker.${this.getVisualState()}`, this.x, this.y);
+    if (!this.isDead()) this.renderHpBar(render);
   }
 }

@@ -27,6 +27,9 @@ export enum GameState {
 const INITIAL_PICKUP_COUNT = 10;
 const INITIAL_PICKUP_AMOUNT = 10;
 const INITIAL_PICKUP_RADIUS = 70;
+const LOGICAL_CANVAS_WIDTH = 1280;
+const LOGICAL_CANVAS_HEIGHT = 720;
+const MAX_EFFECTS = 128;
 const MAP_TILE_POSITIONS = [[128, 112], [760, 132], [154, 526], [716, 570]] as const;
 const MAP_PROP_POSITIONS = [[78, 174], [846, 176], [96, 626], [824, 614]] as const;
 type MapDefinition = (typeof mapData.maps)[number];
@@ -41,6 +44,8 @@ export class Game {
   private readonly hud: HUDManager;
   private readonly tankDefinition: TankDefinition;
   private readonly progression = new ProgressionManager();
+  private readonly logicalWidth = LOGICAL_CANVAS_WIDTH;
+  private readonly logicalHeight = LOGICAL_CANVAS_HEIGHT;
 
   private state: GameState = GameState.PLAYING;
   private vehicle: Vehicle;
@@ -55,17 +60,32 @@ export class Game {
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d')!;
-    this.ctx.imageSmoothingEnabled = false;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('2D canvas context is unavailable');
+    this.ctx = context;
+    this.resizeCanvas();
     this.assets = new AssetManager();
     this.renderer = new SpriteRenderer(this.assets);
+    const reducedMotionQuery = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)')
+      : null;
     this.renderContext = {
       ctx: this.ctx,
       renderer: this.renderer,
       time: 0,
-      reducedMotion: typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
-        window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+      reducedMotion: reducedMotionQuery?.matches ?? false,
     };
+    if (reducedMotionQuery) {
+      const updateMotionPreference = (event: MediaQueryListEvent) => {
+        this.renderContext.reducedMotion = event.matches;
+      };
+      if (typeof reducedMotionQuery.addEventListener === 'function') {
+        reducedMotionQuery.addEventListener('change', updateMotionPreference);
+      } else {
+        reducedMotionQuery.addListener(updateMotionPreference);
+      }
+    }
+    window.addEventListener('resize', () => this.resizeCanvas());
     void this.assets.preload().then((report) => {
       if (report.failed.length || report.missing.length || this.assets.getValidationErrors().length) {
         console.warn('[Game] art preload completed with fallback assets', report, this.assets.getValidationErrors());
@@ -84,7 +104,7 @@ export class Game {
       getStorage: () => this.resources,
       getUpgradeManager: () => this.upgradeManager,
       spendCost: (cost) => this.resources.spendCost(cost),
-    });
+    }, { width: this.logicalWidth, height: this.logicalHeight });
 
     this.canvas.addEventListener('click', (event) => this.handleRestartClick(event));
   }
@@ -95,7 +115,7 @@ export class Game {
   }
 
   private createVehicle(): Vehicle {
-    return new Vehicle(this.canvas.width / 2, this.canvas.height / 2, this.tankDefinition, this.upgradeManager);
+    return new Vehicle(this.logicalWidth / 2, this.logicalHeight / 2, this.tankDefinition, this.upgradeManager);
   }
 
   private createWaveManager(): WaveManager {
@@ -106,13 +126,10 @@ export class Game {
     this.upgradeManager = new UpgradeManager(this.tankDefinition.modules);
     this.vehicle = this.createVehicle();
     this.waveManager = this.createWaveManager();
-    this.enemies = [];
-    this.projectiles = [];
-    this.effects = [];
+    this.resetArtState();
     this.pickups = this.createInitialPickups();
     this.resources.reset();
     this.state = GameState.PLAYING;
-    this.hud.resetSelection();
   }
 
   private advanceProgression(): void {
@@ -131,12 +148,9 @@ export class Game {
     }
 
     this.waveManager = this.createWaveManager();
-    this.enemies = [];
-    this.projectiles = [];
-    this.effects = [];
+    this.resetArtState();
     this.pickups = this.createInitialPickups();
     this.state = GameState.PLAYING;
-    this.hud.resetSelection();
   }
 
   private createInitialPickups(): ResourcePickup[] {
@@ -170,10 +184,16 @@ export class Game {
     if (!isPaused) {
       this.renderContext.time += dt;
       this.vehicle.update(dt, this.input.getMovementVector(), {
-        width: this.canvas.width - HUDManager.PANEL_WIDTH,
-        height: this.canvas.height,
+        width: this.logicalWidth - HUDManager.PANEL_WIDTH,
+        height: this.logicalHeight,
       });
       this.vehicle.systems.update(dt, { x: this.vehicle.x, y: this.vehicle.y }, this.pickups, this.resources);
+
+      for (const pickup of this.pickups) {
+        if (pickup.consumeCollectionEffect()) {
+          this.addEffect(new VisualEffect(pickup.x, pickup.y, 22, '#ffd54f', 'resource.resource.collect', 'decorative'));
+        }
+      }
 
       for (const module of this.vehicle.getCombatModules()) {
         module.update(
@@ -195,8 +215,8 @@ export class Game {
     this.waveManager.update(
       dt,
       this.enemies,
-      this.canvas.width - HUDManager.PANEL_WIDTH,
-      this.canvas.height,
+      this.logicalWidth - HUDManager.PANEL_WIDTH,
+      this.logicalHeight,
       { x: this.vehicle.x, y: this.vehicle.y }
     );
 
@@ -216,6 +236,7 @@ export class Game {
       const previousPos = { x: enemy.x, y: enemy.y };
       if (enemy.isDead()) {
         this.pickups.push(new ResourcePickup(enemy.x, enemy.y, enemy.reward));
+        this.addEnemyDeathEffect(enemy);
         this.enemies.splice(i, 1);
         continue;
       }
@@ -223,19 +244,20 @@ export class Game {
       enemy.update(dt, corePos);
       if (this.resolveEnemyAgainstGrid(enemy, this.vehicle.getGridBounds(), previousPos) && enemy.tryContactDamage()) {
         this.vehicle.takeDamage(enemy.contactDamage, 0, { x: enemy.x - corePos.x, y: enemy.y - corePos.y });
-        this.effects.push(new VisualEffect(enemy.x, enemy.y, 25, '#ff1744', 'effect.contact-damage'));
+        this.addEffect(new VisualEffect(enemy.x, enemy.y, 25, '#ff1744', 'effect.contact-damage'));
         if (!this.vehicle.isCoreActive()) this.state = GameState.GAME_OVER;
       }
 
       if (enemy.isDead()) {
         this.pickups.push(new ResourcePickup(enemy.x, enemy.y, enemy.reward));
+        this.addEnemyDeathEffect(enemy);
         this.enemies.splice(i, 1);
       }
     }
 
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const projectile = this.projectiles[i];
-      projectile.update(dt, this.enemies, (effect) => this.effects.push(effect));
+      projectile.update(dt, this.enemies, (effect) => this.addEffect(effect));
       if (projectile.isDead()) this.projectiles.splice(i, 1);
     }
 
@@ -247,13 +269,13 @@ export class Game {
   }
 
   private render(): void {
-    const gameplayWidth = this.canvas.width - HUDManager.PANEL_WIDTH;
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    const gameplayWidth = this.logicalWidth - HUDManager.PANEL_WIDTH;
+    this.ctx.clearRect(0, 0, this.logicalWidth, this.logicalHeight);
     this.ctx.imageSmoothingEnabled = false;
 
     this.ctx.save();
     this.ctx.beginPath();
-    this.ctx.rect(0, 0, gameplayWidth, this.canvas.height);
+    this.ctx.rect(0, 0, gameplayWidth, this.logicalHeight);
     this.ctx.clip();
     this.renderMap();
     this.vehicle.render(this.renderContext);
@@ -270,8 +292,8 @@ export class Game {
     );
     this.hud.render(
       this.renderContext,
-      this.canvas.width,
-      this.canvas.height,
+      this.logicalWidth,
+      this.logicalHeight,
       this.vehicle,
       this.resources,
       this.waveManager.currentWave,
@@ -314,7 +336,7 @@ export class Game {
     const isGameOver = this.state === GameState.GAME_OVER;
     const isRegionCleared = this.state === GameState.REGION_CLEARED;
     const isPlanetCleared = this.state === GameState.PLANET_CLEARED;
-    const gameplayWidth = this.canvas.width - HUDManager.PANEL_WIDTH;
+    const gameplayWidth = this.logicalWidth - HUDManager.PANEL_WIDTH;
     const location = this.progression.location;
     const title = isGameOver
       ? 'CORE DESTROYED - GAME OVER'
@@ -330,32 +352,32 @@ export class Game {
         : 'RESTART REGION';
     this.ctx.save();
     this.ctx.fillStyle = VisualTheme.color.overlay;
-    this.ctx.fillRect(0, 0, gameplayWidth, this.canvas.height);
+    this.ctx.fillRect(0, 0, gameplayWidth, this.logicalHeight);
     const statusColor = isGameOver ? VisualTheme.color.danger : VisualTheme.color.success;
     const panelWidth = 460;
     const panelHeight = 220;
     const panelX = gameplayWidth / 2 - panelWidth / 2;
-    const panelY = this.canvas.height / 2 - 110;
+    const panelY = this.logicalHeight / 2 - 110;
     this.ctx.fillStyle = VisualTheme.color.surfacePanel;
     this.ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
     this.ctx.strokeStyle = statusColor;
     this.ctx.lineWidth = 2;
     this.ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
-    this.renderResultMarker(gameplayWidth / 2, this.canvas.height / 2 - 62, statusColor, isGameOver);
+    this.renderResultMarker(gameplayWidth / 2, this.logicalHeight / 2 - 62, statusColor, isGameOver);
     this.ctx.fillStyle = statusColor;
     this.ctx.font = 'bold 34px sans-serif';
     this.ctx.textAlign = 'center';
     this.ctx.fillText(
       title,
       gameplayWidth / 2,
-      this.canvas.height / 2 - 20
+      this.logicalHeight / 2 - 20
     );
     this.ctx.fillStyle = VisualTheme.color.textPrimary;
     this.ctx.font = '16px sans-serif';
-    this.ctx.fillText(`${location.planetName} · ${location.regionName}`, gameplayWidth / 2, this.canvas.height / 2 + 10);
+    this.ctx.fillText(`${location.planetName} · ${location.regionName}`, gameplayWidth / 2, this.logicalHeight / 2 + 10);
 
     const buttonX = gameplayWidth / 2 - 100;
-    const buttonY = this.canvas.height / 2 + 30;
+    const buttonY = this.logicalHeight / 2 + 30;
     this.ctx.fillStyle = statusColor;
     this.ctx.fillRect(buttonX, buttonY, 200, 50);
     this.ctx.fillStyle = VisualTheme.color.black;
@@ -421,17 +443,55 @@ export class Game {
     return true;
   }
 
+  private resizeCanvas(): void {
+    const devicePixelRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    // ponytail: cap DPR at 2; higher backing resolutions add memory cost without changing logical gameplay.
+    const dpr = Math.max(1, Math.min(2, devicePixelRatio));
+    const pixelWidth = Math.round(this.logicalWidth * dpr);
+    const pixelHeight = Math.round(this.logicalHeight * dpr);
+    if (this.canvas.width !== pixelWidth || this.canvas.height !== pixelHeight) {
+      this.canvas.width = pixelWidth;
+      this.canvas.height = pixelHeight;
+    }
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.ctx.imageSmoothingEnabled = false;
+  }
+
+  private resetArtState(): void {
+    this.enemies = [];
+    this.projectiles = [];
+    this.effects = [];
+    this.renderContext.time = 0;
+    this.hud.resetSelection();
+  }
+
+  private addEffect(effect: VisualEffect): void {
+    const maxEffects = this.renderContext.reducedMotion ? MAX_EFFECTS / 2 : MAX_EFFECTS;
+    if (this.effects.length >= maxEffects) {
+      const decorativeIndex = this.effects.findIndex((candidate) => candidate.isDecorative());
+      if (decorativeIndex >= 0) this.effects.splice(decorativeIndex, 1);
+      else if (effect.isDecorative()) return;
+      else this.effects.shift();
+    }
+    this.effects.push(effect);
+  }
+
+  private addEnemyDeathEffect(enemy: Enemy): void {
+    const color = enemy.enemyType === 'tanker' ? '#ff9f43' : '#ff5252';
+    this.addEffect(new VisualEffect(enemy.x, enemy.y, enemy.radius * 1.6, color, 'effect.enemy.dead'));
+  }
+
   private handleRestartClick(event: MouseEvent): void {
     if (!this.isTerminalState()) return;
     const rect = this.canvas.getBoundingClientRect();
-    const mouseX = (event.clientX - rect.left) * (this.canvas.width / rect.width);
-    const mouseY = (event.clientY - rect.top) * (this.canvas.height / rect.height);
-    const gameplayWidth = this.canvas.width - HUDManager.PANEL_WIDTH;
+    const mouseX = (event.clientX - rect.left) * (this.logicalWidth / rect.width);
+    const mouseY = (event.clientY - rect.top) * (this.logicalHeight / rect.height);
+    const gameplayWidth = this.logicalWidth - HUDManager.PANEL_WIDTH;
     if (
       mouseX >= gameplayWidth / 2 - 100 &&
       mouseX <= gameplayWidth / 2 + 100 &&
-      mouseY >= this.canvas.height / 2 + 30 &&
-      mouseY <= this.canvas.height / 2 + 80
+      mouseY >= this.logicalHeight / 2 + 30 &&
+      mouseY <= this.logicalHeight / 2 + 80
     ) {
       if (this.state === GameState.REGION_CLEARED || (this.state === GameState.PLANET_CLEARED && this.progression.hasNextPlanet())) {
         this.advanceProgression();

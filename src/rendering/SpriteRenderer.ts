@@ -1,6 +1,10 @@
 import { AssetManager } from '../core/AssetManager';
 import type { RenderContext } from './RenderContext';
 
+const DEBRIS_POINTS = [
+  [0.1, 0.7], [0.28, 0.2], [0.65, 0.12], [0.9, 0.56], [0.65, 0.88], [0.25, 0.82],
+] as const;
+
 export interface SpriteDrawOptions {
   rotation?: number;
   alpha?: number;
@@ -35,15 +39,22 @@ export class SpriteRenderer {
       return false;
     }
 
+    const imageWidth = image.naturalWidth || image.width;
+    const imageHeight = image.naturalHeight || image.height;
+    const columns = Math.max(1, asset.frames.columns);
+    const rows = Math.max(1, asset.frames.rows);
+    if (!imageWidth || !imageHeight || imageWidth % columns !== 0 || imageHeight % rows !== 0) {
+      this.drawFallback(render, asset.fallback, x, y, asset.draw.width, asset.draw.height, asset.pivot, options);
+      return false;
+    }
+
     const scale = Math.max(0.01, options.scale ?? 1);
     const width = asset.draw.width * scale;
     const height = asset.draw.height * scale;
-    const columns = Math.max(1, asset.frames.columns);
-    const rows = Math.max(1, asset.frames.rows);
     const frame = Math.max(0, Math.floor(options.frame ?? 0));
     const frameIndex = frame % (columns * rows);
-    const sourceWidth = image.naturalWidth / columns;
-    const sourceHeight = image.naturalHeight / rows;
+    const sourceWidth = imageWidth / columns;
+    const sourceHeight = imageHeight / rows;
     const sourceX = (frameIndex % columns) * sourceWidth;
     const sourceY = Math.floor(frameIndex / columns) * sourceHeight;
 
@@ -106,11 +117,7 @@ export class SpriteRenderer {
       ctx.fillRect(left + 6, top + 6, w - 12, h - 12);
       ctx.strokeRect(left + 6, top + 6, w - 12, h - 12);
     } else if (fallback === 'shape.map.debris') {
-      this.fillPolygon(ctx, '#31434e', [
-        [left + w * 0.1, top + h * 0.7], [left + w * 0.28, top + h * 0.2],
-        [left + w * 0.65, top + h * 0.12], [left + w * 0.9, top + h * 0.56],
-        [left + w * 0.65, top + h * 0.88], [left + w * 0.25, top + h * 0.82],
-      ]);
+      this.fillPolygon(ctx, '#31434e', left, top, w, h, DEBRIS_POINTS);
     } else if (fallback === 'shape.map.spawn-edge') {
       ctx.strokeStyle = '#6eabb7';
       ctx.beginPath();
@@ -125,7 +132,7 @@ export class SpriteRenderer {
       ctx.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
       ctx.fill();
     } else if (fallback.includes('enemy.tanker')) {
-      this.fillPolygon(ctx, '#a84420', this.regularPolygon(w / 2, h / 2, 6));
+      this.drawRegularPolygon(ctx, w / 2, h / 2, 6, '#a84420');
       ctx.strokeStyle = '#ff9f43';
       ctx.stroke();
     } else if (fallback.includes('enemy.standard')) {
@@ -138,7 +145,13 @@ export class SpriteRenderer {
     } else if (fallback === 'shape.resource.resource' || fallback === 'shape.resource.debris' || fallback === 'shape.icon.resource') {
       ctx.fillStyle = '#ffd54f';
       ctx.strokeStyle = '#ff8f00';
-      this.fillPolygon(ctx, '#ffd54f', [[0, top + h * 0.08], [left + w * 0.88, 0], [0, top + h * 0.92], [left + w * 0.12, 0]]);
+      ctx.beginPath();
+      ctx.moveTo(0, top + h * 0.08);
+      ctx.lineTo(left + w * 0.88, 0);
+      ctx.lineTo(0, top + h * 0.92);
+      ctx.lineTo(left + w * 0.12, 0);
+      ctx.closePath();
+      ctx.fill();
       ctx.stroke();
     } else if (fallback === 'shape.projectile.direct') {
       ctx.fillStyle = '#00e5ff';
@@ -200,21 +213,43 @@ export class SpriteRenderer {
     ctx.restore();
   }
 
-  private fillPolygon(ctx: CanvasRenderingContext2D, color: string, points: number[][]): void {
+  private fillPolygon(
+    ctx: CanvasRenderingContext2D,
+    color: string,
+    left: number,
+    top: number,
+    width: number,
+    height: number,
+    points: readonly (readonly [number, number])[],
+  ): void {
     ctx.fillStyle = color;
     ctx.beginPath();
-    points.forEach(([x, y], index) => {
-      if (index === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
+    for (let index = 0; index < points.length; index++) {
+      const [x, y] = points[index];
+      if (index === 0) ctx.moveTo(left + width * x, top + height * y);
+      else ctx.lineTo(left + width * x, top + height * y);
+    }
     ctx.closePath();
     ctx.fill();
   }
 
-  private regularPolygon(radiusX: number, radiusY: number, sides: number): number[][] {
-    return Array.from({ length: sides }, (_, index) => {
+  private drawRegularPolygon(
+    ctx: CanvasRenderingContext2D,
+    radiusX: number,
+    radiusY: number,
+    sides: number,
+    color: string,
+  ): void {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    for (let index = 0; index < sides; index++) {
       const angle = (index * Math.PI * 2) / sides;
-      return [Math.cos(angle) * radiusX, Math.sin(angle) * radiusY];
-    });
+      const x = Math.cos(angle) * radiusX;
+      const y = Math.sin(angle) * radiusY;
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
   }
 }

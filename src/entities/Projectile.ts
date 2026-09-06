@@ -54,6 +54,8 @@ export abstract class Projectile {
   public abstract render(render: RenderContext): void;
 }
 
+export type VisualEffectPriority = 'critical' | 'decorative';
+
 export class VisualEffect {
   public x: number;
   public y: number;
@@ -61,17 +63,30 @@ export class VisualEffect {
   public maxRadius: number;
   public color: string;
   public readonly assetId: string;
+  public readonly priority: VisualEffectPriority;
   public life: number = 0.3; // seconds
   private timer: number = 0;
   public dead: boolean = false;
 
-  constructor(x: number, y: number, maxRadius: number, color: string, assetId = 'effect.projectile.direct-hit') {
+  constructor(
+    x: number,
+    y: number,
+    maxRadius: number,
+    color: string,
+    assetId = 'effect.projectile.direct-hit',
+    priority: VisualEffectPriority = 'critical',
+  ) {
     this.x = x;
     this.y = y;
     this.radius = 2;
     this.maxRadius = maxRadius;
     this.color = color;
     this.assetId = assetId;
+    this.priority = priority;
+  }
+
+  public isDecorative(): boolean {
+    return this.priority === 'decorative';
   }
 
   public update(dt: number): void {

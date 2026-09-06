@@ -178,3 +178,28 @@ fallback 동작:
 수정 사항:
 검증 일시:
 ```
+
+## 18단계 구현 기록
+
+### 구현 결과
+
+- `AssetManager`가 manifest 구조와 이미지 decode 후 실제 frame 분할 가능 여부를 검사하고, `manifestVersion`, `ready`, `failed`, `missing` load report를 반환한다. 같은 logical ID의 preload promise와 warning은 한 번만 공유한다.
+- `SpriteRenderer`는 잘못된 이미지 크기나 frame contract를 만나도 category fallback으로 전환하며, fallback polygon을 frame마다 배열로 생성하지 않는다.
+- `Game`은 logical 1280x720 좌표와 DPR backing canvas를 분리한다. DPR 1.75 환경에서 2240x1260 backing을 사용해도 HUD, terminal action, grid hitbox가 logical 좌표와 일치한다.
+- 지역 전환·restart에서 enemy, projectile, effect, render time, HUD selection을 함께 초기화한다. `VisualEffect`는 장식 효과를 먼저 제한하고 hit/contact/death 같은 핵심 feedback을 우선한다.
+- enemy hit/dead sprite, resource collect effect, enemy death effect를 실제 상태 흐름에 연결했다. pause 중에는 기존 update gate를 유지해 자동 생산·수집과 art timer가 진행하지 않는다.
+- `resource.icon.matter`, `resource.icon.ammo`, `resource.icon.nano`의 HUD logical ID를 manifest와 일치시켜 누락 fallback을 제거했다.
+
+### 정적·브라우저 검증
+
+```text
+manifest 버전: 1
+manifest entries: 62
+manifest 경로/PNG frame 검사: 0 error
+미등록 runtime asset: public/assets/game/tank/grid-core.png (warning, 삭제하지 않음)
+TypeScript: npx.cmd tsc --noEmit 통과
+build: npm.cmd run build 통과
+manual browser: initial art, combat density, pause overlay, paused subject selection, resume 확인
+high-DPI: logical 1280x720 / backing 2240x1260 / DPR 1.75, browser warning 0건
+검증 일시: 2026-09-06
+```
