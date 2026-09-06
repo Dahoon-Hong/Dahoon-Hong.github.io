@@ -42,7 +42,9 @@ export class CombatGrid {
   }
 
   public getCombatModuleDefinitions(): TankModuleDefinition[] {
-    return Object.values(this.modules).filter((module) => module.kind === 'combat');
+    return Object.values(this.modules).filter(
+      (module) => module.kind === 'combat' && module.id !== 'core' && module.behavior !== 'core'
+    );
   }
 
   public getPlacements(): readonly CombatPlacement[] {
@@ -65,7 +67,13 @@ export class CombatGrid {
 
   public canInstall(moduleId: string, anchor: GridCell): boolean {
     const definition = this.modules[moduleId];
-    if (!definition || definition.kind !== 'combat' || !definition.size) return false;
+    if (
+      !definition ||
+      definition.id === 'core' ||
+      definition.behavior === 'core' ||
+      definition.kind !== 'combat' ||
+      !definition.size
+    ) return false;
     if (!this.isIntegerCell(anchor)) return false;
 
     for (let y = 0; y < definition.size.height; y++) {

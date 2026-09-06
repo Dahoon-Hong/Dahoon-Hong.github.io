@@ -268,6 +268,7 @@ function parseModuleDefinition(value: unknown, path: string, expectedId: string)
 
   const kind = requiredString(record.kind, `${path}.kind`);
   if (kind !== 'builtin' && kind !== 'combat') fail(`${path}.kind`, `unsupported kind '${kind}'`);
+  if (id === 'core' && kind !== 'builtin') fail(`${path}.kind`, 'core must be a builtin system');
 
   const definition: TankModuleDefinition = {
     id,
@@ -290,6 +291,13 @@ function parseModuleDefinition(value: unknown, path: string, expectedId: string)
       height: requiredInteger(sizeRecord.height, `${path}.size.height`, 1),
     };
     definition.installCost = parseCost(record.installCost, `${path}.installCost`);
+  }
+
+  if (definition.behavior === 'core' && definition.kind !== 'builtin') {
+    fail(`${path}.behavior`, 'core behavior is only allowed on builtin systems');
+  }
+  if (definition.id === 'core' && definition.behavior !== 'core') {
+    fail(`${path}.behavior`, 'core must use core behavior');
   }
 
   if (kind !== 'builtin' || definition.behavior !== 'core') {
