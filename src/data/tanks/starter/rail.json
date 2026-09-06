@@ -8,8 +8,14 @@
     "rootId": "root",
     "nodes": [
       { "id": "root", "parentId": null, "cost": {}, "effects": [] },
-      { "id": "high-flow-rail", "parentId": "root", "cost": { "matter": 25 }, "effects": [{ "stat": "transferAmount", "operation": "add", "value": 10 }] },
-      { "id": "priority-rail", "parentId": "root", "cost": { "matter": 25 }, "effects": [{ "stat": "transferAmount", "operation": "multiply", "value": 1.25 }] }
+      { "id": "high-flow-rail", "parentId": "root", "cost": { "matter": 10 }, "effects": [{ "stat": "transferAmount", "operation": "add", "value": 10 }] },
+      { "id": "high-flow-rail-ii", "parentId": "high-flow-rail", "cost": { "matter": 20 }, "effects": [{ "stat": "transferAmount", "operation": "add", "value": 10 }] },
+      { "id": "high-flow-rail-iii", "parentId": "high-flow-rail-ii", "cost": { "matter": 30 }, "effects": [{ "stat": "transferAmount", "operation": "add", "value": 10 }] },
+      { "id": "high-flow-rail-iv", "parentId": "high-flow-rail-iii", "cost": { "matter": 45 }, "effects": [{ "stat": "transferAmount", "operation": "add", "value": 15 }] },
+      { "id": "priority-rail", "parentId": "root", "cost": { "matter": 15 }, "effects": [{ "stat": "transferAmount", "operation": "multiply", "value": 1.25 }] },
+      { "id": "priority-rail-ii", "parentId": "priority-rail", "cost": { "matter": 20 }, "effects": [{ "stat": "transferAmount", "operation": "multiply", "value": 1.15 }] },
+      { "id": "priority-rail-iii", "parentId": "priority-rail-ii", "cost": { "matter": 30 }, "effects": [{ "stat": "transferAmount", "operation": "multiply", "value": 1.15 }] },
+      { "id": "priority-rail-iv", "parentId": "priority-rail-iii", "cost": { "matter": 45 }, "effects": [{ "stat": "transferAmount", "operation": "multiply", "value": 1.15 }] }
     ]
   }
 }

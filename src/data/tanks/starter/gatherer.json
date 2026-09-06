@@ -8,8 +8,14 @@
     "rootId": "root",
     "nodes": [
       { "id": "root", "parentId": null, "cost": {}, "effects": [] },
-      { "id": "wide-scoop", "parentId": "root", "cost": { "matter": 30 }, "effects": [{ "stat": "collectionRadius", "operation": "add", "value": 30 }] },
-      { "id": "fast-scoop", "parentId": "root", "cost": { "matter": 30 }, "effects": [{ "stat": "collectionRadius", "operation": "add", "value": 15 }] }
+      { "id": "wide-scoop", "parentId": "root", "cost": { "matter": 10 }, "effects": [{ "stat": "collectionRadius", "operation": "add", "value": 30 }] },
+      { "id": "wide-scoop-ii", "parentId": "wide-scoop", "cost": { "matter": 20 }, "effects": [{ "stat": "collectionRadius", "operation": "add", "value": 30 }] },
+      { "id": "wide-scoop-iii", "parentId": "wide-scoop-ii", "cost": { "matter": 30 }, "effects": [{ "stat": "collectionRadius", "operation": "add", "value": 30 }] },
+      { "id": "wide-scoop-iv", "parentId": "wide-scoop-iii", "cost": { "matter": 45 }, "effects": [{ "stat": "collectionRadius", "operation": "add", "value": 40 }] },
+      { "id": "fast-scoop", "parentId": "root", "cost": { "matter": 15 }, "effects": [{ "stat": "collectionRadius", "operation": "add", "value": 15 }] },
+      { "id": "fast-scoop-ii", "parentId": "fast-scoop", "cost": { "matter": 20 }, "effects": [{ "stat": "collectionRadius", "operation": "add", "value": 15 }] },
+      { "id": "fast-scoop-iii", "parentId": "fast-scoop-ii", "cost": { "matter": 30 }, "effects": [{ "stat": "collectionRadius", "operation": "add", "value": 15 }] },
+      { "id": "fast-scoop-iv", "parentId": "fast-scoop-iii", "cost": { "matter": 45 }, "effects": [{ "stat": "collectionRadius", "operation": "add", "value": 20 }] }
     ]
   }
 }

@@ -8,8 +8,14 @@
     "rootId": "root",
     "nodes": [
       { "id": "root", "parentId": null, "cost": {}, "effects": [] },
-      { "id": "efficient-generator", "parentId": "root", "cost": { "matter": 30 }, "effects": [{ "stat": "productionInterval", "operation": "multiply", "value": 0.85 }] },
-      { "id": "larger-generator", "parentId": "root", "cost": { "matter": 30 }, "effects": [{ "stat": "productionAmount", "operation": "add", "value": 5 }] }
+      { "id": "efficient-generator", "parentId": "root", "cost": { "matter": 10 }, "effects": [{ "stat": "productionInterval", "operation": "multiply", "value": 0.85 }] },
+      { "id": "efficient-generator-ii", "parentId": "efficient-generator", "cost": { "matter": 20 }, "effects": [{ "stat": "productionInterval", "operation": "multiply", "value": 0.9 }] },
+      { "id": "efficient-generator-iii", "parentId": "efficient-generator-ii", "cost": { "matter": 30 }, "effects": [{ "stat": "productionInterval", "operation": "multiply", "value": 0.9 }] },
+      { "id": "efficient-generator-iv", "parentId": "efficient-generator-iii", "cost": { "matter": 45 }, "effects": [{ "stat": "productionInterval", "operation": "multiply", "value": 0.9 }] },
+      { "id": "larger-generator", "parentId": "root", "cost": { "matter": 15 }, "effects": [{ "stat": "productionAmount", "operation": "add", "value": 5 }] },
+      { "id": "larger-generator-ii", "parentId": "larger-generator", "cost": { "matter": 20 }, "effects": [{ "stat": "productionAmount", "operation": "add", "value": 5 }] },
+      { "id": "larger-generator-iii", "parentId": "larger-generator-ii", "cost": { "matter": 30 }, "effects": [{ "stat": "productionAmount", "operation": "add", "value": 5 }] },
+      { "id": "larger-generator-iv", "parentId": "larger-generator-iii", "cost": { "matter": 45 }, "effects": [{ "stat": "productionAmount", "operation": "add", "value": 8 }] }
     ]
   }
 }

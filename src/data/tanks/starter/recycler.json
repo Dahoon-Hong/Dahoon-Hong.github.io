@@ -8,8 +8,14 @@
     "rootId": "root",
     "nodes": [
       { "id": "root", "parentId": null, "cost": {}, "effects": [] },
-      { "id": "dense-recycler", "parentId": "root", "cost": { "matter": 30 }, "effects": [{ "stat": "productionAmount", "operation": "add", "value": 2 }] },
-      { "id": "rapid-recycler", "parentId": "root", "cost": { "matter": 30 }, "effects": [{ "stat": "productionInterval", "operation": "multiply", "value": 0.85 }] }
+      { "id": "dense-recycler", "parentId": "root", "cost": { "matter": 10 }, "effects": [{ "stat": "productionAmount", "operation": "add", "value": 2 }] },
+      { "id": "dense-recycler-ii", "parentId": "dense-recycler", "cost": { "matter": 20 }, "effects": [{ "stat": "productionAmount", "operation": "add", "value": 2 }] },
+      { "id": "dense-recycler-iii", "parentId": "dense-recycler-ii", "cost": { "matter": 30 }, "effects": [{ "stat": "productionAmount", "operation": "add", "value": 2 }] },
+      { "id": "dense-recycler-iv", "parentId": "dense-recycler-iii", "cost": { "matter": 45 }, "effects": [{ "stat": "productionAmount", "operation": "add", "value": 3 }] },
+      { "id": "rapid-recycler", "parentId": "root", "cost": { "matter": 15 }, "effects": [{ "stat": "productionInterval", "operation": "multiply", "value": 0.85 }] },
+      { "id": "rapid-recycler-ii", "parentId": "rapid-recycler", "cost": { "matter": 20 }, "effects": [{ "stat": "productionInterval", "operation": "multiply", "value": 0.9 }] },
+      { "id": "rapid-recycler-iii", "parentId": "rapid-recycler-ii", "cost": { "matter": 30 }, "effects": [{ "stat": "productionInterval", "operation": "multiply", "value": 0.9 }] },
+      { "id": "rapid-recycler-iv", "parentId": "rapid-recycler-iii", "cost": { "matter": 45 }, "effects": [{ "stat": "productionInterval", "operation": "multiply", "value": 0.9 }] }
     ]
   }
 }

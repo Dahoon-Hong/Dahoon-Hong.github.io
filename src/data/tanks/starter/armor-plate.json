@@ -8,8 +8,14 @@
     "rootId": "root",
     "nodes": [
       { "id": "root", "parentId": null, "cost": {}, "effects": [] },
-      { "id": "thick-plate", "parentId": "root", "cost": { "matter": 35 }, "effects": [{ "stat": "armorValue", "operation": "add", "value": 10 }] },
-      { "id": "angled-plate", "parentId": "root", "cost": { "matter": 35 }, "effects": [{ "stat": "armorValue", "operation": "add", "value": 5 }] }
+      { "id": "thick-plate", "parentId": "root", "cost": { "matter": 10 }, "effects": [{ "stat": "armorValue", "operation": "add", "value": 10 }] },
+      { "id": "thick-plate-ii", "parentId": "thick-plate", "cost": { "matter": 20 }, "effects": [{ "stat": "armorValue", "operation": "add", "value": 10 }] },
+      { "id": "thick-plate-iii", "parentId": "thick-plate-ii", "cost": { "matter": 30 }, "effects": [{ "stat": "armorValue", "operation": "add", "value": 10 }] },
+      { "id": "thick-plate-iv", "parentId": "thick-plate-iii", "cost": { "matter": 45 }, "effects": [{ "stat": "armorValue", "operation": "add", "value": 15 }] },
+      { "id": "angled-plate", "parentId": "root", "cost": { "matter": 15 }, "effects": [{ "stat": "armorValue", "operation": "add", "value": 5 }] },
+      { "id": "angled-plate-ii", "parentId": "angled-plate", "cost": { "matter": 20 }, "effects": [{ "stat": "armorValue", "operation": "add", "value": 5 }] },
+      { "id": "angled-plate-iii", "parentId": "angled-plate-ii", "cost": { "matter": 30 }, "effects": [{ "stat": "armorValue", "operation": "add", "value": 5 }] },
+      { "id": "angled-plate-iv", "parentId": "angled-plate-iii", "cost": { "matter": 45 }, "effects": [{ "stat": "armorValue", "operation": "add", "value": 10 }] }
     ]
   }
 }

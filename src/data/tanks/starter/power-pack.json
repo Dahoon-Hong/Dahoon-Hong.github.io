@@ -8,8 +8,14 @@
     "rootId": "root",
     "nodes": [
       { "id": "root", "parentId": null, "cost": {}, "effects": [] },
-      { "id": "high-output", "parentId": "root", "cost": { "matter": 40 }, "effects": [{ "stat": "movementSpeed", "operation": "add", "value": 20 }] },
-      { "id": "stable-output", "parentId": "root", "cost": { "matter": 40 }, "effects": [{ "stat": "movementSpeed", "operation": "add", "value": 10 }] }
+      { "id": "high-output", "parentId": "root", "cost": { "matter": 10 }, "effects": [{ "stat": "movementSpeed", "operation": "add", "value": 20 }] },
+      { "id": "high-output-ii", "parentId": "high-output", "cost": { "matter": 20 }, "effects": [{ "stat": "movementSpeed", "operation": "add", "value": 20 }] },
+      { "id": "high-output-iii", "parentId": "high-output-ii", "cost": { "matter": 30 }, "effects": [{ "stat": "movementSpeed", "operation": "add", "value": 20 }] },
+      { "id": "high-output-iv", "parentId": "high-output-iii", "cost": { "matter": 45 }, "effects": [{ "stat": "movementSpeed", "operation": "add", "value": 30 }] },
+      { "id": "stable-output", "parentId": "root", "cost": { "matter": 15 }, "effects": [{ "stat": "movementSpeed", "operation": "add", "value": 10 }] },
+      { "id": "stable-output-ii", "parentId": "stable-output", "cost": { "matter": 20 }, "effects": [{ "stat": "movementSpeed", "operation": "add", "value": 10 }] },
+      { "id": "stable-output-iii", "parentId": "stable-output-ii", "cost": { "matter": 30 }, "effects": [{ "stat": "movementSpeed", "operation": "add", "value": 10 }] },
+      { "id": "stable-output-iv", "parentId": "stable-output-iii", "cost": { "matter": 45 }, "effects": [{ "stat": "movementSpeed", "operation": "add", "value": 15 }] }
     ]
   }
 }

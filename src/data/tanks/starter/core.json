@@ -8,8 +8,14 @@
     "rootId": "root",
     "nodes": [
       { "id": "root", "parentId": null, "cost": {}, "effects": [] },
-      { "id": "reinforced-core", "parentId": "root", "cost": { "matter": 40 }, "effects": [{ "stat": "maxHp", "operation": "add", "value": 50 }] },
-      { "id": "overclocked-core", "parentId": "root", "cost": { "matter": 40 }, "effects": [{ "stat": "maxHp", "operation": "add", "value": 25 }] }
+      { "id": "reinforced-core", "parentId": "root", "cost": { "matter": 10 }, "effects": [{ "stat": "maxHp", "operation": "add", "value": 50 }] },
+      { "id": "reinforced-core-ii", "parentId": "reinforced-core", "cost": { "matter": 20 }, "effects": [{ "stat": "maxHp", "operation": "add", "value": 50 }] },
+      { "id": "reinforced-core-iii", "parentId": "reinforced-core-ii", "cost": { "matter": 30 }, "effects": [{ "stat": "maxHp", "operation": "add", "value": 50 }] },
+      { "id": "reinforced-core-iv", "parentId": "reinforced-core-iii", "cost": { "matter": 45 }, "effects": [{ "stat": "maxHp", "operation": "add", "value": 75 }] },
+      { "id": "overclocked-core", "parentId": "root", "cost": { "matter": 15 }, "effects": [{ "stat": "maxHp", "operation": "add", "value": 25 }] },
+      { "id": "overclocked-core-ii", "parentId": "overclocked-core", "cost": { "matter": 20 }, "effects": [{ "stat": "maxHp", "operation": "add", "value": 25 }] },
+      { "id": "overclocked-core-iii", "parentId": "overclocked-core-ii", "cost": { "matter": 30 }, "effects": [{ "stat": "maxHp", "operation": "add", "value": 25 }] },
+      { "id": "overclocked-core-iv", "parentId": "overclocked-core-iii", "cost": { "matter": 45 }, "effects": [{ "stat": "maxHp", "operation": "add", "value": 40 }] }
     ]
   }
 }

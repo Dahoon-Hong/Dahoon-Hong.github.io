@@ -8,8 +8,14 @@
     "rootId": "root",
     "nodes": [
       { "id": "root", "parentId": null, "cost": {}, "effects": [] },
-      { "id": "reinforced-track", "parentId": "root", "cost": { "matter": 35 }, "effects": [{ "stat": "trackMaxSpeed", "operation": "add", "value": 20 }] },
-      { "id": "agile-track", "parentId": "root", "cost": { "matter": 35 }, "effects": [{ "stat": "rotationSpeed", "operation": "add", "value": 0.2 }] }
+      { "id": "reinforced-track", "parentId": "root", "cost": { "matter": 10 }, "effects": [{ "stat": "trackMaxSpeed", "operation": "add", "value": 20 }] },
+      { "id": "reinforced-track-ii", "parentId": "reinforced-track", "cost": { "matter": 20 }, "effects": [{ "stat": "trackMaxSpeed", "operation": "add", "value": 20 }] },
+      { "id": "reinforced-track-iii", "parentId": "reinforced-track-ii", "cost": { "matter": 30 }, "effects": [{ "stat": "trackMaxSpeed", "operation": "add", "value": 20 }] },
+      { "id": "reinforced-track-iv", "parentId": "reinforced-track-iii", "cost": { "matter": 45 }, "effects": [{ "stat": "trackMaxSpeed", "operation": "add", "value": 30 }] },
+      { "id": "agile-track", "parentId": "root", "cost": { "matter": 15 }, "effects": [{ "stat": "rotationSpeed", "operation": "add", "value": 0.2 }] },
+      { "id": "agile-track-ii", "parentId": "agile-track", "cost": { "matter": 20 }, "effects": [{ "stat": "rotationSpeed", "operation": "add", "value": 0.2 }] },
+      { "id": "agile-track-iii", "parentId": "agile-track-ii", "cost": { "matter": 30 }, "effects": [{ "stat": "rotationSpeed", "operation": "add", "value": 0.2 }] },
+      { "id": "agile-track-iv", "parentId": "agile-track-iii", "cost": { "matter": 45 }, "effects": [{ "stat": "rotationSpeed", "operation": "add", "value": 0.3 }] }
     ]
   }
 }
