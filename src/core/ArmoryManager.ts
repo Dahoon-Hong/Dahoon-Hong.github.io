@@ -24,7 +24,9 @@ export class ArmoryManager {
   public isResearched(moduleId: string): boolean {
     const node = this.getResearchNode(moduleId);
     if (!node) return false;
-    return this.upgrades.getSelectedNodeIds(this.getInstanceId()).includes(node.id);
+    const armory = this.definition.modules.armory;
+    return node.id === armory?.upgradeTree.rootId ||
+      this.upgrades.getSelectedNodeIds(this.getInstanceId()).includes(node.id);
   }
 
   public getResearchCost(moduleId: string): ResourceCost {
