@@ -1,5 +1,6 @@
 - commit 지침
 plan 구현시 commit 진행. commit message는 plan 번호를 반드시 포함한다.
+plan구현이 아닌 경우 내용을 짧게 요약한다.
 
 코드 작성이나 대화 중 agent가 나중에 기억해야할 내용은 여기에 기록한다.
 
