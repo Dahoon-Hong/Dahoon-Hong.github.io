@@ -1,3 +1,5 @@
+import type { RenderContext } from '../rendering/RenderContext';
+
 export class ResourcePickup {
   public x: number;
   public y: number;
@@ -21,23 +23,13 @@ export class ResourcePickup {
     return collected;
   }
 
-  public render(ctx: CanvasRenderingContext2D): void {
+  public render(render: RenderContext): void {
     if (this.isEmpty()) return;
 
+    render.renderer.drawSprite(render, 'resource.resource.idle', this.x, this.y);
+    const ctx = render.ctx;
     ctx.save();
     ctx.translate(this.x, this.y);
-    ctx.fillStyle = '#ffd54f';
-    ctx.strokeStyle = '#ff8f00';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, -8);
-    ctx.lineTo(8, 0);
-    ctx.lineTo(0, 8);
-    ctx.lineTo(-8, 0);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
     ctx.fillStyle = '#000000';
     ctx.font = 'bold 10px sans-serif';
     ctx.textAlign = 'center';

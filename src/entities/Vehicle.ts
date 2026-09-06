@@ -3,6 +3,7 @@ import { UpgradeManager } from '../core/UpgradeManager';
 import { VehicleSystems } from '../core/VehicleSystems';
 import { CombatGrid } from './CombatGrid';
 import { CombatModule } from './Module';
+import type { RenderContext } from '../rendering/RenderContext';
 
 export class Vehicle {
   public x: number;
@@ -170,7 +171,8 @@ export class Vehicle {
     for (const module of this.getCombatModules()) module.resetRuntime();
   }
 
-  public render(ctx: CanvasRenderingContext2D): void {
+  public render(render: RenderContext): void {
+    const ctx = render.ctx;
     ctx.save();
 
     const gridBounds = this.getGridBounds();
@@ -188,20 +190,28 @@ export class Vehicle {
       for (let gx = 0; gx < this.gridCols; gx++) {
         const pos = this.getModuleWorldPos(gx, gy);
         const cell = { x: gx, y: gy };
+        render.renderer.drawSprite(render, this.getFrameAsset(gx, gy), pos.x, pos.y);
         ctx.fillStyle = this.combatGrid.isBlocked(cell) ? 'rgba(90, 90, 110, 0.65)' : 'rgba(255, 255, 255, 0.03)';
         ctx.fillRect(pos.x - this.tileSize / 2 + 2, pos.y - this.tileSize / 2 + 2, this.tileSize - 4, this.tileSize - 4);
         ctx.strokeStyle = this.combatGrid.isBlocked(cell) ? '#616161' : 'rgba(255, 255, 255, 0.15)';
         ctx.lineWidth = 1;
         ctx.strokeRect(pos.x - this.tileSize / 2 + 2, pos.y - this.tileSize / 2 + 2, this.tileSize - 4, this.tileSize - 4);
 
-        if (this.isCorePosition(gx, gy)) this.renderCore(ctx, pos.x, pos.y);
-        else if (this.combatGrid.isBlocked(cell)) this.renderBlocked(ctx, pos.x, pos.y);
+        if (this.isCorePosition(gx, gy)) this.renderCore(render, pos.x, pos.y);
+        else {
+          render.renderer.drawSprite(
+            render,
+            this.combatGrid.isBlocked(cell) ? 'tank.grid.blocked' : 'tank.grid.empty',
+            pos.x,
+            pos.y,
+          );
+        }
       }
     }
 
     for (const placement of this.combatGrid.getPlacements()) {
       const rect = this.getModuleWorldRect(placement.module);
-      placement.module.render(ctx, rect.x + rect.width / 2, rect.y + rect.height / 2, rect.width, rect.height);
+      placement.module.render(render, rect.x + rect.width / 2, rect.y + rect.height / 2, rect.width, rect.height);
     }
 
     ctx.restore();
@@ -215,15 +225,17 @@ export class Vehicle {
     return this.getModuleAt(targetX, targetY);
   }
 
-  private renderCore(ctx: CanvasRenderingContext2D, worldX: number, worldY: number): void {
+  private renderCore(render: RenderContext, worldX: number, worldY: number): void {
+    const ctx = render.ctx;
     const ratio = this.getCoreMaxHp() > 0 ? this.getCoreHp() / this.getCoreMaxHp() : 0;
+    render.renderer.drawSprite(render, 'tank.grid.core', worldX, worldY, {
+      scale: render.reducedMotion ? 1 : 1 + Math.sin(render.time * 5) * 0.08,
+      alpha: ratio > 0 ? 1 : 0.55,
+      tint: ratio > 0 ? undefined : '#17232d',
+    });
     ctx.save();
     ctx.fillStyle = ratio > 0 ? '#00e676' : '#424242';
-    ctx.fillRect(worldX - this.tileSize / 2 + 4, worldY - this.tileSize / 2 + 4, this.tileSize - 8, this.tileSize - 8);
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(worldX, worldY, 8 + Math.sin(Date.now() / 200) * 2, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillRect(worldX - this.tileSize / 2 + 5, worldY - this.tileSize / 2 + 5, 4, 4);
     ctx.fillStyle = '#000000';
     ctx.font = '10px sans-serif';
     ctx.textAlign = 'center';
@@ -231,16 +243,13 @@ export class Vehicle {
     ctx.restore();
   }
 
-  private renderBlocked(ctx: CanvasRenderingContext2D, worldX: number, worldY: number): void {
-    ctx.save();
-    ctx.strokeStyle = '#b0bec5';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(worldX - 10, worldY - 10);
-    ctx.lineTo(worldX + 10, worldY + 10);
-    ctx.moveTo(worldX + 10, worldY - 10);
-    ctx.lineTo(worldX - 10, worldY + 10);
-    ctx.stroke();
-    ctx.restore();
+  private getFrameAsset(gridX: number, gridY: number): string {
+    const onLeft = gridX === 0;
+    const onRight = gridX === this.gridCols - 1;
+    const onTop = gridY === 0;
+    const onBottom = gridY === this.gridRows - 1;
+    if ((onLeft || onRight) && (onTop || onBottom)) return 'tank.starter.frame.corner';
+    if (onLeft || onRight || onTop || onBottom) return 'tank.starter.frame.edge';
+    return 'tank.starter.frame.center';
   }
 }

@@ -1,3 +1,5 @@
+import type { RenderContext } from '../rendering/RenderContext';
+
 export type EnemyType = 'standard' | 'tanker';
 
 export interface EnemyDefinition {
@@ -102,9 +104,10 @@ export abstract class Enemy {
     return true;
   }
 
-  public abstract render(ctx: CanvasRenderingContext2D): void;
+  public abstract render(render: RenderContext): void;
 
-  protected renderHpBar(ctx: CanvasRenderingContext2D): void {
+  protected renderHpBar(render: RenderContext): void {
+    const ctx = render.ctx;
     const barW = this.radius * 2;
     const barH = 4;
     const barX = this.x - this.radius;
@@ -136,19 +139,10 @@ export class StandardEnemy extends Enemy {
     );
   }
 
-  public render(ctx: CanvasRenderingContext2D): void {
-    ctx.save();
-    ctx.strokeStyle = '#ff5252';
-    ctx.fillStyle = '#b71c1c';
-    ctx.lineWidth = 2;
-
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    this.renderHpBar(ctx);
-    ctx.restore();
+  public render(render: RenderContext): void {
+    render.renderer.drawSprite(render, 'enemy.shadow.standard', this.x, this.y + this.radius * 0.35);
+    render.renderer.drawSprite(render, 'enemy.standard.idle', this.x, this.y);
+    this.renderHpBar(render);
   }
 }
 
@@ -167,27 +161,9 @@ export class TankerEnemy extends Enemy {
     );
   }
 
-  public render(ctx: CanvasRenderingContext2D): void {
-    ctx.save();
-    ctx.strokeStyle = '#ff9800';
-    ctx.fillStyle = '#e65100';
-    ctx.lineWidth = 3;
-
-    ctx.beginPath();
-    // Render Square/Hexagon wireframe
-    const sides = 6;
-    for (let i = 0; i < sides; i++) {
-      const angle = (i * Math.PI * 2) / sides;
-      const px = this.x + Math.cos(angle) * this.radius;
-      const py = this.y + Math.sin(angle) * this.radius;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    this.renderHpBar(ctx);
-    ctx.restore();
+  public render(render: RenderContext): void {
+    render.renderer.drawSprite(render, 'enemy.shadow.tanker', this.x, this.y + this.radius * 0.35);
+    render.renderer.drawSprite(render, 'enemy.tanker.idle', this.x, this.y);
+    this.renderHpBar(render);
   }
 }

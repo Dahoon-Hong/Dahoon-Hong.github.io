@@ -227,14 +227,14 @@ HUD and result/pause overlays
 
 ## 완료 조건과 인계
 
-- [ ] loader, manifest, sprite renderer의 책임이 분리되어 있다.
-- [ ] 모든 art category가 sprite와 fallback 중 하나로 표시된다.
-- [ ] render 중 `Image` 생성이나 fetch가 발생하지 않는다.
-- [ ] logical 좌표, pivot, hitbox가 분리되어 있다.
-- [ ] pause와 reduced-motion 계약이 보존된다.
-- [ ] 17단계가 사용할 UI icon 로딩 및 draw API가 확인되었다.
-- [ ] 18단계가 재현할 수 있는 load report와 오류 로그가 있다.
-- [ ] 19단계에서 실행할 viewport, region, asset failure 시나리오가 기록되었다.
+- [x] loader, manifest, sprite renderer의 책임이 분리되어 있다.
+- [x] 모든 art category가 sprite와 fallback 중 하나로 표시된다.
+- [x] render 중 `Image` 생성이나 fetch가 발생하지 않는다.
+- [x] logical 좌표, pivot, hitbox가 분리되어 있다.
+- [x] pause와 reduced-motion 계약이 보존된다.
+- [x] 17단계가 사용할 UI icon 로딩 및 draw API가 확인되었다.
+- [x] 18단계가 재현할 수 있는 load report와 오류 로그가 있다.
+- [x] 19단계에서 실행할 viewport, region, asset failure 시나리오가 기록되었다.
 
 ## 검증 기록 템플릿
 
@@ -248,4 +248,35 @@ high-DPI 확인:
 빌드 결과:
 수정 사항:
 검증 일시:
+```
+
+## 16단계 구현 기록
+
+### 구현 결과
+
+- `src/core/AssetManager.ts`를 추가해 manifest entry 검증, `pending/ready/failed/missing` 상태, 이미지 cache, 중복 요청 방지, 단일 경고, preload report를 한 곳에서 관리한다.
+- `src/rendering/RenderContext.ts`와 `src/rendering/SpriteRenderer.ts`를 추가했다. renderer는 logical draw box와 pivot을 적용하고, 이미지가 없거나 실패하면 동일 중심의 제품용 fallback 도형을 그린다.
+- sprite frame은 manifest의 `columns`, `rows`, `frame`으로 선택하며, render 함수 안에서는 `Image` 생성이나 fetch를 실행하지 않는다.
+- `Vehicle`, `Enemy`, `ResourcePickup`, `CombatModule`, `Projectile`, `VisualEffect`가 `RenderContext`와 logical asset ID를 사용하도록 연결했다. radius, tile size, damage, collision 계산은 변경하지 않았다.
+- `Game`은 preload를 비동기로 시작하고, 940px gameplay viewport를 clip한 뒤 map, vehicle, enemy/pickup, projectile, effect, HUD 순서로 그린다. `regionId`는 `maps.json`의 background/tile/debris/spawn-edge 조회에만 사용한다.
+- `prefers-reduced-motion`을 `RenderContext`에 전달하고 Core pulse, arc shell scale, effect scale을 정적 또는 짧은 fade로 낮춘다. pause 중 simulation time과 기존 자동 시스템 update는 진행하지 않는다.
+- Canvas logical size와 기존 `getBoundingClientRect()` 입력 변환은 유지하고 `imageSmoothingEnabled = false`를 기본값으로 고정했다. CSS resize는 기존 1280x720 logical coordinate를 보존한다.
+
+### 의도적인 최소화
+
+- 별도 `VisualTheme` 파일은 추가하지 않고 SpriteRenderer의 fallback 색상과 기존 HUD token을 작은 범위에서 유지했다. 색상 토큰이 여러 renderer로 확장될 때 19단계에서 분리한다.
+- 실제 resource collect, armor absorb, Core damage event는 render-only 사건을 만들지 않기 위해 새로 생성하지 않았다. 현재 코드가 발생시키는 direct hit, arc explosion, contact effect만 연결하고 나머지 asset은 17~19단계의 event/UI/QA handoff로 남겼다.
+
+### 검증 기록
+
+```text
+manifest 버전: 1
+로드 대상: 63 sprites, including 14-stage effects/resources and 15-stage maps
+ready/failed/missing 수: static manifest 63 / runtime HTTP smoke test 0 failed / 0 missing
+fallback 확인 asset: invalid or unavailable image path falls back by manifest category
+pause 확인: existing Game update gate preserved; renderContext.time does not advance while paused
+high-DPI 확인: logical canvas and rect-based pointer mapping preserved; browser screenshot automation unavailable in this session
+빌드 결과: npx.cmd tsc --noEmit and npm.cmd run build passed
+수정 사항: map viewport clip, asset preload/cache, sprite/fallback draw path, entity render signatures
+검증 일시: 2026-09-06
 ```

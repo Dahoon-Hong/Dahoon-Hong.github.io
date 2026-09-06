@@ -9,6 +9,10 @@ import { ResourceStorage } from './ResourceStorage';
 import { TankDefinitionLoader, TankDefinition } from './TankDefinitionLoader';
 import { UpgradeManager } from './UpgradeManager';
 import { WaveManager } from './WaveManager';
+import mapData from '../data/maps.json';
+import { AssetManager } from './AssetManager';
+import { RenderContext } from '../rendering/RenderContext';
+import { SpriteRenderer } from '../rendering/SpriteRenderer';
 
 export enum GameState {
   PLAYING = 'PLAYING',
@@ -22,10 +26,16 @@ export enum GameState {
 const INITIAL_PICKUP_COUNT = 10;
 const INITIAL_PICKUP_AMOUNT = 10;
 const INITIAL_PICKUP_RADIUS = 70;
+const MAP_TILE_POSITIONS = [[128, 112], [760, 132], [154, 526], [716, 570]] as const;
+const MAP_PROP_POSITIONS = [[78, 174], [846, 176], [96, 626], [824, 614]] as const;
+type MapDefinition = (typeof mapData.maps)[number];
 
 export class Game {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
+  private readonly assets: AssetManager;
+  private readonly renderer: SpriteRenderer;
+  private readonly renderContext: RenderContext;
   private readonly input: InputManager;
   private readonly hud: HUDManager;
   private readonly tankDefinition: TankDefinition;
@@ -45,6 +55,21 @@ export class Game {
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
+    this.ctx.imageSmoothingEnabled = false;
+    this.assets = new AssetManager();
+    this.renderer = new SpriteRenderer(this.assets);
+    this.renderContext = {
+      ctx: this.ctx,
+      renderer: this.renderer,
+      time: 0,
+      reducedMotion: typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    };
+    void this.assets.preload().then((report) => {
+      if (report.failed.length || report.missing.length || this.assets.getValidationErrors().length) {
+        console.warn('[Game] art preload completed with fallback assets', report, this.assets.getValidationErrors());
+      }
+    });
     this.input = new InputManager();
     this.hud = new HUDManager();
     this.tankDefinition = new TankDefinitionLoader().getDefault();
@@ -142,6 +167,7 @@ export class Game {
     const isPaused = this.state === GameState.PAUSED;
 
     if (!isPaused) {
+      this.renderContext.time += dt;
       this.vehicle.update(dt, this.input.getMovementVector(), {
         width: this.canvas.width - HUDManager.PANEL_WIDTH,
         height: this.canvas.height,
@@ -196,7 +222,7 @@ export class Game {
       enemy.update(dt, corePos);
       if (this.resolveEnemyAgainstGrid(enemy, this.vehicle.getGridBounds(), previousPos) && enemy.tryContactDamage()) {
         this.vehicle.takeDamage(enemy.contactDamage, 0, { x: enemy.x - corePos.x, y: enemy.y - corePos.y });
-        this.effects.push(new VisualEffect(enemy.x, enemy.y, 25, '#ff1744'));
+        this.effects.push(new VisualEffect(enemy.x, enemy.y, 25, '#ff1744', 'effect.contact-damage'));
         if (!this.vehicle.isCoreActive()) this.state = GameState.GAME_OVER;
       }
 
@@ -220,28 +246,21 @@ export class Game {
   }
 
   private render(): void {
+    const gameplayWidth = this.canvas.width - HUDManager.PANEL_WIDTH;
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.imageSmoothingEnabled = false;
 
-    this.ctx.strokeStyle = '#1d1d28';
-    this.ctx.lineWidth = 1;
-    for (let x = 0; x < this.canvas.width; x += 40) {
-      this.ctx.beginPath();
-      this.ctx.moveTo(x, 0);
-      this.ctx.lineTo(x, this.canvas.height);
-      this.ctx.stroke();
-    }
-    for (let y = 0; y < this.canvas.height; y += 40) {
-      this.ctx.beginPath();
-      this.ctx.moveTo(0, y);
-      this.ctx.lineTo(this.canvas.width, y);
-      this.ctx.stroke();
-    }
-
-    for (const enemy of this.enemies) enemy.render(this.ctx);
-    for (const pickup of this.pickups) pickup.render(this.ctx);
-    this.vehicle.render(this.ctx);
-    for (const projectile of this.projectiles) projectile.render(this.ctx);
-    for (const effect of this.effects) effect.render(this.ctx);
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.rect(0, 0, gameplayWidth, this.canvas.height);
+    this.ctx.clip();
+    this.renderMap();
+    this.vehicle.render(this.renderContext);
+    for (const enemy of this.enemies) enemy.render(this.renderContext);
+    for (const pickup of this.pickups) pickup.render(this.renderContext);
+    for (const projectile of this.projectiles) projectile.render(this.renderContext);
+    for (const effect of this.effects) effect.render(this.renderContext);
+    this.ctx.restore();
 
     const liveEnemyCount = this.enemies.reduce((count, enemy) => count + (enemy.isDead() ? 0 : 1), 0);
     const enemiesRemaining = Math.max(
@@ -260,6 +279,34 @@ export class Game {
     );
 
     if (this.isTerminalState()) this.renderResultOverlay();
+  }
+
+  private renderMap(): void {
+    const map = this.getCurrentMap();
+    this.renderer.drawSprite(this.renderContext, map?.backgroundAsset ?? 'map.common.field-base', 0, 0);
+    if (!map) return;
+
+    const tileAsset = map.tileAssets[0];
+    if (tileAsset) {
+      for (const [x, y] of MAP_TILE_POSITIONS) {
+        this.renderer.drawSprite(this.renderContext, tileAsset, x, y, { alpha: 0.42 });
+      }
+    }
+
+    const propAsset = map.propAssets[0];
+    if (propAsset) {
+      for (const [x, y] of MAP_PROP_POSITIONS) {
+        this.renderer.drawSprite(this.renderContext, propAsset, x, y, { alpha: 0.72 });
+      }
+    }
+
+    this.renderer.drawSprite(this.renderContext, map.spawnEdgeAsset, 0, 0, { alpha: 0.65 });
+  }
+
+  private getCurrentMap(): MapDefinition | null {
+    const planetId = this.progression.currentPlanet.id;
+    const regionId = this.progression.currentRegion.id;
+    return mapData.maps.find((map) => map.planetId === planetId && map.regionId === regionId) ?? null;
   }
 
   private renderResultOverlay(): void {

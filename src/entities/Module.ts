@@ -3,6 +3,7 @@ import { GridCell, ResourceCost, TankModuleDefinition } from '../core/TankDefini
 import { UpgradeManager } from '../core/UpgradeManager';
 import { Enemy } from './Enemy';
 import { ArcProjectile, DirectProjectile, Projectile } from './Projectile';
+import type { RenderContext } from '../rendering/RenderContext';
 
 export abstract class CombatModule {
   public readonly type = 'COMBAT';
@@ -70,7 +71,7 @@ export abstract class CombatModule {
   ): void;
 
   public abstract render(
-    ctx: CanvasRenderingContext2D,
+    render: RenderContext,
     worldX: number,
     worldY: number,
     width: number,
@@ -78,17 +79,18 @@ export abstract class CombatModule {
   ): void;
 
   protected renderBody(
-    ctx: CanvasRenderingContext2D,
+    render: RenderContext,
+    assetId: string,
     worldX: number,
     worldY: number,
-    width: number,
-    height: number,
-    color: string,
     label: string
   ): void {
+    render.renderer.drawSprite(render, assetId, worldX, worldY, {
+      alpha: this.isActive() ? 1 : 0.58,
+      tint: this.isActive() ? undefined : '#17232d',
+    });
+    const ctx = render.ctx;
     ctx.save();
-    ctx.fillStyle = color;
-    ctx.fillRect(worldX - width / 2 + 4, worldY - height / 2 + 4, width - 8, height - 8);
     ctx.fillStyle = '#000000';
     ctx.font = '10px sans-serif';
     ctx.textAlign = 'center';
@@ -141,13 +143,14 @@ export class DirectWeaponModule extends CombatModule {
     return Math.max(0.075, this.getStat('fireRate', 0.2));
   }
 
-  public render(ctx: CanvasRenderingContext2D, worldX: number, worldY: number, width: number, height: number): void {
-    this.renderBody(ctx, worldX, worldY, width, height, this.isActive() ? '#29b6f6' : '#546e7a', 'GUN');
+  public render(render: RenderContext, worldX: number, worldY: number, _width: number, _height: number): void {
+    this.renderBody(render, 'tank.module.direct-weapon', worldX, worldY, 'GUN');
+    const ctx = render.ctx;
     ctx.save();
     ctx.strokeStyle = '#01579b';
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.arc(worldX, worldY, Math.min(width, height) * 0.2, 0, Math.PI * 2);
+    ctx.arc(worldX, worldY, Math.min(_width, _height) * 0.2, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
   }
@@ -196,12 +199,13 @@ export class ArcWeaponModule extends CombatModule {
     return Math.max(0.4, this.getStat('fireRate', 1.8));
   }
 
-  public render(ctx: CanvasRenderingContext2D, worldX: number, worldY: number, width: number, height: number): void {
-    this.renderBody(ctx, worldX, worldY, width, height, this.isActive() ? '#ab47bc' : '#6a1b9a', 'MORT');
+  public render(render: RenderContext, worldX: number, worldY: number, _width: number, _height: number): void {
+    this.renderBody(render, 'tank.module.arc-weapon', worldX, worldY, 'MORT');
+    const ctx = render.ctx;
     ctx.save();
     ctx.fillStyle = '#4a148c';
     ctx.beginPath();
-    ctx.arc(worldX, worldY, Math.min(width, height) * 0.22, 0, Math.PI * 2);
+    ctx.arc(worldX, worldY, Math.min(_width, _height) * 0.22, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }

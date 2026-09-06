@@ -1,4 +1,5 @@
 import { Enemy } from './Enemy';
+import type { RenderContext } from '../rendering/RenderContext';
 
 function distanceSquaredToSegment(
   pointX: number,
@@ -50,7 +51,7 @@ export abstract class Projectile {
   }
 
   public abstract update(dt: number, enemies: Enemy[], spawnEffect: (effect: VisualEffect) => void): void;
-  public abstract render(ctx: CanvasRenderingContext2D): void;
+  public abstract render(render: RenderContext): void;
 }
 
 export class VisualEffect {
@@ -59,16 +60,18 @@ export class VisualEffect {
   public radius: number;
   public maxRadius: number;
   public color: string;
+  public readonly assetId: string;
   public life: number = 0.3; // seconds
   private timer: number = 0;
   public dead: boolean = false;
 
-  constructor(x: number, y: number, maxRadius: number, color: string) {
+  constructor(x: number, y: number, maxRadius: number, color: string, assetId = 'effect.projectile.direct-hit') {
     this.x = x;
     this.y = y;
     this.radius = 2;
     this.maxRadius = maxRadius;
     this.color = color;
+    this.assetId = assetId;
   }
 
   public update(dt: number): void {
@@ -80,15 +83,15 @@ export class VisualEffect {
     }
   }
 
-  public render(ctx: CanvasRenderingContext2D): void {
-    ctx.save();
-    ctx.strokeStyle = this.color;
-    ctx.lineWidth = 3;
-    ctx.globalAlpha = Math.max(0, 1 - this.timer / this.life);
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
+  public render(render: RenderContext): void {
+    const asset = render.renderer.getAsset(this.assetId);
+    const baseRadius = asset ? Math.min(asset.draw.width, asset.draw.height) / 2 : 16;
+    const radius = render.reducedMotion ? this.maxRadius * 0.65 : this.radius;
+    render.renderer.drawSprite(render, this.assetId, this.x, this.y, {
+      scale: Math.max(0.2, radius / baseRadius),
+      alpha: Math.max(0, 1 - this.timer / this.life),
+      tint: this.color,
+    });
   }
 }
 
@@ -135,7 +138,7 @@ export class DirectProjectile extends Projectile {
         hitRadius * hitRadius
       ) {
         enemy.takeDamage(this.damage);
-        spawnEffect(new VisualEffect(this.x, this.y, 15, '#29b6f6'));
+        spawnEffect(new VisualEffect(this.x, this.y, 15, '#29b6f6', 'effect.projectile.direct-hit'));
         this.dead = true;
         break;
       }
@@ -146,15 +149,10 @@ export class DirectProjectile extends Projectile {
     }
   }
 
-  public render(ctx: CanvasRenderingContext2D): void {
-    ctx.save();
-    ctx.fillStyle = '#00e5ff';
-    ctx.shadowColor = '#00e5ff';
-    ctx.shadowBlur = 8;
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, 4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+  public render(render: RenderContext): void {
+    render.renderer.drawSprite(render, 'effect.projectile.direct', this.x, this.y, {
+      rotation: Math.atan2(this.dirY, this.dirX),
+    });
   }
 }
 
@@ -209,12 +207,13 @@ export class ArcProjectile extends Projectile {
         }
       }
 
-      spawnEffect(new VisualEffect(this.targetX, this.targetY, this.aoeRadius, '#ab47bc'));
+      spawnEffect(new VisualEffect(this.targetX, this.targetY, this.aoeRadius, '#ab47bc', 'effect.explosion.arc'));
       this.dead = true;
     }
   }
 
-  public render(ctx: CanvasRenderingContext2D): void {
+  public render(render: RenderContext): void {
+    const ctx = render.ctx;
     const t = Math.min(1, this.elapsedTime / this.totalTime);
     // Parabola height Z = 4 * H * t * (1 - t)
     const arcZ = 4 * this.maxArcHeight * t * (1 - t);
@@ -223,6 +222,11 @@ export class ArcProjectile extends Projectile {
     const groundY = this.y;
     const airX = groundX;
     const airY = groundY - arcZ;
+
+    render.renderer.drawSprite(render, 'effect.projectile.arc-target', this.targetX, this.targetY, {
+      scale: this.aoeRadius / 32,
+      alpha: render.reducedMotion ? 0.35 : 0.55,
+    });
 
     ctx.save();
 
@@ -247,14 +251,11 @@ export class ArcProjectile extends Projectile {
     ctx.lineTo(airX, airY);
     ctx.stroke();
 
-    // 3. Mortar shell in air
-    ctx.fillStyle = '#ea80fc';
-    ctx.shadowColor = '#e040fb';
-    ctx.shadowBlur = 10;
-    ctx.beginPath();
-    ctx.arc(airX, airY, 6 + Math.sin(t * Math.PI) * 2, 0, Math.PI * 2);
-    ctx.fill();
-
     ctx.restore();
+
+    render.renderer.drawSprite(render, 'effect.projectile.arc', airX, airY, {
+      rotation: Math.atan2(this.targetY - this.startY, this.targetX - this.startX),
+      scale: 1 + (render.reducedMotion ? 0 : Math.sin(t * Math.PI) * 0.3),
+    });
   }
 }
