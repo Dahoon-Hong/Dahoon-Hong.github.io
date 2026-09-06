@@ -845,41 +845,73 @@ export class HUDManager {
     ctx.font = 'bold 11px sans-serif';
     ctx.fillText('COMBAT MODULE STOCK', panelX + 12, top);
 
+    const actionButtonWidth = 72;
+    const actionButtonGap = 4;
+    const installButtonX = panelX + HUDManager.PANEL_WIDTH - 12 - actionButtonWidth;
+    const purchaseButtonX = installButtonX - actionButtonGap - actionButtonWidth;
     for (const [index, definition] of armory.getCombatModuleDefinitions().entries()) {
       const y = top + 8 + index * 38;
       const researched = armory.isResearched(definition.id);
       const stock = armory.getStock(definition.id);
       const purchaseCost = armory.getPurchaseCost(definition.id);
-      const canPurchase = researched && storage.canAfford(purchaseCost);
-      const action = !researched ? 'LOCKED' : stock > 0 ? 'INSTALL' : 'PURCHASE';
-      const enabled = action === 'INSTALL' ? true : canPurchase;
-      ctx.fillStyle = enabled ? theme.surfaceAvailable : theme.surfaceDisabled;
+      const purchaseEnabled = researched && storage.canAfford(purchaseCost);
+      const installEnabled = researched && stock > 0;
+      const rowEnabled = purchaseEnabled || installEnabled;
+      ctx.fillStyle = rowEnabled ? theme.surfaceAvailable : theme.surfaceDisabled;
       ctx.fillRect(panelX + 12, y, HUDManager.PANEL_WIDTH - 24, 30);
-      ctx.strokeStyle = enabled ? theme.accent : theme.borderMuted;
-      ctx.lineWidth = enabled ? 2 : 1;
+      ctx.strokeStyle = rowEnabled ? theme.accent : theme.borderMuted;
+      ctx.lineWidth = rowEnabled ? 2 : 1;
       ctx.strokeRect(panelX + 12, y, HUDManager.PANEL_WIDTH - 24, 30);
       this.drawIcon(render, this.moduleIcon(definition.id), panelX + 29, y + 15, 0.72);
-      ctx.fillStyle = enabled ? theme.textPrimary : theme.textDisabled;
+      ctx.fillStyle = rowEnabled ? theme.textPrimary : theme.textDisabled;
       ctx.font = 'bold 11px sans-serif';
       ctx.fillText(`${this.truncate(definition.name, 18)} · ${definition.size?.width}x${definition.size?.height}`, panelX + 42, y + 13);
       ctx.font = '10px sans-serif';
       ctx.fillText(researched ? `Owned ${stock} · ${this.formatCost(purchaseCost)}` : 'Research required', panelX + 42, y + 24);
-      ctx.fillStyle = enabled ? theme.accent : theme.textDisabled;
-      ctx.textAlign = 'right';
-      ctx.font = 'bold 10px monospace';
-      ctx.fillText(action, panelX + HUDManager.PANEL_WIDTH - 18, y + 18);
-      ctx.textAlign = 'left';
-      if (enabled) {
+      this.drawArmoryActionButton(ctx, purchaseButtonX, y + 4, actionButtonWidth, 'PURCHASE', purchaseEnabled);
+      this.drawArmoryActionButton(ctx, installButtonX, y + 4, actionButtonWidth, 'INSTALL', installEnabled);
+      if (purchaseEnabled) {
         this.purchaseHitboxes.push({
-          x: panelX + HUDManager.PANEL_WIDTH - 92,
+          x: purchaseButtonX,
           y: y + 4,
-          width: 74,
+          width: actionButtonWidth,
           height: 22,
           moduleId: definition.id,
-          action: action === 'INSTALL' ? 'install' : 'purchase',
+          action: 'purchase',
+        });
+      }
+      if (installEnabled) {
+        this.purchaseHitboxes.push({
+          x: installButtonX,
+          y: y + 4,
+          width: actionButtonWidth,
+          height: 22,
+          moduleId: definition.id,
+          action: 'install',
         });
       }
     }
+  }
+
+  private drawArmoryActionButton(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    label: string,
+    enabled: boolean,
+  ): void {
+    const theme = VisualTheme.color;
+    ctx.fillStyle = enabled ? theme.surfaceSelected : theme.surfaceDisabled;
+    ctx.fillRect(x, y, width, 22);
+    ctx.strokeStyle = enabled ? theme.accent : theme.borderMuted;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, width, 22);
+    ctx.fillStyle = enabled ? theme.textPrimary : theme.textDisabled;
+    ctx.font = 'bold 9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x + width / 2, y + 14);
+    ctx.textAlign = 'left';
   }
 
   private getCombatSectionY(vehicle: Vehicle): number {

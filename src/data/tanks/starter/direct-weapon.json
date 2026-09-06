@@ -6,7 +6,7 @@
   "size": { "width": 1, "height": 1 },
   "installCost": { "matter": 30 },
   "purchaseCost": { "matter": 30 },
-  "fireArcDegrees": 72,
+  "fireArcDegrees": 180,
   "defaultOrientation": 0,
   "baseStats": { "maxHp": 100, "range": 600, "damage": 30, "fireRate": 0.2, "projectileSpeed": 1000, "maxDistance": 1000 },
   "upgradeTree": {
