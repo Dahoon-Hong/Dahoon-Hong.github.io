@@ -19,6 +19,7 @@ import { VisualTheme } from '../rendering/VisualTheme';
 import { AudioManager } from './AudioManager';
 import { Camera } from './Camera';
 import { ArmoryManager } from './ArmoryManager';
+import type { ModuleOrientation } from './TankDefinitionLoader';
 
 export enum GameState {
   PLAYING = 'PLAYING',
@@ -133,7 +134,7 @@ export class Game {
       isPaused: () => this.state === GameState.PAUSED,
       onArmoryResearchSuccess: () => this.audio.playSfx('sfx.ui.upgrade-confirm'),
       onArmoryPurchaseSuccess: () => this.audio.playSfx('sfx.ui.upgrade-confirm'),
-      installPurchasedModule: (moduleId, anchor) => this.installPurchasedModule(moduleId, anchor),
+      installPurchasedModule: (moduleId, anchor, orientation) => this.installPurchasedModule(moduleId, anchor, orientation),
     }, { width: this.logicalWidth, height: this.logicalHeight });
 
     this.canvas.addEventListener('click', (event) => this.handleRestartClick(event));
@@ -217,9 +218,13 @@ export class Game {
     });
   }
 
-  private installPurchasedModule(moduleId: string, anchor: { x: number; y: number }): import('../entities/Module').CombatModule | null {
+  private installPurchasedModule(
+    moduleId: string,
+    anchor: { x: number; y: number },
+    orientation: ModuleOrientation,
+  ): import('../entities/Module').CombatModule | null {
     if (this.state !== GameState.PAUSED || this.armory.getStock(moduleId) <= 0) return null;
-    const installed = this.vehicle.installModule(moduleId, anchor);
+    const installed = this.vehicle.installModule(moduleId, anchor, orientation);
     if (!installed) return null;
     this.armory.consume(moduleId);
     return installed;
@@ -261,6 +266,7 @@ export class Game {
         module.update(
           dt,
           this.vehicle.getModuleWorldCenter(module),
+          this.vehicle.getModuleFireAngle(module),
           this.enemies,
           (projectile) => this.projectiles.push(projectile),
           (type, amount) => this.resources.spend(type, amount),

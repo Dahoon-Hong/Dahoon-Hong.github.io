@@ -1,5 +1,11 @@
 import { ResourceType } from '../core/ResourceStorage';
-import { GridCell, ResourceCost, TankModuleDefinition } from '../core/TankDefinitionLoader';
+import {
+  getOrientedModuleSize,
+  GridCell,
+  ModuleOrientation,
+  ResourceCost,
+  TankModuleDefinition,
+} from '../core/TankDefinitionLoader';
 import { UpgradeManager } from '../core/UpgradeManager';
 import { Enemy } from './Enemy';
 import { ArcProjectile, DirectProjectile, Projectile } from './Projectile';
@@ -16,8 +22,9 @@ export abstract class CombatModule {
   public readonly moduleId: string;
   public readonly instanceId: string;
   public readonly name: string;
-  public readonly anchor: GridCell;
-  public readonly size: { width: number; height: number };
+  public anchor: GridCell;
+  public orientation: ModuleOrientation;
+  public size: { width: number; height: number };
   public readonly installCost: ResourceCost;
   public currentHp: number;
 
@@ -28,7 +35,8 @@ export abstract class CombatModule {
     definition: TankModuleDefinition,
     instanceId: string,
     anchor: GridCell,
-    upgrades: UpgradeManager
+    upgrades: UpgradeManager,
+    orientation: ModuleOrientation = definition.defaultOrientation ?? 0,
   ) {
     if (!definition.size) throw new Error(`[Combat] module '${definition.id}' is missing size`);
 
@@ -37,7 +45,8 @@ export abstract class CombatModule {
     this.instanceId = instanceId;
     this.name = definition.name;
     this.anchor = { ...anchor };
-    this.size = { ...definition.size };
+    this.orientation = orientation;
+    this.size = getOrientedModuleSize(definition.size, orientation);
     this.installCost = { ...(definition.installCost ?? {}) };
     this.upgrades = upgrades;
     this.currentHp = this.maxHp;
@@ -45,6 +54,18 @@ export abstract class CombatModule {
 
   public get maxHp(): number {
     return this.getStat('maxHp', 100);
+  }
+
+  public get baseSize(): { width: number; height: number } {
+    return { ...this.definition.size! };
+  }
+
+  public get fireArcDegrees(): number {
+    return this.definition.fireArcDegrees ?? 360;
+  }
+
+  public getFireAngle(tankFacingAngle: number): number {
+    return tankFacingAngle + this.orientation * Math.PI / 2;
   }
 
   public get level(): number {
@@ -64,6 +85,12 @@ export abstract class CombatModule {
     this.currentHp = this.maxHp;
   }
 
+  public setPlacement(anchor: GridCell, orientation: ModuleOrientation): void {
+    this.anchor = { ...anchor };
+    this.orientation = orientation;
+    this.size = getOrientedModuleSize(this.definition.size!, orientation);
+  }
+
   public getStat(stat: string, fallback = 0): number {
     return this.upgrades.getEffectiveStats(this.instanceId)[stat] ?? fallback;
   }
@@ -71,6 +98,7 @@ export abstract class CombatModule {
   public abstract update(
     dt: number,
     moduleWorldPos: { x: number; y: number },
+    fireAngle: number,
     enemies: Enemy[],
     spawnProjectile: (projectile: Projectile) => void,
     spendResource: (type: ResourceType, amount: number) => boolean,
@@ -98,6 +126,7 @@ export abstract class CombatModule {
     const scale = asset ? Math.min(width / asset.draw.width, height / asset.draw.height) : width / 44;
     render.renderer.drawSprite(render, assetId, worldX, worldY, {
       scale,
+      rotation: this.orientation * Math.PI / 2,
       alpha: this.isActive() ? 1 : 0.58,
       tint: this.isActive() ? undefined : '#17232d',
     });
@@ -117,6 +146,7 @@ export class DirectWeaponModule extends CombatModule {
   public update(
     dt: number,
     modulePos: { x: number; y: number },
+    fireAngle: number,
     enemies: Enemy[],
     spawnProjectile: (projectile: Projectile) => void,
     spendResource: (type: ResourceType, amount: number) => boolean,
@@ -126,7 +156,7 @@ export class DirectWeaponModule extends CombatModule {
     this.cooldownTimer -= dt;
     if (this.cooldownTimer > 0) return;
 
-    const target = findClosestEnemy(modulePos, enemies, this.getRange());
+    const target = findClosestEnemy(modulePos, enemies, this.getRange(), fireAngle, this.fireArcDegrees);
     if (!target || !spendResource('ammo', 1)) return;
 
     const distance = Math.hypot(target.x - modulePos.x, target.y - modulePos.y);
@@ -176,6 +206,7 @@ export class ArcWeaponModule extends CombatModule {
   public update(
     dt: number,
     modulePos: { x: number; y: number },
+    fireAngle: number,
     enemies: Enemy[],
     spawnProjectile: (projectile: Projectile) => void,
     spendResource: (type: ResourceType, amount: number) => boolean,
@@ -185,7 +216,7 @@ export class ArcWeaponModule extends CombatModule {
     this.cooldownTimer -= dt;
     if (this.cooldownTimer > 0) return;
 
-    const target = findClosestEnemy(modulePos, enemies, this.getRange());
+    const target = findClosestEnemy(modulePos, enemies, this.getRange(), fireAngle, this.fireArcDegrees);
     if (!target || !spendResource('ammo', 1)) return;
 
     this.cooldownTimer = this.getFireRate();
@@ -230,15 +261,25 @@ export class ArcWeaponModule extends CombatModule {
 function findClosestEnemy(
   position: { x: number; y: number },
   enemies: Enemy[],
-  range: number
+  range: number,
+  fireAngle: number,
+  fireArcDegrees: number,
 ): Enemy | null {
   let closest: Enemy | null = null;
   let minDistance = Number.POSITIVE_INFINITY;
 
   for (const enemy of enemies) {
     if (enemy.isDead()) continue;
-    const distance = Math.hypot(enemy.x - position.x, enemy.y - position.y);
+    const deltaX = enemy.x - position.x;
+    const deltaY = enemy.y - position.y;
+    const distance = Math.hypot(deltaX, deltaY);
     if (distance <= range && distance < minDistance) {
+      const targetAngle = Math.atan2(deltaY, deltaX);
+      const angleDifference = Math.abs(Math.atan2(
+        Math.sin(targetAngle - fireAngle),
+        Math.cos(targetAngle - fireAngle),
+      ));
+      if (angleDifference > (fireArcDegrees * Math.PI / 180) / 2) continue;
       closest = enemy;
       minDistance = distance;
     }
@@ -251,10 +292,11 @@ export function createCombatModule(
   definition: TankModuleDefinition,
   instanceId: string,
   anchor: GridCell,
-  upgrades: UpgradeManager
+  upgrades: UpgradeManager,
+  orientation: ModuleOrientation = definition.defaultOrientation ?? 0,
 ): CombatModule | null {
   if (definition.kind !== 'combat') return null;
-  if (definition.behavior === 'direct') return new DirectWeaponModule(definition, instanceId, anchor, upgrades);
-  if (definition.behavior === 'arc') return new ArcWeaponModule(definition, instanceId, anchor, upgrades);
+  if (definition.behavior === 'direct') return new DirectWeaponModule(definition, instanceId, anchor, upgrades, orientation);
+  if (definition.behavior === 'arc') return new ArcWeaponModule(definition, instanceId, anchor, upgrades, orientation);
   return null;
 }

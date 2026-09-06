@@ -1,4 +1,4 @@
-import { TankDefinition } from '../core/TankDefinitionLoader';
+import { GridCell, ModuleOrientation, TankDefinition } from '../core/TankDefinitionLoader';
 import { UpgradeManager } from '../core/UpgradeManager';
 import { VehicleSystems } from '../core/VehicleSystems';
 import { CombatGrid } from './CombatGrid';
@@ -75,12 +75,36 @@ export class Vehicle {
     return this.combatGrid.getModuleAtCell(gridX, gridY);
   }
 
-  public canInstallModule(moduleId: string, anchor: { x: number; y: number }): boolean {
-    return this.combatGrid.canInstall(moduleId, anchor);
+  public canInstallModule(moduleId: string, anchor: GridCell, orientation?: ModuleOrientation): boolean {
+    return this.combatGrid.canInstall(moduleId, anchor, orientation);
   }
 
-  public installModule(moduleId: string, anchor: { x: number; y: number }): CombatModule | null {
-    return this.combatGrid.install(moduleId, anchor);
+  public installModule(moduleId: string, anchor: GridCell, orientation?: ModuleOrientation): CombatModule | null {
+    return this.combatGrid.install(moduleId, anchor, orientation);
+  }
+
+  public getCombatModule(instanceId: string): CombatModule | null {
+    return this.getCombatModules().find((module) => module.instanceId === instanceId) ?? null;
+  }
+
+  public canMoveModule(module: CombatModule, anchor: GridCell, orientation = module.orientation): boolean {
+    return this.combatGrid.canInstall(module.moduleId, anchor, orientation, module);
+  }
+
+  public moveModule(module: CombatModule, anchor: GridCell, orientation = module.orientation): boolean {
+    return this.combatGrid.move(module, anchor, orientation);
+  }
+
+  public rotateModule(module: CombatModule): boolean {
+    return this.moveModule(module, module.anchor, ((module.orientation + 1) % 4) as ModuleOrientation);
+  }
+
+  public getModuleFireAngle(module: CombatModule): number {
+    return module.getFireAngle(this.facingAngle);
+  }
+
+  public getPlacementFireAngle(orientation: ModuleOrientation): number {
+    return this.facingAngle + orientation * Math.PI / 2;
   }
 
   public isInsideGrid(gridX: number, gridY: number): boolean {
@@ -108,13 +132,7 @@ export class Vehicle {
   }
 
   public getModuleWorldRect(module: CombatModule): { x: number; y: number; width: number; height: number } {
-    const local = this.getModuleLocalRect(module);
-    const corners = [
-      { x: local.x, y: local.y },
-      { x: local.x + local.width, y: local.y },
-      { x: local.x + local.width, y: local.y + local.height },
-      { x: local.x, y: local.y + local.height },
-    ].map((point) => this.toWorldPoint(point));
+    const corners = this.getModuleWorldCorners(module);
     const left = Math.min(...corners.map((point) => point.x));
     const right = Math.max(...corners.map((point) => point.x));
     const top = Math.min(...corners.map((point) => point.y));
@@ -128,8 +146,25 @@ export class Vehicle {
   }
 
   public getModuleWorldCenter(module: CombatModule): { x: number; y: number } {
-    const rect = this.getModuleWorldRect(module);
-    return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+    return this.getWorldCenter(this.getModuleWorldCorners(module));
+  }
+
+  public getPlacementWorldCorners(
+    moduleId: string,
+    anchor: GridCell,
+    orientation: ModuleOrientation,
+  ): Array<{ x: number; y: number }> {
+    const size = this.combatGrid.getModuleSize(moduleId, orientation);
+    if (!size) return [];
+    return this.getLocalRectCorners(anchor, size).map((point) => this.toWorldPoint(point));
+  }
+
+  public getPlacementWorldCenter(
+    moduleId: string,
+    anchor: GridCell,
+    orientation: ModuleOrientation,
+  ): { x: number; y: number } | null {
+    return this.getWorldCenter(this.getPlacementWorldCorners(moduleId, anchor, orientation));
   }
 
   public getGridBounds(): { left: number; top: number; right: number; bottom: number } {
@@ -271,7 +306,13 @@ export class Vehicle {
 
     for (const placement of this.combatGrid.getPlacements()) {
       const rect = this.getModuleLocalRect(placement.module);
-      placement.module.render(render, rect.x + rect.width / 2, rect.y + rect.height / 2, rect.width, rect.height);
+      placement.module.render(
+        render,
+        rect.x + rect.width / 2,
+        rect.y + rect.height / 2,
+        placement.module.baseSize.width * this.tileSize,
+        placement.module.baseSize.height * this.tileSize,
+      );
     }
 
     ctx.restore();
@@ -293,6 +334,33 @@ export class Vehicle {
       y: localAnchor.y - this.tileSize / 2,
       width: module.size.width * this.tileSize,
       height: module.size.height * this.tileSize,
+    };
+  }
+
+  private getModuleWorldCorners(module: CombatModule): Array<{ x: number; y: number }> {
+    return this.getLocalRectCorners(module.anchor, module.size).map((point) => this.toWorldPoint(point));
+  }
+
+  private getLocalRectCorners(anchor: GridCell, size: { width: number; height: number }): Array<{ x: number; y: number }> {
+    const localAnchor = this.getModuleLocalPos(anchor.x, anchor.y);
+    const halfTile = this.tileSize / 2;
+    const left = localAnchor.x - halfTile;
+    const top = localAnchor.y - halfTile;
+    const width = size.width * this.tileSize;
+    const height = size.height * this.tileSize;
+    return [
+      { x: left, y: top },
+      { x: left + width, y: top },
+      { x: left + width, y: top + height },
+      { x: left, y: top + height },
+    ];
+  }
+
+  private getWorldCenter(corners: Array<{ x: number; y: number }>): { x: number; y: number } {
+    if (corners.length === 0) return { x: this.x, y: this.y };
+    return {
+      x: corners.reduce((sum, point) => sum + point.x, 0) / corners.length,
+      y: corners.reduce((sum, point) => sum + point.y, 0) / corners.length,
     };
   }
 

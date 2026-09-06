@@ -1,5 +1,5 @@
 import { ResourceStorage } from '../core/ResourceStorage';
-import { ResourceCost, TankModuleDefinition, UpgradeNodeDefinition } from '../core/TankDefinitionLoader';
+import { GridCell, ModuleOrientation, ResourceCost, TankModuleDefinition, UpgradeNodeDefinition } from '../core/TankDefinitionLoader';
 import { UpgradeManager, UpgradeNodeState } from '../core/UpgradeManager';
 import { CombatModule } from '../entities/Module';
 import { Vehicle } from '../entities/Vehicle';
@@ -21,7 +21,7 @@ interface HUDCallbacks {
   isPaused: () => boolean;
   onArmoryResearchSuccess: () => void;
   onArmoryPurchaseSuccess: () => void;
-  installPurchasedModule: (moduleId: string, anchor: { x: number; y: number }) => CombatModule | null;
+  installPurchasedModule: (moduleId: string, anchor: GridCell, orientation: ModuleOrientation) => CombatModule | null;
 }
 
 interface Rect {
@@ -54,6 +54,13 @@ interface PurchaseHitbox extends Rect {
   action: 'purchase' | 'install';
 }
 
+interface DragState {
+  module: CombatModule;
+  offset: GridCell;
+  orientation: ModuleOrientation;
+  previewAnchor: GridCell | null;
+}
+
 interface LogicalViewport {
   width: number;
   height: number;
@@ -65,6 +72,9 @@ export class HUDManager {
   private selectedCell: { gx: number; gy: number } | null = null;
   private selectedInstanceId: string | null = null;
   private selectedInstallModuleId: string | null = null;
+  private selectedInstallOrientation: ModuleOrientation = 0;
+  private dragState: DragState | null = null;
+  private suppressNextClick = false;
   private feedbackMessage: string | null = null;
   private feedbackColor: string = VisualTheme.color.danger;
   private nodeHitboxes: NodeHitbox[] = [];
@@ -77,6 +87,7 @@ export class HUDManager {
   private onMusicControl: (() => void) | null = null;
   private musicControlRect: Rect | null = null;
   private pointer: { x: number; y: number } | null = null;
+  private screenToWorld: ((point: { x: number; y: number }) => { x: number; y: number }) | null = null;
 
   public setupMouseListeners(
     canvas: HTMLCanvasElement,
@@ -87,13 +98,31 @@ export class HUDManager {
     this.getArmory = callbacks.getArmory;
     this.getMusicVolume = callbacks.getMusicVolume;
     this.onMusicControl = callbacks.onMusicControl;
+    this.screenToWorld = callbacks.screenToWorld;
     canvas.addEventListener('mousemove', (event) => {
-      this.pointer = this.toCanvasPoint(canvas, event, viewport);
+      const point = this.toCanvasPoint(canvas, event, viewport);
+      this.pointer = point;
+      this.updateDragPreview(point, callbacks.getVehicle());
     });
     canvas.addEventListener('mouseleave', () => {
       this.pointer = null;
+      if (this.dragState) this.dragState.previewAnchor = null;
+    });
+    canvas.addEventListener('mousedown', (event) => {
+      this.handlePointerDown(this.toCanvasPoint(canvas, event, viewport), callbacks);
+    });
+    canvas.addEventListener('mouseup', (event) => {
+      this.handlePointerUp(this.toCanvasPoint(canvas, event, viewport), callbacks);
+    });
+    window.addEventListener('keydown', (event) => {
+      if (event.code !== 'KeyR' || event.repeat) return;
+      if (this.handleRotation(callbacks)) event.preventDefault();
     });
     canvas.addEventListener('click', (event) => {
+      if (this.suppressNextClick) {
+        this.suppressNextClick = false;
+        return;
+      }
       const point = this.toCanvasPoint(canvas, event, viewport);
       const mouseX = point.x;
       const mouseY = point.y;
@@ -114,15 +143,24 @@ export class HUDManager {
       const cell = vehicle.getGridCellAtWorldPoint(worldPoint);
       if (cell) {
         const module = vehicle.getModuleAt(cell.x, cell.y);
-        if (this.selectedInstallModuleId && !module) {
-          const installed = callbacks.installPurchasedModule(this.selectedInstallModuleId, cell);
+        if (this.selectedInstallModuleId) {
+          if (module) {
+            this.setFeedback('Choose an empty grid cell.');
+            return;
+          }
+          const orientation = this.selectedInstallOrientation;
+          if (!vehicle.canInstallModule(this.selectedInstallModuleId, cell, orientation)) {
+            this.setFeedback('The module footprint does not fit here.');
+            return;
+          }
+          const installed = callbacks.installPurchasedModule(this.selectedInstallModuleId, cell, orientation);
           if (installed) {
             this.selectedInstanceId = installed.instanceId;
             this.selectedCell = null;
             this.selectedInstallModuleId = null;
             this.setFeedback('Combat module installed.', VisualTheme.color.success);
           } else {
-            this.setFeedback('The module footprint does not fit here.');
+            this.setFeedback('Combat module installation failed.');
           }
           return;
         }
@@ -138,6 +176,9 @@ export class HUDManager {
     this.selectedCell = null;
     this.selectedInstanceId = null;
     this.selectedInstallModuleId = null;
+    this.selectedInstallOrientation = 0;
+    this.dragState = null;
+    this.suppressNextClick = false;
     this.feedbackMessage = null;
     this.nodeHitboxes = [];
     this.installHitboxes = [];
@@ -163,6 +204,7 @@ export class HUDManager {
     ctx.save();
     this.renderTopBar(render, canvasWidth, vehicle, storage, wave, enemiesRemaining, isPaused, gameplayWidth);
     this.renderSelection(ctx, vehicle, camera);
+    this.renderModulePreviews(render, vehicle, camera, gameplayWidth, canvasHeight);
 
     if (isPaused) {
       this.renderPauseOverlay(render, gameplayWidth, canvasHeight);
@@ -182,6 +224,7 @@ export class HUDManager {
       if (this.contains(hitbox, mouseX, mouseY)) {
         this.selectedInstanceId = hitbox.instanceId;
         this.selectedCell = null;
+        this.selectedInstallModuleId = null;
         this.feedbackMessage = null;
         return true;
       }
@@ -216,6 +259,8 @@ export class HUDManager {
         this.setFeedback(purchased ? 'Combat module purchased.' : 'Purchase unavailable or too expensive.', purchased ? VisualTheme.color.success : VisualTheme.color.danger);
       } else if (callbacks.getArmory().getStock(hitbox.moduleId) > 0) {
         this.selectedInstallModuleId = hitbox.moduleId;
+        this.selectedInstallOrientation = vehicle.getCombatModuleDefinitions()
+          .find((module) => module.id === hitbox.moduleId)?.defaultOrientation ?? 0;
         this.selectedCell = null;
         this.selectedInstanceId = vehicle.systems.getInstanceId('armory');
         this.setFeedback('Select an empty grid cell to install.', VisualTheme.color.success);
@@ -239,7 +284,9 @@ export class HUDManager {
         return true;
       }
 
-      const installed = callbacks.installPurchasedModule(hitbox.moduleId, anchor);
+      const orientation = vehicle.getCombatModuleDefinitions()
+        .find((module) => module.id === hitbox.moduleId)?.defaultOrientation ?? 0;
+      const installed = callbacks.installPurchasedModule(hitbox.moduleId, anchor, orientation);
       if (!installed) {
         this.setFeedback('Module installation failed.');
         return true;
@@ -252,6 +299,90 @@ export class HUDManager {
     }
 
     return false;
+  }
+
+  private handlePointerDown(point: { x: number; y: number }, callbacks: HUDCallbacks): void {
+    const vehicle = callbacks.getVehicle();
+    const gameplayWidth = 1280 - HUDManager.PANEL_WIDTH;
+    if (!callbacks.isPaused() || point.x >= gameplayWidth || this.selectedInstallModuleId) return;
+    const worldPoint = this.screenToWorld?.(point);
+    if (!worldPoint) return;
+    const cell = vehicle.getGridCellAtWorldPoint(worldPoint);
+    const module = cell ? vehicle.getModuleAt(cell.x, cell.y) : null;
+    if (!module) return;
+
+    this.dragState = {
+      module,
+      offset: { x: cell!.x - module.anchor.x, y: cell!.y - module.anchor.y },
+      orientation: module.orientation,
+      previewAnchor: { ...module.anchor },
+    };
+    this.selectedInstanceId = module.instanceId;
+    this.selectedCell = null;
+    this.feedbackMessage = null;
+    this.suppressNextClick = true;
+  }
+
+  private handlePointerUp(point: { x: number; y: number }, callbacks: HUDCallbacks): void {
+    if (!this.dragState) return;
+    const vehicle = callbacks.getVehicle();
+    this.updateDragPreview(point, vehicle);
+    const drag = this.dragState;
+    const moved = callbacks.isPaused() && drag.previewAnchor
+      ? vehicle.moveModule(drag.module, drag.previewAnchor, drag.orientation)
+      : false;
+    this.setFeedback(
+      moved ? 'Combat module moved.' : 'Invalid module placement; original position kept.',
+      moved ? VisualTheme.color.success : VisualTheme.color.danger,
+    );
+    this.dragState = null;
+    this.suppressNextClick = true;
+  }
+
+  private updateDragPreview(point: { x: number; y: number }, vehicle: Vehicle): void {
+    if (!this.dragState) return;
+    const gameplayWidth = 1280 - HUDManager.PANEL_WIDTH;
+    if (point.x >= gameplayWidth) {
+      this.dragState.previewAnchor = null;
+      return;
+    }
+    const worldPoint = this.screenToWorld?.(point);
+    const cell = worldPoint ? vehicle.getGridCellAtWorldPoint(worldPoint) : null;
+    this.dragState.previewAnchor = cell
+      ? { x: cell.x - this.dragState.offset.x, y: cell.y - this.dragState.offset.y }
+      : null;
+  }
+
+  private handleRotation(callbacks: HUDCallbacks): boolean {
+    if (!callbacks.isPaused()) return false;
+    const vehicle = callbacks.getVehicle();
+    if (this.selectedInstallModuleId) {
+      this.selectedInstallOrientation = this.nextOrientation(this.selectedInstallOrientation);
+      this.setFeedback(`Install direction ${this.selectedInstallOrientation * 90}° clockwise.`, VisualTheme.color.success);
+      return true;
+    }
+
+    if (this.dragState) {
+      this.dragState.orientation = this.nextOrientation(this.dragState.orientation);
+      if (this.pointer) this.updateDragPreview(this.pointer, vehicle);
+      this.setFeedback(`Module direction ${this.dragState.orientation * 90}° clockwise.`, VisualTheme.color.success);
+      return true;
+    }
+
+    const module = this.selectedInstanceId && !this.selectedInstanceId.startsWith('builtin:')
+      ? vehicle.getCombatModule(this.selectedInstanceId)
+      : null;
+    if (!module) return false;
+    const rotated = vehicle.rotateModule(module);
+    this.setFeedback(
+      rotated ? `Module direction ${module.orientation * 90}° clockwise.` : 'The rotated footprint does not fit here.',
+      rotated ? VisualTheme.color.success : VisualTheme.color.danger,
+    );
+    return true;
+  }
+
+  private nextOrientation(orientation: ModuleOrientation): ModuleOrientation {
+    return ((orientation + 1) % 4) as ModuleOrientation;
   }
 
   private renderTopBar(
@@ -337,20 +468,158 @@ export class HUDManager {
   }
 
   private renderSelection(ctx: CanvasRenderingContext2D, vehicle: Vehicle, camera: Camera): void {
-    if (!this.selectedCell) return;
-    const selectedModule = vehicle.getModuleAt(this.selectedCell.gx, this.selectedCell.gy);
-    const rect = selectedModule
-      ? vehicle.getModuleWorldRect(selectedModule)
-      : {
-          x: vehicle.getModuleWorldPos(this.selectedCell.gx, this.selectedCell.gy).x - vehicle.tileSize / 2,
-          y: vehicle.getModuleWorldPos(this.selectedCell.gx, this.selectedCell.gy).y - vehicle.tileSize / 2,
-          width: vehicle.tileSize,
-          height: vehicle.tileSize,
-        };
-    const screen = camera.worldToScreen({ x: rect.x, y: rect.y });
-    ctx.strokeStyle = selectedModule ? VisualTheme.color.accent : VisualTheme.color.warning;
-    ctx.lineWidth = 3;
-    ctx.strokeRect(screen.x + 1, screen.y + 1, rect.width - 2, rect.height - 2);
+    if (this.selectedCell) {
+      const selectedModule = vehicle.getModuleAt(this.selectedCell.gx, this.selectedCell.gy);
+      if (selectedModule) {
+        this.drawScreenPolygon(
+          ctx,
+          vehicle.getPlacementWorldCorners(selectedModule.moduleId, selectedModule.anchor, selectedModule.orientation)
+            .map((point) => camera.worldToScreen(point)),
+          VisualTheme.color.accent,
+          3,
+        );
+        return;
+      }
+      const point = camera.worldToScreen(vehicle.getModuleWorldPos(this.selectedCell.gx, this.selectedCell.gy));
+      ctx.strokeStyle = VisualTheme.color.warning;
+      ctx.lineWidth = 3;
+      ctx.strokeRect(point.x - vehicle.tileSize / 2 + 1, point.y - vehicle.tileSize / 2 + 1, vehicle.tileSize - 2, vehicle.tileSize - 2);
+      return;
+    }
+
+    if (!this.selectedInstanceId || this.selectedInstanceId.startsWith('builtin:')) return;
+    const selectedModule = vehicle.getCombatModule(this.selectedInstanceId);
+    if (!selectedModule) return;
+    this.drawScreenPolygon(
+      ctx,
+      vehicle.getPlacementWorldCorners(selectedModule.moduleId, selectedModule.anchor, selectedModule.orientation)
+        .map((point) => camera.worldToScreen(point)),
+      VisualTheme.color.accent,
+      2,
+    );
+  }
+
+  private renderModulePreviews(
+    render: RenderContext,
+    vehicle: Vehicle,
+    camera: Camera,
+    gameplayWidth: number,
+    canvasHeight: number,
+  ): void {
+    const ctx = render.ctx;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, VisualTheme.spacing.topBarHeight, gameplayWidth, Math.max(0, canvasHeight - VisualTheme.spacing.topBarHeight));
+    ctx.clip();
+
+    if (this.dragState) {
+      const drag = this.dragState;
+      if (drag.previewAnchor) {
+        const valid = vehicle.canMoveModule(drag.module, drag.previewAnchor, drag.orientation);
+        this.drawPlacementGhost(render, vehicle, camera, drag.module.moduleId, drag.previewAnchor, drag.orientation, valid);
+        const center = vehicle.getPlacementWorldCenter(drag.module.moduleId, drag.previewAnchor, drag.orientation);
+        if (center) this.drawFireArcPreview(render, camera, center, vehicle.getPlacementFireAngle(drag.orientation), drag.module.fireArcDegrees, drag.module.getStat('range', 240), drag.module.moduleId);
+      } else {
+        this.drawFireArcPreview(render, camera, vehicle.getModuleWorldCenter(drag.module), vehicle.getModuleFireAngle(drag.module), drag.module.fireArcDegrees, drag.module.getStat('range', 240), drag.module.moduleId);
+      }
+    } else if (this.selectedInstallModuleId) {
+      const anchor = this.getInstallPreviewAnchor(vehicle, gameplayWidth);
+      if (anchor) {
+        const definition = vehicle.getCombatModuleDefinitions().find((module) => module.id === this.selectedInstallModuleId);
+        const center = vehicle.getPlacementWorldCenter(this.selectedInstallModuleId, anchor, this.selectedInstallOrientation);
+        if (definition && center) {
+          const valid = vehicle.canInstallModule(this.selectedInstallModuleId, anchor, this.selectedInstallOrientation);
+          this.drawPlacementGhost(render, vehicle, camera, this.selectedInstallModuleId, anchor, this.selectedInstallOrientation, valid);
+          this.drawFireArcPreview(render, camera, center, vehicle.getPlacementFireAngle(this.selectedInstallOrientation), definition.fireArcDegrees ?? 360, definition.baseStats.range ?? 240, definition.id);
+        }
+      }
+    } else if (this.selectedInstanceId && !this.selectedInstanceId.startsWith('builtin:')) {
+      const module = vehicle.getCombatModule(this.selectedInstanceId);
+      if (module) {
+        this.drawFireArcPreview(render, camera, vehicle.getModuleWorldCenter(module), vehicle.getModuleFireAngle(module), module.fireArcDegrees, module.getStat('range', 240), module.moduleId);
+      }
+    }
+
+    ctx.restore();
+  }
+
+  private getInstallPreviewAnchor(vehicle: Vehicle, gameplayWidth: number): GridCell | null {
+    if (!this.pointer || this.pointer.x >= gameplayWidth || !this.screenToWorld) return null;
+    const worldPoint = this.screenToWorld(this.pointer);
+    return vehicle.getGridCellAtWorldPoint(worldPoint);
+  }
+
+  private drawPlacementGhost(
+    render: RenderContext,
+    vehicle: Vehicle,
+    camera: Camera,
+    moduleId: string,
+    anchor: GridCell,
+    orientation: ModuleOrientation,
+    valid: boolean,
+  ): void {
+    const points = vehicle.getPlacementWorldCorners(moduleId, anchor, orientation).map((point) => camera.worldToScreen(point));
+    if (points.length === 0) return;
+    const ctx = render.ctx;
+    this.drawScreenPolygon(
+      ctx,
+      points,
+      valid ? VisualTheme.color.success : VisualTheme.color.danger,
+      2,
+      valid ? 'rgba(102, 187, 106, 0.24)' : 'rgba(239, 83, 80, 0.24)',
+    );
+  }
+
+  private drawFireArcPreview(
+    render: RenderContext,
+    camera: Camera,
+    center: { x: number; y: number },
+    fireAngle: number,
+    fireArcDegrees: number,
+    range: number,
+    moduleId: string,
+  ): void {
+    const screenCenter = camera.worldToScreen(center);
+    const radius = Math.min(220, Math.max(70, range));
+    const halfArc = Math.min(Math.PI, Math.max(0, fireArcDegrees) * Math.PI / 360);
+    const color = moduleId === 'arc-weapon' ? '#ab47bc' : '#29b6f6';
+    const ctx = render.ctx;
+    ctx.save();
+    ctx.fillStyle = moduleId === 'arc-weapon' ? 'rgba(171, 71, 188, 0.12)' : 'rgba(41, 182, 246, 0.12)';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(screenCenter.x, screenCenter.y);
+    ctx.arc(screenCenter.x, screenCenter.y, radius, fireAngle - halfArc, fireAngle + halfArc);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(screenCenter.x, screenCenter.y);
+    ctx.lineTo(screenCenter.x + Math.cos(fireAngle) * radius, screenCenter.y + Math.sin(fireAngle) * radius);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  private drawScreenPolygon(
+    ctx: CanvasRenderingContext2D,
+    points: Array<{ x: number; y: number }>,
+    stroke: string,
+    lineWidth: number,
+    fill?: string,
+  ): void {
+    if (points.length === 0) return;
+    ctx.save();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = lineWidth;
+    if (fill) ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (const point of points.slice(1)) ctx.lineTo(point.x, point.y);
+    ctx.closePath();
+    if (fill) ctx.fill();
+    ctx.stroke();
+    ctx.restore();
   }
 
   private renderPauseOverlay(render: RenderContext, gameplayWidth: number, canvasHeight: number): void {

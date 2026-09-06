@@ -8,6 +8,8 @@ export interface GridCell {
   y: number;
 }
 
+export type ModuleOrientation = 0 | 1 | 2 | 3;
+
 export interface GridDefinition {
   columns: number;
   rows: number;
@@ -40,6 +42,12 @@ export interface ModuleSize {
   height: number;
 }
 
+export function getOrientedModuleSize(size: ModuleSize, orientation: ModuleOrientation): ModuleSize {
+  return orientation % 2 === 0
+    ? { ...size }
+    : { width: size.height, height: size.width };
+}
+
 export interface TankModuleDefinition {
   id: string;
   kind: ModuleKind;
@@ -50,7 +58,7 @@ export interface TankModuleDefinition {
   researchCost?: ResourceCost;
   purchaseCost?: ResourceCost;
   fireArcDegrees?: number;
-  defaultOrientation?: number;
+  defaultOrientation?: ModuleOrientation;
   baseStats: Record<string, number>;
   upgradeTree: UpgradeTreeDefinition;
 }
@@ -58,6 +66,7 @@ export interface TankModuleDefinition {
 export interface InitialCombatModule {
   moduleId: string;
   anchor: GridCell;
+  orientation?: ModuleOrientation;
 }
 
 export interface TankDefinition {
@@ -124,6 +133,12 @@ function requiredInteger(value: unknown, path: string, minimum = 0): number {
   const number = requiredNumber(value, path, minimum);
   if (!Number.isInteger(number)) fail(path, 'expected an integer');
   return number;
+}
+
+function parseOrientation(value: unknown, path: string): ModuleOrientation {
+  const orientation = requiredInteger(value, path);
+  if (orientation > 3) fail(path, 'must be between 0 and 3');
+  return orientation as ModuleOrientation;
 }
 
 function requiredArray(value: unknown, path: string): unknown[] {
@@ -286,9 +301,9 @@ function parseModuleDefinition(value: unknown, path: string, expectedId: string)
     if (record.researchCost !== undefined) definition.researchCost = parseCost(record.researchCost, `${path}.researchCost`);
     if (record.purchaseCost !== undefined) definition.purchaseCost = parseCost(record.purchaseCost, `${path}.purchaseCost`);
     definition.fireArcDegrees = requiredNumber(record.fireArcDegrees, `${path}.fireArcDegrees`);
+    if (definition.fireArcDegrees <= 0) fail(`${path}.fireArcDegrees`, 'must be > 0');
     if (definition.fireArcDegrees > 360) fail(`${path}.fireArcDegrees`, 'must be <= 360');
-    definition.defaultOrientation = requiredInteger(record.defaultOrientation ?? 0, `${path}.defaultOrientation`);
-    if (definition.defaultOrientation > 3) fail(`${path}.defaultOrientation`, 'must be between 0 and 3');
+    definition.defaultOrientation = parseOrientation(record.defaultOrientation ?? 0, `${path}.defaultOrientation`);
   }
 
   if (definition.behavior === 'core' && definition.kind !== 'builtin') {
@@ -315,6 +330,9 @@ function parseManifest(value: unknown, path: string): Omit<TankDefinition, 'modu
     return {
       moduleId: requiredString(placement.moduleId, `${placementPath}.moduleId`),
       anchor: parseCell(placement.anchor, `${placementPath}.anchor`),
+      ...(placement.orientation === undefined
+        ? {}
+        : { orientation: parseOrientation(placement.orientation, `${placementPath}.orientation`) }),
     };
   });
 
@@ -375,8 +393,11 @@ function validateManifestReferences(
       fail(`${path}.initialCombatModules`, `'${placement.moduleId}' is not combat`);
     }
 
-    for (let y = 0; y < module.size.height; y++) {
-      for (let x = 0; x < module.size.width; x++) {
+    const orientation = placement.orientation ?? module.defaultOrientation ?? 0;
+    const width = orientation % 2 === 0 ? module.size.width : module.size.height;
+    const height = orientation % 2 === 0 ? module.size.height : module.size.width;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
         const cell = { x: placement.anchor.x + x, y: placement.anchor.y + y };
         if (!isInside(cell, manifest.grid)) fail(`${path}.initialCombatModules`, 'placement is outside the grid');
         const key = `${cell.x},${cell.y}`;
