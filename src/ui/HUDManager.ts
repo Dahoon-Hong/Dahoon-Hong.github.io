@@ -522,7 +522,7 @@ export class HUDManager {
     const graphX = panelX + 10;
     const graphWidth = HUDManager.PANEL_WIDTH - 20;
     const nodeWidth = 98;
-    const nodeHeight = 50;
+    const nodeHeight = 72;
     const positions = new Map<string, Rect>();
     const depths = new Map<string, number>();
     const getDepth = (state: UpgradeNodeState): number => {
@@ -596,11 +596,17 @@ export class HUDManager {
       ctx.fillStyle = state.status === 'locked' || state.status === 'disabled' || !affordable ? theme.textDisabled : theme.textPrimary;
       ctx.font = 'bold 10px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(this.truncate(state.definition.id, 13), rect.x + rect.width / 2 + 4, rect.y + 17);
+      const textX = rect.x + rect.width / 2 + 4;
+      const textWidth = rect.width - 18;
+      this.wrapText(ctx, state.definition.id, textWidth, 2).forEach((line, index) => {
+        ctx.fillText(line, textX, rect.y + 15 + index * 11);
+      });
       ctx.font = '10px sans-serif';
-      ctx.fillText(state.status === 'selected' ? 'SELECTED' : this.formatCost(state.definition.cost), rect.x + rect.width / 2 + 4, rect.y + 31);
+      ctx.fillText(state.status === 'selected' ? 'SELECTED' : this.formatCost(state.definition.cost), textX, rect.y + 40);
       ctx.fillStyle = theme.textSecondary;
-      ctx.fillText(this.truncate(this.formatEffects(state.definition), 16), rect.x + rect.width / 2 + 4, rect.y + 44);
+      this.wrapText(ctx, this.formatEffects(state.definition), textWidth, 2).forEach((line, index) => {
+        ctx.fillText(line, textX, rect.y + 54 + index * 11);
+      });
       this.nodeHitboxes.push({ ...rect, instanceId, nodeId: state.definition.id });
     }
     ctx.restore();
@@ -747,6 +753,48 @@ export class HUDManager {
         return `${stat} ${value}`;
       })
       .join(' ');
+  }
+
+  private wrapText(ctx: CanvasRenderingContext2D, value: string, maxWidth: number, maxLines: number): string[] {
+    if (!value) return [];
+
+    const lines: string[] = [];
+    let current = '';
+    for (const word of value.trim().split(/\s+/)) {
+      if (ctx.measureText(word).width <= maxWidth) {
+        const candidate = current ? `${current} ${word}` : word;
+        if (!current || ctx.measureText(candidate).width <= maxWidth) {
+          current = candidate;
+        } else {
+          lines.push(current);
+          current = word;
+        }
+        continue;
+      }
+
+      if (current) {
+        lines.push(current);
+        current = '';
+      }
+      let chunk = '';
+      for (const character of word) {
+        if (chunk && ctx.measureText(`${chunk}${character}`).width > maxWidth) {
+          lines.push(chunk);
+          chunk = character;
+        } else {
+          chunk += character;
+        }
+      }
+      current = chunk;
+    }
+    if (current) lines.push(current);
+
+    if (lines.length <= maxLines) return lines;
+    const visible = lines.slice(0, maxLines);
+    let last = visible[maxLines - 1];
+    while (last && ctx.measureText(`${last}…`).width > maxWidth) last = last.slice(0, -1);
+    visible[maxLines - 1] = `${last}…`;
+    return visible;
   }
 
   private truncate(value: string, maxLength: number): string {
