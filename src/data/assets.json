@@ -9,6 +9,14 @@
       "layer": "actors",
       "fallback": "shape.tank.starter"
     },
+    "tank.starter.move": {
+      "src": "/assets/game/tank/starter-move.png",
+      "draw": { "width": 36, "height": 36 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 4, "rows": 1, "duration": 120 },
+      "layer": "actors",
+      "fallback": "shape.tank.starter"
+    },
     "tank.starter.frame.edge": {
       "src": "/assets/game/tank/starter-frame-edge.png",
       "draw": { "width": 44, "height": 44 },

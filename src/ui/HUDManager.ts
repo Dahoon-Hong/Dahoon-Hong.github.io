@@ -96,18 +96,13 @@ export class HUDManager {
       }
 
       const worldPoint = callbacks.screenToWorld(point);
-      for (let gy = 0; gy < vehicle.gridRows; gy++) {
-        for (let gx = 0; gx < vehicle.gridCols; gx++) {
-          const pos = vehicle.getModuleWorldPos(gx, gy);
-          const half = vehicle.tileSize / 2;
-          if (worldPoint.x < pos.x - half || worldPoint.x > pos.x + half || worldPoint.y < pos.y - half || worldPoint.y > pos.y + half) continue;
-
-          this.selectedCell = { gx, gy };
-          const module = vehicle.getModuleAt(gx, gy);
-          this.selectedInstanceId = module?.instanceId ?? null;
-          this.feedbackMessage = null;
-          return;
-        }
+      const cell = vehicle.getGridCellAtWorldPoint(worldPoint);
+      if (cell) {
+        this.selectedCell = { gx: cell.x, gy: cell.y };
+        const module = vehicle.getModuleAt(cell.x, cell.y);
+        this.selectedInstanceId = module?.instanceId ?? null;
+        this.feedbackMessage = null;
+        return;
       }
     });
   }

@@ -16,6 +16,7 @@
 | Logical ID | Generated source | Runtime file | Logical draw box |
 | --- | --- | --- | ---: |
 | `tank.starter.frame.center` | `exec-6852c218-756b-4ad9-a9f4-5d918726007e.png` | `public/assets/game/tank/starter-frame-center.png` | 44x44 |
+| `tank.starter.move` | `exec-b2f9a15d-3278-436c-8a60-8dd6d3245a82.png` | `public/assets/game/tank/starter-move.png` | 36x36 × 4 frames |
 | `enemy.standard.idle` | `exec-9646a68b-803a-4f48-8909-cc9f58e864ed.png` | `public/assets/game/enemies/standard-idle.png` | 24x24 |
 | `resource.resource.idle` | `exec-bebee6b5-0f11-4b2c-abd0-5c26b94bf4eb.png` | `public/assets/game/resources/resource-idle.png` | 20x20 |
 | `ui.icon.resource` | `exec-e1d47ce1-8236-43b3-a8aa-f7f04e5362b7.png` | `public/assets/game/ui/icon-resource.png` | 20x20 |
@@ -44,6 +45,7 @@ photorealism, glossy bevels, bloom, purple gradient, orange background, watermar
 Asset-specific subject notes:
 
 - `tank.starter.frame.center`: compact industrial orbital-drop tank, dark armored chassis, central Core hatch, restrained cyan technical accents.
+- `tank.starter.move`: four-frame horizontal movement strip for the same compact top-down tank; tread, suspension, and exhaust details shift between frames while the silhouette stays fixed.
 - `enemy.standard.idle`: small fast hostile crawler drone, pointed front, two short side fins, dark shell with restrained crimson warning panels.
 - `resource.resource.idle`: small faceted energy crystal or resource shard, diamond-like silhouette, dark navy core and warm yellow accent.
 - `ui.icon.resource`: simplified diamond energy crystal symbol derived from the pickup, readable at 16x16 and 20x20.

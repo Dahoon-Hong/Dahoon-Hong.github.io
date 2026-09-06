@@ -90,9 +90,14 @@ export abstract class CombatModule {
     assetId: string,
     worldX: number,
     worldY: number,
-    label: string
+    label: string,
+    width = 44,
+    height = 44,
   ): void {
+    const asset = render.renderer.getAsset(assetId);
+    const scale = asset ? Math.min(width / asset.draw.width, height / asset.draw.height) : width / 44;
     render.renderer.drawSprite(render, assetId, worldX, worldY, {
+      scale,
       alpha: this.isActive() ? 1 : 0.58,
       tint: this.isActive() ? undefined : '#17232d',
     });
@@ -152,14 +157,14 @@ export class DirectWeaponModule extends CombatModule {
     return Math.max(0.075, this.getStat('fireRate', 0.2));
   }
 
-  public render(render: RenderContext, worldX: number, worldY: number, _width: number, _height: number): void {
-    this.renderBody(render, 'tank.module.direct-weapon', worldX, worldY, 'GUN');
+  public render(render: RenderContext, worldX: number, worldY: number, width: number, height: number): void {
+    this.renderBody(render, 'tank.module.direct-weapon', worldX, worldY, 'GUN', width, height);
     const ctx = render.ctx;
     ctx.save();
     ctx.strokeStyle = '#01579b';
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.arc(worldX, worldY, Math.min(_width, _height) * 0.2, 0, Math.PI * 2);
+    ctx.arc(worldX, worldY, Math.min(width, height) * 0.2, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
   }
@@ -210,13 +215,13 @@ export class ArcWeaponModule extends CombatModule {
     return Math.max(0.4, this.getStat('fireRate', 1.8));
   }
 
-  public render(render: RenderContext, worldX: number, worldY: number, _width: number, _height: number): void {
-    this.renderBody(render, 'tank.module.arc-weapon', worldX, worldY, 'MORT');
+  public render(render: RenderContext, worldX: number, worldY: number, width: number, height: number): void {
+    this.renderBody(render, 'tank.module.arc-weapon', worldX, worldY, 'MORT', width, height);
     const ctx = render.ctx;
     ctx.save();
     ctx.fillStyle = '#4a148c';
     ctx.beginPath();
-    ctx.arc(worldX, worldY, Math.min(_width, _height) * 0.22, 0, Math.PI * 2);
+    ctx.arc(worldX, worldY, Math.min(width, height) * 0.22, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
