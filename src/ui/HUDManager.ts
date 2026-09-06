@@ -5,6 +5,7 @@ import { CombatModule } from '../entities/Module';
 import { Vehicle } from '../entities/Vehicle';
 import type { RenderContext } from '../rendering/RenderContext';
 import { VisualTheme } from '../rendering/VisualTheme';
+import type { Camera } from '../core/Camera';
 
 interface HUDCallbacks {
   getVehicle: () => Vehicle;
@@ -14,6 +15,7 @@ interface HUDCallbacks {
   onUpgradeSuccess: () => void;
   getMusicVolume: () => number;
   onMusicControl: () => void;
+  screenToWorld: (point: { x: number; y: number }) => { x: number; y: number };
 }
 
 interface Rect {
@@ -93,11 +95,12 @@ export class HUDManager {
         return;
       }
 
+      const worldPoint = callbacks.screenToWorld(point);
       for (let gy = 0; gy < vehicle.gridRows; gy++) {
         for (let gx = 0; gx < vehicle.gridCols; gx++) {
           const pos = vehicle.getModuleWorldPos(gx, gy);
           const half = vehicle.tileSize / 2;
-          if (mouseX < pos.x - half || mouseX > pos.x + half || mouseY < pos.y - half || mouseY > pos.y + half) continue;
+          if (worldPoint.x < pos.x - half || worldPoint.x > pos.x + half || worldPoint.y < pos.y - half || worldPoint.y > pos.y + half) continue;
 
           this.selectedCell = { gx, gy };
           const module = vehicle.getModuleAt(gx, gy);
@@ -126,7 +129,8 @@ export class HUDManager {
     storage: ResourceStorage,
     wave: number,
     enemiesRemaining: number,
-    isPaused: boolean
+    isPaused: boolean,
+    camera: Camera,
   ): void {
     const ctx = render.ctx;
     const gameplayWidth = canvasWidth - HUDManager.PANEL_WIDTH;
@@ -134,7 +138,7 @@ export class HUDManager {
 
     ctx.save();
     this.renderTopBar(render, canvasWidth, vehicle, storage, wave, enemiesRemaining, isPaused, gameplayWidth);
-    this.renderSelection(ctx, vehicle);
+    this.renderSelection(ctx, vehicle, camera);
 
     if (isPaused) {
       this.renderPauseOverlay(render, gameplayWidth, canvasHeight);
@@ -286,7 +290,7 @@ export class HUDManager {
     ctx.fillText(`SPACE ${isPaused ? 'RESUME' : 'PAUSE'}`, controlsX, 35);
   }
 
-  private renderSelection(ctx: CanvasRenderingContext2D, vehicle: Vehicle): void {
+  private renderSelection(ctx: CanvasRenderingContext2D, vehicle: Vehicle, camera: Camera): void {
     if (!this.selectedCell) return;
     const selectedModule = vehicle.getModuleAt(this.selectedCell.gx, this.selectedCell.gy);
     const rect = selectedModule
@@ -297,9 +301,10 @@ export class HUDManager {
           width: vehicle.tileSize,
           height: vehicle.tileSize,
         };
+    const screen = camera.worldToScreen({ x: rect.x, y: rect.y });
     ctx.strokeStyle = selectedModule ? VisualTheme.color.accent : VisualTheme.color.warning;
     ctx.lineWidth = 3;
-    ctx.strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2);
+    ctx.strokeRect(screen.x + 1, screen.y + 1, rect.width - 2, rect.height - 2);
   }
 
   private renderPauseOverlay(render: RenderContext, gameplayWidth: number, canvasHeight: number): void {

@@ -17,6 +17,7 @@ import { RenderContext } from '../rendering/RenderContext';
 import { SpriteRenderer } from '../rendering/SpriteRenderer';
 import { VisualTheme } from '../rendering/VisualTheme';
 import { AudioManager } from './AudioManager';
+import { Camera } from './Camera';
 
 export enum GameState {
   PLAYING = 'PLAYING',
@@ -32,6 +33,7 @@ const INITIAL_PICKUP_AMOUNT = 10;
 const INITIAL_PICKUP_RADIUS = 70;
 const LOGICAL_CANVAS_WIDTH = 1280;
 const LOGICAL_CANVAS_HEIGHT = 720;
+const WORLD_SCALE = 3;
 const MAX_EFFECTS = 128;
 const MAP_TILE_POSITIONS = [[128, 112], [760, 132], [154, 526], [716, 570]] as const;
 const MAP_PROP_POSITIONS = [[78, 174], [846, 176], [96, 626], [824, 614]] as const;
@@ -50,6 +52,8 @@ export class Game {
   private readonly progression = new ProgressionManager();
   private readonly logicalWidth = LOGICAL_CANVAS_WIDTH;
   private readonly logicalHeight = LOGICAL_CANVAS_HEIGHT;
+  private readonly gameplayWidth = LOGICAL_CANVAS_WIDTH - HUDManager.PANEL_WIDTH;
+  private readonly camera: Camera;
 
   private state: GameState = GameState.PLAYING;
   private vehicle: Vehicle;
@@ -71,6 +75,12 @@ export class Game {
     void this.audio.preload();
     this.audio.playMusic();
     this.resizeCanvas();
+    this.camera = new Camera(
+      this.gameplayWidth,
+      this.logicalHeight,
+      this.gameplayWidth * WORLD_SCALE,
+      this.logicalHeight * WORLD_SCALE,
+    );
     this.assets = new AssetManager();
     this.renderer = new SpriteRenderer(this.assets);
     const reducedMotionQuery = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
@@ -103,6 +113,7 @@ export class Game {
     this.tankDefinition = new TankDefinitionLoader().getDefault();
     this.upgradeManager = new UpgradeManager(this.tankDefinition.modules);
     this.vehicle = this.createVehicle();
+    this.camera.snapTo(this.vehicle);
     this.waveManager = this.createWaveManager();
     this.pickups = this.createInitialPickups();
 
@@ -114,6 +125,7 @@ export class Game {
       onUpgradeSuccess: () => this.audio.playSfx('sfx.ui.upgrade-confirm'),
       getMusicVolume: () => this.audio.getMusicVolume(),
       onMusicControl: () => this.audio.cycleMusicVolume(),
+      screenToWorld: (point) => this.camera.screenToWorld(point),
     }, { width: this.logicalWidth, height: this.logicalHeight });
 
     this.canvas.addEventListener('click', (event) => this.handleRestartClick(event));
@@ -125,7 +137,7 @@ export class Game {
   }
 
   private createVehicle(): Vehicle {
-    return new Vehicle(this.logicalWidth / 2, this.logicalHeight / 2, this.tankDefinition, this.upgradeManager);
+    return new Vehicle(this.camera.width / 2, this.camera.height / 2, this.tankDefinition, this.upgradeManager);
   }
 
   private createWaveManager(): WaveManager {
@@ -153,6 +165,7 @@ export class Game {
     this.resetArtState();
     this.pickups = this.createInitialPickups();
     this.resources.reset();
+    this.camera.snapTo(this.vehicle);
     this.setState(GameState.PLAYING);
   }
 
@@ -175,6 +188,7 @@ export class Game {
     this.waveManager = this.createWaveManager();
     this.resetArtState();
     this.pickups = this.createInitialPickups();
+    this.camera.snapTo(this.vehicle);
     this.setState(GameState.PLAYING);
   }
 
@@ -209,9 +223,10 @@ export class Game {
     if (!isPaused) {
       this.renderContext.time += dt;
       this.vehicle.update(dt, this.input.getMovementVector(), {
-        width: this.logicalWidth - HUDManager.PANEL_WIDTH,
-        height: this.logicalHeight,
+        width: this.camera.width,
+        height: this.camera.height,
       });
+      this.camera.update(dt, this.vehicle);
       this.vehicle.systems.update(dt, { x: this.vehicle.x, y: this.vehicle.y }, this.pickups, this.resources);
 
       for (const pickup of this.pickups) {
@@ -241,8 +256,8 @@ export class Game {
     this.waveManager.update(
       dt,
       this.enemies,
-      this.logicalWidth - HUDManager.PANEL_WIDTH,
-      this.logicalHeight,
+      this.camera.width,
+      this.camera.height,
       { x: this.vehicle.x, y: this.vehicle.y }
     );
 
@@ -304,7 +319,7 @@ export class Game {
   }
 
   private render(): void {
-    const gameplayWidth = this.logicalWidth - HUDManager.PANEL_WIDTH;
+    const gameplayWidth = this.gameplayWidth;
     this.ctx.clearRect(0, 0, this.logicalWidth, this.logicalHeight);
     this.ctx.imageSmoothingEnabled = false;
 
@@ -312,6 +327,7 @@ export class Game {
     this.ctx.beginPath();
     this.ctx.rect(0, 0, gameplayWidth, this.logicalHeight);
     this.ctx.clip();
+    this.ctx.translate(-this.camera.x, -this.camera.y);
     this.renderMap();
     this.vehicle.render(this.renderContext);
     for (const enemy of this.enemies) enemy.render(this.renderContext);
@@ -333,7 +349,8 @@ export class Game {
       this.resources,
       this.waveManager.currentWave,
       enemiesRemaining,
-      this.state === GameState.PAUSED
+      this.state === GameState.PAUSED,
+      this.camera,
     );
 
     if (this.isTerminalState()) this.renderResultOverlay();
@@ -341,24 +358,45 @@ export class Game {
 
   private renderMap(): void {
     const map = this.getCurrentMap();
-    this.renderer.drawSprite(this.renderContext, map?.backgroundAsset ?? 'map.common.field-base', 0, 0);
+    const backgroundAsset = map?.backgroundAsset ?? 'map.common.field-base';
+    const background = this.renderer.getAsset(backgroundAsset);
+    const backgroundWidth = background?.draw.width ?? this.gameplayWidth;
+    const backgroundHeight = background?.draw.height ?? this.logicalHeight;
+    for (let y = 0; y < this.camera.height; y += backgroundHeight) {
+      for (let x = 0; x < this.camera.width; x += backgroundWidth) {
+        this.renderer.drawSprite(this.renderContext, backgroundAsset, x, y);
+      }
+    }
     if (!map) return;
 
     const tileAsset = map.tileAssets[0];
     if (tileAsset) {
-      for (const [x, y] of MAP_TILE_POSITIONS) {
-        this.renderer.drawSprite(this.renderContext, tileAsset, x, y, { alpha: 0.42 });
+      for (let worldY = 0; worldY < this.camera.height; worldY += this.logicalHeight) {
+        for (let worldX = 0; worldX < this.gameplayWidth; worldX += this.gameplayWidth) {
+          for (const [x, y] of MAP_TILE_POSITIONS) {
+            this.renderer.drawSprite(this.renderContext, tileAsset, worldX + x, worldY + y, { alpha: 0.42 });
+          }
+        }
       }
     }
 
     const propAsset = map.propAssets[0];
     if (propAsset) {
-      for (const [x, y] of MAP_PROP_POSITIONS) {
-        this.renderer.drawSprite(this.renderContext, propAsset, x, y, { alpha: 0.72 });
+      for (let worldY = 0; worldY < this.camera.height; worldY += this.logicalHeight) {
+        for (let worldX = 0; worldX < this.gameplayWidth; worldX += this.gameplayWidth) {
+          for (const [x, y] of MAP_PROP_POSITIONS) {
+            this.renderer.drawSprite(this.renderContext, propAsset, worldX + x, worldY + y, { alpha: 0.72 });
+          }
+        }
       }
     }
 
-    this.renderer.drawSprite(this.renderContext, map.spawnEdgeAsset, 0, 0, { alpha: 0.65 });
+    const spawnEdge = this.renderer.getAsset(map.spawnEdgeAsset);
+    const spawnEdgeHeight = spawnEdge?.draw.height ?? 64;
+    for (let worldY = 0; worldY < this.camera.height; worldY += this.logicalHeight) {
+      this.renderer.drawSprite(this.renderContext, map.spawnEdgeAsset, 0, worldY, { alpha: 0.65 });
+      if (spawnEdgeHeight <= 0) break;
+    }
   }
 
   private getCurrentMap(): MapDefinition | null {
@@ -371,7 +409,7 @@ export class Game {
     const isGameOver = this.state === GameState.GAME_OVER;
     const isRegionCleared = this.state === GameState.REGION_CLEARED;
     const isPlanetCleared = this.state === GameState.PLANET_CLEARED;
-    const gameplayWidth = this.logicalWidth - HUDManager.PANEL_WIDTH;
+    const gameplayWidth = this.gameplayWidth;
     const location = this.progression.location;
     const title = isGameOver
       ? 'CORE DESTROYED - GAME OVER'
@@ -534,7 +572,7 @@ export class Game {
     const rect = this.canvas.getBoundingClientRect();
     const mouseX = (event.clientX - rect.left) * (this.logicalWidth / rect.width);
     const mouseY = (event.clientY - rect.top) * (this.logicalHeight / rect.height);
-    const gameplayWidth = this.logicalWidth - HUDManager.PANEL_WIDTH;
+    const gameplayWidth = this.gameplayWidth;
     if (
       mouseX >= gameplayWidth / 2 - 100 &&
       mouseX <= gameplayWidth / 2 + 100 &&
