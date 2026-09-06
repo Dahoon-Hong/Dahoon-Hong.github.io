@@ -223,7 +223,7 @@ export class Game {
     anchor: { x: number; y: number },
     orientation: ModuleOrientation,
   ): import('../entities/Module').CombatModule | null {
-    if (this.state !== GameState.PAUSED || this.armory.getStock(moduleId) <= 0) return null;
+    if (this.armory.getStock(moduleId) <= 0) return null;
     const installed = this.vehicle.installModule(moduleId, anchor, orientation);
     if (!installed) return null;
     this.armory.consume(moduleId);

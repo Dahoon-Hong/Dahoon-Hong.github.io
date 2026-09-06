@@ -206,11 +206,7 @@ export class HUDManager {
     this.renderSelection(ctx, vehicle, camera);
     this.renderModulePreviews(render, vehicle, camera, gameplayWidth, canvasHeight);
 
-    if (isPaused) {
-      this.renderPauseOverlay(render, gameplayWidth, canvasHeight);
-    }
-
-    this.renderPanel(render, canvasWidth, canvasHeight, vehicle, storage, isPaused);
+    this.renderPanel(render, canvasWidth, canvasHeight, vehicle, storage);
     ctx.restore();
   }
 
@@ -253,8 +249,6 @@ export class HUDManager {
         const purchased = callbacks.getArmory().purchase(hitbox.moduleId, callbacks.spendCost);
         if (purchased) callbacks.onArmoryPurchaseSuccess();
         this.setFeedback(purchased ? 'Combat module purchased.' : 'Purchase unavailable or too expensive.', purchased ? VisualTheme.color.success : VisualTheme.color.danger);
-      } else if (!callbacks.isPaused()) {
-        this.setFeedback('Pause before installing modules.');
       } else if (callbacks.getArmory().getStock(hitbox.moduleId) > 0) {
         this.selectedInstallModuleId = hitbox.moduleId;
         this.selectedInstallOrientation = vehicle.getCombatModuleDefinitions()
@@ -270,10 +264,6 @@ export class HUDManager {
       if (!this.contains(hitbox, mouseX, mouseY)) continue;
       if (!this.selectedCell) {
         this.setFeedback('Select an empty grid cell first.');
-        return true;
-      }
-      if (!callbacks.isPaused()) {
-        this.setFeedback('Pause before installing modules.');
         return true;
       }
       const anchor = { x: this.selectedCell.gx, y: this.selectedCell.gy };
@@ -302,7 +292,7 @@ export class HUDManager {
   private handlePointerDown(point: { x: number; y: number }, callbacks: HUDCallbacks): void {
     const vehicle = callbacks.getVehicle();
     const gameplayWidth = 1280 - HUDManager.PANEL_WIDTH;
-    if (!callbacks.isPaused() || point.x >= gameplayWidth || this.selectedInstallModuleId) return;
+    if (point.x >= gameplayWidth || this.selectedInstallModuleId) return;
     const worldPoint = this.screenToWorld?.(point);
     if (!worldPoint) return;
     const cell = vehicle.getGridCellAtWorldPoint(worldPoint);
@@ -326,7 +316,7 @@ export class HUDManager {
     const vehicle = callbacks.getVehicle();
     this.updateDragPreview(point, vehicle);
     const drag = this.dragState;
-    const moved = callbacks.isPaused() && drag.previewAnchor
+    const moved = drag.previewAnchor
       ? vehicle.moveModule(drag.module, drag.previewAnchor, drag.orientation)
       : false;
     this.setFeedback(
@@ -352,7 +342,6 @@ export class HUDManager {
   }
 
   private handleRotation(callbacks: HUDCallbacks): boolean {
-    if (!callbacks.isPaused()) return false;
     const vehicle = callbacks.getVehicle();
     if (this.selectedInstallModuleId) {
       this.selectedInstallOrientation = this.nextOrientation(this.selectedInstallOrientation);
@@ -459,10 +448,13 @@ export class HUDManager {
       musicRect.y + 22
     );
     ctx.textAlign = 'left';
+    ctx.fillStyle = isPaused ? theme.warning : theme.success;
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText(isPaused ? 'STATUS PAUSED' : 'STATUS PLAYING', controlsX, 16);
     ctx.fillStyle = theme.textMuted;
     ctx.font = '10px sans-serif';
-    ctx.fillText('WASD MOVE', controlsX, 19);
-    ctx.fillText(`SPACE ${isPaused ? 'RESUME' : 'PAUSE'}`, controlsX, 35);
+    ctx.fillText('WASD MOVE', controlsX, 29);
+    ctx.fillText(`SPACE ${isPaused ? 'RESUME' : 'PAUSE'}`, controlsX, 42);
   }
 
   private renderSelection(ctx: CanvasRenderingContext2D, vehicle: Vehicle, camera: Camera): void {
@@ -620,43 +612,12 @@ export class HUDManager {
     ctx.restore();
   }
 
-  private renderPauseOverlay(render: RenderContext, gameplayWidth: number, canvasHeight: number): void {
-    const ctx = render.ctx;
-    const theme = VisualTheme.color;
-    const panelWidth = 460;
-    const panelHeight = 150;
-    const panelX = gameplayWidth / 2 - panelWidth / 2;
-    const panelY = Math.max(110, canvasHeight / 2 - panelHeight / 2);
-
-    ctx.save();
-    ctx.fillStyle = theme.overlaySoft;
-    ctx.fillRect(0, VisualTheme.spacing.topBarHeight, gameplayWidth, Math.max(0, canvasHeight - VisualTheme.spacing.topBarHeight));
-    ctx.fillStyle = theme.surfacePanel;
-    ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
-    ctx.strokeStyle = theme.accent;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
-    this.drawPauseMarker(ctx, panelX + 42, panelY + 44, 10);
-    ctx.fillStyle = theme.accent;
-    ctx.font = 'bold 26px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('PAUSED', panelX + 66, panelY + 52);
-    ctx.fillStyle = theme.textPrimary;
-    ctx.font = '13px sans-serif';
-    ctx.fillText('Install and upgrade modules while simulation is stopped.', panelX + 24, panelY + 88);
-    ctx.fillStyle = theme.textSecondary;
-    ctx.font = '11px monospace';
-    ctx.fillText('SPACE / P  RESUME', panelX + 24, panelY + 119);
-    ctx.restore();
-  }
-
   private renderPanel(
     render: RenderContext,
     canvasWidth: number,
     canvasHeight: number,
     vehicle: Vehicle,
     storage: ResourceStorage,
-    isPaused: boolean,
   ): void {
     const ctx = render.ctx;
     const theme = VisualTheme.color;
@@ -682,9 +643,9 @@ export class HUDManager {
     this.renderSubjectList(render, panelX, vehicle);
     const contentTop = this.getPanelContentTop(vehicle);
     if (this.selectedCell && !vehicle.getModuleAt(this.selectedCell.gx, this.selectedCell.gy)) {
-      this.renderInstallPanel(render, panelX, canvasHeight, vehicle, contentTop, isPaused);
+      this.renderInstallPanel(render, panelX, canvasHeight, vehicle, contentTop);
     } else if (this.selectedInstanceId === vehicle.systems.getInstanceId('armory')) {
-      this.renderArmoryPanel(render, panelX, canvasHeight, vehicle, storage, contentTop, isPaused);
+      this.renderArmoryPanel(render, panelX, canvasHeight, vehicle, storage, contentTop);
     } else {
       this.renderUpgradePanel(render, panelX, canvasHeight, vehicle, storage, contentTop);
     }
@@ -792,7 +753,6 @@ export class HUDManager {
     canvasHeight: number,
     vehicle: Vehicle,
     top: number,
-    isPaused: boolean,
   ): void {
     if (!this.selectedCell) return;
     const ctx = render.ctx;
@@ -818,7 +778,7 @@ export class HUDManager {
       const definition = modules[index];
       const y = top + 33 + index * 38;
       const canFit = vehicle.canInstallModule(definition.id, { x: this.selectedCell.gx, y: this.selectedCell.gy });
-      const enabled = isPaused && canFit;
+      const enabled = canFit;
       ctx.fillStyle = enabled ? theme.surfaceAvailable : theme.surfaceDisabled;
       ctx.fillRect(panelX + 12, y, HUDManager.PANEL_WIDTH - 24, 30);
       ctx.strokeStyle = enabled ? theme.accent : theme.borderMuted;
@@ -847,7 +807,6 @@ export class HUDManager {
     vehicle: Vehicle,
     storage: ResourceStorage,
     top: number,
-    isPaused: boolean,
   ): void {
     const ctx = render.ctx;
     const theme = VisualTheme.color;
@@ -869,7 +828,7 @@ export class HUDManager {
       vehicle.systems.getInstanceId('armory'),
       storage,
     );
-    this.renderArmoryModuleCards(render, panelX, top + 210, storage, isPaused);
+    this.renderArmoryModuleCards(render, panelX, top + 210, storage);
   }
 
   private renderArmoryModuleCards(
@@ -877,7 +836,6 @@ export class HUDManager {
     panelX: number,
     top: number,
     storage: ResourceStorage,
-    isPaused: boolean,
   ): void {
     const ctx = render.ctx;
     const theme = VisualTheme.color;
@@ -894,7 +852,7 @@ export class HUDManager {
       const purchaseCost = armory.getPurchaseCost(definition.id);
       const canPurchase = researched && storage.canAfford(purchaseCost);
       const action = !researched ? 'LOCKED' : stock > 0 ? 'INSTALL' : 'PURCHASE';
-      const enabled = action === 'INSTALL' ? isPaused : canPurchase;
+      const enabled = action === 'INSTALL' ? true : canPurchase;
       ctx.fillStyle = enabled ? theme.surfaceAvailable : theme.surfaceDisabled;
       ctx.fillRect(panelX + 12, y, HUDManager.PANEL_WIDTH - 24, 30);
       ctx.strokeStyle = enabled ? theme.accent : theme.borderMuted;
@@ -1093,15 +1051,6 @@ export class HUDManager {
       ctx.lineTo(x + size / 2, y + size / 2);
       ctx.stroke();
     }
-    ctx.restore();
-  }
-
-  private drawPauseMarker(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
-    const theme = VisualTheme.color;
-    ctx.save();
-    ctx.fillStyle = theme.resource;
-    ctx.fillRect(x - size * 0.55, y - size, size * 0.35, size * 2);
-    ctx.fillRect(x + size * 0.2, y - size, size * 0.35, size * 2);
     ctx.restore();
   }
 
