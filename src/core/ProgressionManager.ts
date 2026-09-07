@@ -9,6 +9,8 @@ export interface WaveDefinition {
 
 export interface RegionDefinition {
   id: string;
+  mapId: string;
+  campaign?: boolean;
   name: string;
   spawnInterval: number;
   spawnIntervalStep: number;
@@ -63,24 +65,47 @@ export class ProgressionManager {
   }
 
   public hasNextRegion(): boolean {
-    return this.regionIndex + 1 < this.currentPlanet.regions.length;
+    return this.findNextCampaignLocation(this.planetIndex, this.regionIndex) !== null;
   }
 
   public hasNextPlanet(): boolean {
-    return this.planetIndex + 1 < this.definition.planets.length;
+    const next = this.findNextCampaignLocation(this.planetIndex, this.regionIndex);
+    return next !== null && next.planetIndex !== this.planetIndex;
   }
 
   public advance(): ProgressionAdvance {
-    if (this.hasNextRegion()) {
-      this.regionIndex++;
-      return 'region';
+    const next = this.findNextCampaignLocation(this.planetIndex, this.regionIndex);
+    if (!next) return 'complete';
+    const changedPlanet = next.planetIndex !== this.planetIndex;
+    this.planetIndex = next.planetIndex;
+    this.regionIndex = next.regionIndex;
+    return changedPlanet ? 'planet' : 'region';
+  }
+
+  public selectMap(mapId: string): RegionDefinition {
+    for (let planetIndex = 0; planetIndex < this.definition.planets.length; planetIndex++) {
+      const regionIndex = this.definition.planets[planetIndex].regions.findIndex((region) => region.mapId === mapId);
+      if (regionIndex >= 0) {
+        this.planetIndex = planetIndex;
+        this.regionIndex = regionIndex;
+        return this.currentRegion;
+      }
     }
-    if (this.hasNextPlanet()) {
-      this.planetIndex++;
-      this.regionIndex = 0;
-      return 'planet';
+    throw new Error(`[Progression] unknown map '${mapId}'`);
+  }
+
+  public getRegionByMapId(mapId: string): RegionDefinition | null {
+    for (const planet of this.definition.planets) {
+      const region = planet.regions.find((candidate) => candidate.mapId === mapId);
+      if (region) return region;
     }
-    return 'complete';
+    return null;
+  }
+
+  public getAllRegions(options: { campaignOnly?: boolean } = {}): Array<{ planet: PlanetDefinition; region: RegionDefinition }> {
+    return this.definition.planets.flatMap((planet) => planet.regions
+      .filter((region) => !options.campaignOnly || region.campaign !== false)
+      .map((region) => ({ planet, region })));
   }
 
   private validate(definition: ProgressionDefinition): void {
@@ -92,9 +117,12 @@ export class ProgressionManager {
         throw new Error(`[Progression] invalid enemy '${type}'`);
       }
     }
+    const mapIds = new Set<string>();
     for (const planet of definition.planets) {
       if (!planet.regions.length) throw new Error(`[Progression] planet '${planet.id}' has no regions`);
       for (const region of planet.regions) {
+        if (mapIds.has(region.mapId)) throw new Error(`[Progression] duplicate map '${region.mapId}'`);
+        mapIds.add(region.mapId);
         if (!Number.isFinite(region.spawnInterval) || region.spawnInterval <= 0 ||
             !Number.isFinite(region.spawnIntervalStep) ||
             !Number.isFinite(region.minimumSpawnInterval) || region.minimumSpawnInterval <= 0) {
@@ -109,5 +137,20 @@ export class ProgressionManager {
         }
       }
     }
+  }
+
+  private findNextCampaignLocation(
+    planetIndex: number,
+    regionIndex: number,
+  ): { planetIndex: number; regionIndex: number } | null {
+    for (let candidatePlanet = planetIndex; candidatePlanet < this.definition.planets.length; candidatePlanet++) {
+      const startRegion = candidatePlanet === planetIndex ? regionIndex + 1 : 0;
+      for (let candidateRegion = startRegion; candidateRegion < this.definition.planets[candidatePlanet].regions.length; candidateRegion++) {
+        if (this.definition.planets[candidatePlanet].regions[candidateRegion].campaign !== false) {
+          return { planetIndex: candidatePlanet, regionIndex: candidateRegion };
+        }
+      }
+    }
+    return null;
   }
 }

@@ -1,6 +1,7 @@
 export class InputManager {
   private keys: Set<string> = new Set();
   public pauseRequested = false;
+  public debugOverlayRequested = false;
 
   constructor() {
     window.addEventListener('keydown', (e) => {
@@ -8,6 +9,7 @@ export class InputManager {
       if (!e.repeat && (e.code === 'Space' || e.code === 'KeyP')) {
         this.pauseRequested = true;
       }
+      if (!e.repeat && e.code === 'F3') this.debugOverlayRequested = true;
     });
 
     window.addEventListener('keyup', (e) => {
@@ -39,5 +41,17 @@ export class InputManager {
       return true;
     }
     return false;
+  }
+
+  public consumeDebugOverlayRequest(): boolean {
+    if (!this.debugOverlayRequested) return false;
+    this.debugOverlayRequested = false;
+    return true;
+  }
+
+  public reset(): void {
+    this.keys.clear();
+    this.pauseRequested = false;
+    this.debugOverlayRequested = false;
   }
 }

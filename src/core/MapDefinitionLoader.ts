@@ -1,5 +1,6 @@
 import mapData from '../data/maps.json';
 import assetData from '../data/assets.json';
+import enemyData from '../data/enemies.json';
 import {
   TerrainBlocks,
   TerrainCell,
@@ -7,6 +8,7 @@ import {
   TerrainMapData,
   TerrainTypeDefinition,
 } from './TerrainGrid';
+import { TerrainPathfinder } from './TerrainPathfinder';
 
 export interface MapDefinition extends TerrainMapData {
   mapId: string;
@@ -39,6 +41,7 @@ type AssetManifest = { sprites?: Record<string, unknown> };
 
 const DEFAULT_DATA = mapData as unknown as MapDataRoot;
 const DEFAULT_ASSETS = assetData as AssetManifest;
+const ENEMY_RADII = [enemyData.standard.radius, enemyData.tanker.radius];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -154,6 +157,11 @@ export class MapDefinitionLoader {
     this.assetIds = new Set(Object.keys(assets.sprites ?? {}));
     if (!Number.isInteger(raw.version) || raw.version < 1) fail('version', 'must be a positive integer');
     const terrainTypes = raw.terrainTypes ? parseTerrainTypes(raw.terrainTypes, 'terrainTypes') : defaultTerrainTypes();
+    for (const type of Object.values(terrainTypes)) {
+      if (type.assetId && this.assetIds.size > 0 && !this.assetIds.has(type.assetId)) {
+        fail(`terrainTypes.${type.id}.assetId`, `unknown asset ID '${type.assetId}'`);
+      }
+    }
     if (!Array.isArray(raw.maps) || raw.maps.length === 0) fail('maps', 'must contain at least one map');
 
     const ids = new Set<string>();
@@ -261,6 +269,7 @@ export class MapDefinitionLoader {
         enemySpawnCells,
       };
     });
+    this.validateEnemyReachability();
   }
 
   public getAll(): readonly MapDefinition[] {
@@ -299,6 +308,23 @@ export class MapDefinitionLoader {
       }
     }
     return result;
+  }
+
+  private validateEnemyReachability(): void {
+    for (const map of this.maps) {
+      const grid = new TerrainGrid(map);
+      const pathfinder = new TerrainPathfinder(grid);
+      for (const [spawnIndex, spawn] of map.enemySpawnCells.entries()) {
+        for (const radius of ENEMY_RADII) {
+          if (pathfinder.findPath(spawn, map.tankStartCell, { radius }) === null) {
+            fail(
+              `${map.mapId}.enemySpawnCells[${spawnIndex}]`,
+              `has no enemy path to tankStartCell for radius ${radius}`,
+            );
+          }
+        }
+      }
+    }
   }
 }
 

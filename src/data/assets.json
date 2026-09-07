@@ -512,6 +512,86 @@
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "map",
       "fallback": "shape.map.spawn-edge"
+    },
+    "map.terrain.hill.center": {
+      "src": "/assets/game/maps/terrain-hill.png",
+      "draw": { "width": 36, "height": 36 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "terrain",
+      "fallback": "shape.map.terrain.hill"
+    },
+    "map.terrain.hill.edge": {
+      "src": "/assets/game/maps/terrain-hill.png",
+      "draw": { "width": 36, "height": 36 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "terrain",
+      "fallback": "shape.map.terrain.hill"
+    },
+    "map.terrain.hill.corner": {
+      "src": "/assets/game/maps/terrain-hill.png",
+      "draw": { "width": 36, "height": 36 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "terrain",
+      "fallback": "shape.map.terrain.hill"
+    },
+    "map.test.terrain-test.hill-center": {
+      "src": "/assets/game/maps/terrain-hill.png",
+      "draw": { "width": 36, "height": 36 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "terrain",
+      "fallback": "shape.map.terrain.hill"
+    },
+    "map.test.terrain-test.hill-edge": {
+      "src": "/assets/game/maps/terrain-hill.png",
+      "draw": { "width": 36, "height": 36 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "terrain",
+      "fallback": "shape.map.terrain.hill"
+    },
+    "map.test.terrain-test.hill-corner": {
+      "src": "/assets/game/maps/terrain-hill.png",
+      "draw": { "width": 36, "height": 36 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "terrain",
+      "fallback": "shape.map.terrain.hill"
+    },
+    "map.test.terrain-test.background": {
+      "src": "/assets/game/maps/field-base.png",
+      "draw": { "width": 940, "height": 720 },
+      "pivot": { "x": 0, "y": 0 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "map",
+      "fallback": "shape.map.background"
+    },
+    "map.test.terrain-test.ground": {
+      "src": "/assets/game/maps/field-base.png",
+      "draw": { "width": 940, "height": 720 },
+      "pivot": { "x": 0, "y": 0 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "ground",
+      "fallback": "shape.map.background"
+    },
+    "map.test.terrain-test.spawn-edge": {
+      "src": "/assets/game/maps/aurelia-landing-zone-spawn-edge.png",
+      "draw": { "width": 940, "height": 64 },
+      "pivot": { "x": 0, "y": 0 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "map",
+      "fallback": "shape.map.spawn-edge"
+    },
+    "ui.galaxy-map.background": {
+      "src": "/assets/game/ui/galaxy-background.png",
+      "draw": { "width": 1280, "height": 720 },
+      "pivot": { "x": 0, "y": 0 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "ui",
+      "fallback": "shape.ui.galaxy"
     }
   }
 }

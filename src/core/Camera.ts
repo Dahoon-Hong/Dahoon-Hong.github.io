@@ -9,8 +9,8 @@ export class Camera {
 
   private readonly viewportWidth: number;
   private readonly viewportHeight: number;
-  private readonly worldWidth: number;
-  private readonly worldHeight: number;
+  private worldWidth: number;
+  private worldHeight: number;
   private readonly followSmoothing: number;
 
   public constructor(
@@ -33,6 +33,13 @@ export class Camera {
 
   public get height(): number {
     return this.worldHeight;
+  }
+
+  public setWorldSize(worldWidth: number, worldHeight: number): void {
+    this.worldWidth = Math.max(this.viewportWidth, worldWidth);
+    this.worldHeight = Math.max(this.viewportHeight, worldHeight);
+    this.x = this.clamp(this.x, 0, this.worldWidth - this.viewportWidth);
+    this.y = this.clamp(this.y, 0, this.worldHeight - this.viewportHeight);
   }
 
   public update(dt: number, target: CameraPoint): void {

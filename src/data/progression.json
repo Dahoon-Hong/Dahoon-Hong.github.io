@@ -6,6 +6,8 @@
       "regions": [
         {
           "id": "landing-zone",
+          "mapId": "aurelia/landing-zone",
+          "campaign": true,
           "name": "Landing Zone",
           "spawnInterval": 1.2,
           "spawnIntervalStep": -0.1,
@@ -18,6 +20,8 @@
         },
         {
           "id": "relay-fields",
+          "mapId": "aurelia/relay-fields",
+          "campaign": true,
           "name": "Relay Fields",
           "spawnInterval": 1.1,
           "spawnIntervalStep": -0.08,
@@ -37,6 +41,8 @@
       "regions": [
         {
           "id": "ash-basin",
+          "mapId": "cinder/ash-basin",
+          "campaign": true,
           "name": "Ash Basin",
           "spawnInterval": 1,
           "spawnIntervalStep": -0.08,
@@ -49,6 +55,8 @@
         },
         {
           "id": "core-ruins",
+          "mapId": "cinder/core-ruins",
+          "campaign": true,
           "name": "Core Ruins",
           "spawnInterval": 0.9,
           "spawnIntervalStep": -0.07,
@@ -58,6 +66,26 @@
             { "standard": 14, "tanker": 8 },
             { "standard": 12, "tanker": 10 },
             { "standard": 10, "tanker": 12 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "test",
+      "name": "Test Range",
+      "regions": [
+        {
+          "id": "terrain-test",
+          "mapId": "test/terrain-test",
+          "campaign": false,
+          "name": "Terrain Test",
+          "spawnInterval": 0.35,
+          "spawnIntervalStep": 0,
+          "minimumSpawnInterval": 0.35,
+          "waves": [
+            { "standard": 6, "tanker": 0 },
+            { "standard": 8, "tanker": 2 },
+            { "standard": 10, "tanker": 4 }
           ]
         }
       ]

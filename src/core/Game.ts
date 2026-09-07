@@ -11,7 +11,6 @@ import { ResourceStorage } from './ResourceStorage';
 import { TankDefinitionLoader, TankDefinition } from './TankDefinitionLoader';
 import { UpgradeManager } from './UpgradeManager';
 import { WaveManager } from './WaveManager';
-import mapData from '../data/maps.json';
 import { AssetManager } from './AssetManager';
 import { RenderContext } from '../rendering/RenderContext';
 import { SpriteRenderer } from '../rendering/SpriteRenderer';
@@ -20,6 +19,9 @@ import { AudioManager } from './AudioManager';
 import { Camera } from './Camera';
 import { ArmoryManager } from './ArmoryManager';
 import type { ModuleOrientation } from './TankDefinitionLoader';
+import { MapDefinition, mapDefinitionLoader } from './MapDefinitionLoader';
+import { TerrainGrid } from './TerrainGrid';
+import { TerrainPathfinder } from './TerrainPathfinder';
 
 export enum GameState {
   PLAYING = 'PLAYING',
@@ -35,12 +37,9 @@ const INITIAL_PICKUP_AMOUNT = 10;
 const INITIAL_PICKUP_RADIUS = 70;
 const LOGICAL_CANVAS_WIDTH = 1280;
 const LOGICAL_CANVAS_HEIGHT = 720;
-const WORLD_SCALE = 3;
 const MAX_EFFECTS = 128;
 const MAP_TILE_POSITIONS = [[128, 112], [760, 132], [154, 526], [716, 570]] as const;
 const MAP_PROP_POSITIONS = [[78, 174], [846, 176], [96, 626], [824, 614]] as const;
-type MapDefinition = (typeof mapData.maps)[number];
-
 export class Game {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
@@ -56,6 +55,8 @@ export class Game {
   private readonly logicalHeight = LOGICAL_CANVAS_HEIGHT;
   private readonly gameplayWidth = LOGICAL_CANVAS_WIDTH - HUDManager.PANEL_WIDTH;
   private readonly camera: Camera;
+  private terrainGrid: TerrainGrid;
+  private pathfinder: TerrainPathfinder;
 
   private state: GameState = GameState.PLAYING;
   private vehicle: Vehicle;
@@ -68,6 +69,7 @@ export class Game {
   private pickups: ResourcePickup[] = [];
   private readonly resources = new ResourceStorage({ resource: 50 });
   private lastTime = 0;
+  private terrainDebugVisible = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -78,11 +80,18 @@ export class Game {
     void this.audio.preload();
     this.audio.playMusic();
     this.resizeCanvas();
+    const initialMap = mapDefinitionLoader.getByLocation(
+      this.progression.currentPlanet.id,
+      this.progression.currentRegion.id,
+    );
+    if (!initialMap) throw new Error('[Game] initial map is missing');
+    this.terrainGrid = new TerrainGrid(initialMap);
+    this.pathfinder = new TerrainPathfinder(this.terrainGrid);
     this.camera = new Camera(
       this.gameplayWidth,
       this.logicalHeight,
-      this.gameplayWidth * WORLD_SCALE,
-      this.logicalHeight * WORLD_SCALE,
+      this.terrainGrid.width,
+      this.terrainGrid.height,
     );
     this.assets = new AssetManager();
     this.renderer = new SpriteRenderer(this.assets);
@@ -146,11 +155,20 @@ export class Game {
   }
 
   private createVehicle(): Vehicle {
-    return new Vehicle(this.camera.width / 2, this.camera.height / 2, this.tankDefinition, this.upgradeManager);
+    const map = this.getCurrentMap();
+    const start = map
+      ? this.terrainGrid.cellToWorldCenter(map.tankStartCell)
+      : { x: this.camera.width / 2, y: this.camera.height / 2 };
+    return new Vehicle(start.x, start.y, this.tankDefinition, this.upgradeManager);
   }
 
   private createWaveManager(): WaveManager {
-    return new WaveManager(this.progression.currentRegion, this.progression.enemyDefinitions);
+    const map = this.getCurrentMap();
+    return new WaveManager(
+      this.progression.currentRegion,
+      this.progression.enemyDefinitions,
+      map ? { terrain: this.terrainGrid, spawnCells: map.enemySpawnCells } : undefined,
+    );
   }
 
   private createArmory(): ArmoryManager {
@@ -191,6 +209,9 @@ export class Game {
       return;
     }
 
+    const map = this.getCurrentMap();
+    if (map) this.setTerrainContext(map);
+
     if (transition === 'planet') {
       this.upgradeManager = new UpgradeManager(this.tankDefinition.modules);
       this.vehicle = this.createVehicle();
@@ -208,6 +229,14 @@ export class Game {
   }
 
   private createInitialPickups(): ResourcePickup[] {
+    const map = this.getCurrentMap();
+    const cells = map ? mapDefinitionLoader.getAccessiblePickupCells(map.mapId, INITIAL_PICKUP_COUNT) : [];
+    if (cells.length > 0) {
+      return cells.map((cell) => {
+        const point = this.terrainGrid.cellToWorldCenter(cell);
+        return new ResourcePickup(point.x, point.y, INITIAL_PICKUP_AMOUNT);
+      });
+    }
     return Array.from({ length: INITIAL_PICKUP_COUNT }, (_, index) => {
       const angle = (index / INITIAL_PICKUP_COUNT) * Math.PI * 2;
       return new ResourcePickup(
@@ -239,6 +268,9 @@ export class Game {
   }
 
   private update(dt: number): void {
+    if (this.input.consumeDebugOverlayRequest() && this.getCurrentMap()?.mapId === 'test/terrain-test') {
+      this.terrainDebugVisible = !this.terrainDebugVisible;
+    }
     if (this.input.consumePauseRequest()) {
       if (this.state === GameState.PLAYING) this.setState(GameState.PAUSED);
       else if (this.state === GameState.PAUSED) this.setState(GameState.PLAYING);
@@ -252,6 +284,7 @@ export class Game {
       this.vehicle.update(dt, this.input.getMovementVector(), {
         width: this.camera.width,
         height: this.camera.height,
+        terrain: this.terrainGrid,
       });
       this.camera.update(dt, this.vehicle);
       this.vehicle.systems.update(dt, { x: this.vehicle.x, y: this.vehicle.y }, this.pickups, this.resources);
@@ -270,7 +303,8 @@ export class Game {
           this.enemies,
           (projectile) => this.projectiles.push(projectile),
           (type, amount) => this.resources.spend(type, amount),
-          (event) => this.handleCombatSound(event)
+          (event) => this.handleCombatSound(event),
+          (from, to) => this.terrainGrid.raycast(from, to) === null,
         );
       }
     }
@@ -311,7 +345,11 @@ export class Game {
         continue;
       }
 
-      enemy.update(dt, corePos);
+      enemy.update(dt, corePos, {
+        terrain: this.terrainGrid,
+        pathfinder: this.pathfinder,
+        targetCell: this.terrainGrid.worldToCell(corePos),
+      });
       if (this.resolveEnemyAgainstGrid(enemy, this.vehicle.getGridBounds(), previousPos) && enemy.tryContactDamage()) {
         this.vehicle.takeDamage(enemy.contactDamage, 0, { x: enemy.x - corePos.x, y: enemy.y - corePos.y });
         this.addEffect(new VisualEffect(enemy.x, enemy.y, 25, '#ff1744', 'effect.contact-damage'));
@@ -334,7 +372,8 @@ export class Game {
         dt,
         this.enemies,
         (effect) => this.addEffect(effect),
-        (event) => this.handleProjectileSound(event)
+        (event) => this.handleProjectileSound(event),
+        this.terrainGrid,
       );
       if (projectile.isDead()) this.projectiles.splice(i, 1);
     }
@@ -362,6 +401,7 @@ export class Game {
     for (const pickup of this.pickups) pickup.render(this.renderContext);
     for (const projectile of this.projectiles) projectile.render(this.renderContext);
     for (const effect of this.effects) effect.render(this.renderContext);
+    if (this.terrainDebugVisible) this.renderTerrainDebugOverlay();
     this.ctx.restore();
 
     const liveEnemyCount = this.enemies.reduce((count, enemy) => count + (enemy.isDead() ? 0 : 1), 0);
@@ -397,6 +437,17 @@ export class Game {
     }
     if (!map) return;
 
+    if (map.groundAsset !== backgroundAsset) {
+      const ground = this.renderer.getAsset(map.groundAsset);
+      const groundWidth = ground?.draw.width ?? this.gameplayWidth;
+      const groundHeight = ground?.draw.height ?? this.logicalHeight;
+      for (let y = 0; y < this.camera.height; y += groundHeight) {
+        for (let x = 0; x < this.camera.width; x += groundWidth) {
+          this.renderer.drawSprite(this.renderContext, map.groundAsset, x, y);
+        }
+      }
+    }
+
     const tileAsset = map.tileAssets[0];
     if (tileAsset) {
       for (let worldY = 0; worldY < this.camera.height; worldY += this.logicalHeight) {
@@ -425,12 +476,100 @@ export class Game {
       this.renderer.drawSprite(this.renderContext, map.spawnEdgeAsset, 0, worldY, { alpha: 0.65 });
       if (spawnEdgeHeight <= 0) break;
     }
+    this.renderTerrain(map);
+  }
+
+  private renderTerrain(map: MapDefinition): void {
+    for (let y = 0; y < this.terrainGrid.rows; y++) {
+      for (let x = 0; x < this.terrainGrid.columns; x++) {
+        const cell = { x, y };
+        if (this.terrainGrid.getTerrainTypeId(cell) !== 'hill') continue;
+        const missingNeighbors = [
+          { x: x - 1, y },
+          { x: x + 1, y },
+          { x, y: y - 1 },
+          { x, y: y + 1 },
+        ].filter((neighbor) => this.terrainGrid.getTerrainTypeId(neighbor) !== 'hill').length;
+        const assetId = missingNeighbors >= 2
+          ? map.terrainAssets.hillCorner
+          : missingNeighbors === 1
+            ? map.terrainAssets.hillEdge
+            : map.terrainAssets.hillCenter;
+        const center = this.terrainGrid.cellToWorldCenter(cell);
+        this.renderer.drawSprite(this.renderContext, assetId, center.x, center.y, {
+          scale: this.terrainGrid.cellSize / 36,
+        });
+      }
+    }
+  }
+
+  private renderTerrainDebugOverlay(): void {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(77, 234, 234, 0.24)';
+    for (let x = 0; x <= this.terrainGrid.columns; x++) {
+      ctx.beginPath();
+      ctx.moveTo(x * this.terrainGrid.cellSize, 0);
+      ctx.lineTo(x * this.terrainGrid.cellSize, this.terrainGrid.height);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= this.terrainGrid.rows; y++) {
+      ctx.beginPath();
+      ctx.moveTo(0, y * this.terrainGrid.cellSize);
+      ctx.lineTo(this.terrainGrid.width, y * this.terrainGrid.cellSize);
+      ctx.stroke();
+    }
+
+    for (let y = 0; y < this.terrainGrid.rows; y++) {
+      for (let x = 0; x < this.terrainGrid.columns; x++) {
+        const cell = { x, y };
+        if (!this.terrainGrid.isBlocked(cell, 'tank')) continue;
+        const bounds = this.terrainGrid.getCellBounds(cell);
+        ctx.fillStyle = 'rgba(255, 23, 68, 0.18)';
+        ctx.fillRect(bounds.left, bounds.top, this.terrainGrid.cellSize, this.terrainGrid.cellSize);
+      }
+    }
+
+    const footprint = this.vehicle.getTerrainFootprint();
+    ctx.strokeStyle = '#ffd54f';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(this.vehicle.x - footprint.halfWidth, this.vehicle.y - footprint.halfHeight, footprint.halfWidth * 2, footprint.halfHeight * 2);
+
+    for (const enemy of this.enemies) {
+      const path = enemy.getPath();
+      if (path.length === 0) continue;
+      ctx.strokeStyle = enemy.enemyType === 'tanker' ? '#ff9f43' : '#00e676';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(enemy.x, enemy.y);
+      for (const cell of path) {
+        const point = this.terrainGrid.cellToWorldCenter(cell);
+        ctx.lineTo(point.x, point.y);
+      }
+      ctx.stroke();
+    }
+
+    for (const projectile of this.projectiles) {
+      if (!projectile.terrainHitCell) continue;
+      const bounds = this.terrainGrid.getCellBounds(projectile.terrainHitCell);
+      ctx.strokeStyle = '#ab47bc';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(bounds.left + 2, bounds.top + 2, this.terrainGrid.cellSize - 4, this.terrainGrid.cellSize - 4);
+    }
+    ctx.restore();
   }
 
   private getCurrentMap(): MapDefinition | null {
     const planetId = this.progression.currentPlanet.id;
     const regionId = this.progression.currentRegion.id;
-    return mapData.maps.find((map) => map.planetId === planetId && map.regionId === regionId) ?? null;
+    return mapDefinitionLoader.getByLocation(planetId, regionId);
+  }
+
+  private setTerrainContext(map: MapDefinition): void {
+    this.terrainGrid = new TerrainGrid(map);
+    this.pathfinder = new TerrainPathfinder(this.terrainGrid);
+    this.camera.setWorldSize(this.terrainGrid.width, this.terrainGrid.height);
   }
 
   private renderResultOverlay(): void {
@@ -563,6 +702,7 @@ export class Game {
     this.projectiles = [];
     this.effects = [];
     this.renderContext.time = 0;
+    this.terrainDebugVisible = false;
     this.hud.resetSelection();
   }
 

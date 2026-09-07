@@ -1,6 +1,6 @@
 import { Enemy } from './Enemy';
 import type { RenderContext } from '../rendering/RenderContext';
-import type { TerrainGrid } from '../core/TerrainGrid';
+import type { TerrainCell, TerrainGrid } from '../core/TerrainGrid';
 
 function segmentHitProgress(
   pointX: number,
@@ -36,6 +36,7 @@ export abstract class Projectile {
   public y: number;
   public damage: number;
   public dead: boolean = false;
+  public terrainHitCell: TerrainCell | null = null;
 
   constructor(x: number, y: number, damage: number) {
     this.x = x;
@@ -165,6 +166,7 @@ export class DirectProjectile extends Projectile {
 
     const terrainHit = terrain?.raycast({ x: previousX, y: previousY }, { x: this.x, y: this.y });
     if (terrainHit && (!enemyHit || terrainHit.progress <= enemyHit.progress)) {
+      this.terrainHitCell = terrainHit.cell;
       this.x = terrainHit.point.x;
       this.y = terrainHit.point.y;
       spawnEffect(new VisualEffect(this.x, this.y, 15, '#90a4ae', 'effect.projectile.direct-hit'));
@@ -245,6 +247,7 @@ export class ArcProjectile extends Projectile {
 
     const terrainHit = terrain?.raycast({ x: previousX, y: previousY }, { x: this.x, y: this.y });
     if (terrainHit) {
+      this.terrainHitCell = terrainHit.cell;
       this.x = terrainHit.point.x;
       this.y = terrainHit.point.y;
       spawnEffect(new VisualEffect(this.x, this.y, 15, '#90a4ae', 'effect.projectile.direct-hit'));

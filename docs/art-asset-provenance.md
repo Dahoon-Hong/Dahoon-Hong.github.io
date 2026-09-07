@@ -191,3 +191,18 @@ C:\Users\slaye\.codex\generated_images\01a06efb-5500-77b0-ac41-2c1e599d5304\
 | --- | --- |
 | 2026-09-05 | Added imagegen-backed resource debris, direct projectile, and arc projectile assets plus deterministic effect and resource icon presets. |
 | 2026-09-05 | Added four generated region backgrounds, regional map overlays, map metadata, and fallback field base. |
+
+## Plan 26 terrain and world-map assets
+
+Plan 26 adds the minimum visual contract for the explicit terrain grid and the campaign map shell. The existing generated region art remains the gameplay backdrop; the new terrain sprite is a compact collision-blocking hill marker and the galaxy image is reserved for the world-map screen.
+
+| Logical ID | Generated source | Runtime file | Logical draw box |
+| --- | --- | --- | ---: |
+| `map.terrain.hill.center` / `.edge` / `.corner` | `exec-a9705211-8e52-43c4-bc3b-251bb629b0c9.png` | `public/assets/game/maps/terrain-hill.png` | 36x36 |
+| `ui.galaxy-map.background` | `exec-e4ea424b-4d06-4df4-9732-07e39969bedf.png` | `public/assets/game/ui/galaxy-background.png` | 1280x720 |
+
+Both images were generated with the built-in `image_gen` tool and visually inspected before being copied into the workspace. The terrain prompt requested a single centered top-down rocky hill tile on transparent background, hard pixel clusters, dark navy/cyan technical palette, and no text or UI. The world-map prompt requested a dark navy galaxy starfield with sparse cyan/white stars, a restrained tactical mood, and no text, UI, or focal planet so map nodes remain readable above it.
+
+| Date | Change |
+| --- | --- |
+| 2026-09-07 | Added Plan 26 terrain hill sprite and galaxy world-map background with provenance and manifest entries. |
