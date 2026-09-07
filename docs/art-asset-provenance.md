@@ -45,7 +45,8 @@ photorealism, glossy bevels, bloom, purple gradient, orange background, watermar
 Asset-specific subject notes:
 
 - `tank.starter.frame.center`: compact industrial orbital-drop tank, dark armored chassis, central Core hatch, restrained cyan technical accents.
-- `tank.starter.move`: four-frame horizontal movement strip for the same compact top-down tank; tread, suspension, and exhaust details shift between frames while the silhouette stays fixed.
+- `tank.starter.move`: four-frame horizontal movement strip for the same compact top-down tank; tread, suspension, and exhaust details are intended to shift while the silhouette stays fixed.
+- Runtime correction (2026-09-07): the generated strip actually shifts the hull between frames. `Vehicle` now uses frame 0 as the stable hull and draws scrolling treads in Canvas, driven by resolved travel distance. Tread dimensions and speed are configured in `src/data/vehicle-motion.json`; the source PNG is unchanged.
 - `enemy.standard.idle`: small fast hostile crawler drone, pointed front, two short side fins, dark shell with restrained crimson warning panels.
 - `resource.resource.idle`: small faceted energy crystal or resource shard, diamond-like silhouette, dark navy core and warm yellow accent.
 - `ui.icon.resource`: simplified diamond energy crystal symbol derived from the pickup, readable at 16x16 and 20x20.

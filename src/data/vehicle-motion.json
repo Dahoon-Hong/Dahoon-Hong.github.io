@@ -1,0 +1,10 @@
+{
+  "tracks": {
+    "width": 6,
+    "inset": 1,
+    "endInset": 10,
+    "treadSpacing": 6,
+    "treadHeight": 2,
+    "travelRatio": 0.35
+  }
+}

@@ -5,6 +5,7 @@ import { CombatGrid } from './CombatGrid';
 import { CombatModule } from './Module';
 import type { RenderContext } from '../rendering/RenderContext';
 import type { TerrainGrid } from '../core/TerrainGrid';
+import motion from '../data/vehicle-motion.json';
 
 export interface VehicleUpdateBounds {
   width: number;
@@ -19,7 +20,7 @@ export class Vehicle {
   public readonly combatGrid: CombatGrid;
   public readonly systems: VehicleSystems;
   private facingAngle = -Math.PI / 2;
-  private isMoving = false;
+  private treadOffset = 0;
 
   constructor(startX: number, startY: number, definition: TankDefinition, upgrades: UpgradeManager) {
     this.x = startX;
@@ -236,11 +237,10 @@ export class Vehicle {
   ): void {
     if (moveInput.x !== 0 || moveInput.y !== 0) {
       this.facingAngle = Math.atan2(moveInput.y, moveInput.x);
-      this.isMoving = true;
-    } else {
-      this.isMoving = false;
     }
 
+    const startX = this.x;
+    const startY = this.y;
     const movementSpeed = this.getMovementSpeed();
     const deltaX = moveInput.x * movementSpeed * dt;
     const deltaY = moveInput.y * movementSpeed * dt;
@@ -248,12 +248,15 @@ export class Vehicle {
     if (terrain) {
       this.moveAxis(deltaX, 'x', terrain, bounds);
       this.moveAxis(deltaY, 'y', terrain, bounds);
-      return;
+    } else {
+      this.x += deltaX;
+      this.y += deltaY;
+      this.clampToBounds(bounds.width, bounds.height);
     }
 
-    this.x += deltaX;
-    this.y += deltaY;
-    this.clampToBounds(bounds.width, bounds.height);
+    // Drive the treads from resolved travel so stopping or hitting a wall never snaps the animation.
+    const distance = Math.hypot(this.x - startX, this.y - startY);
+    this.treadOffset = (this.treadOffset + distance * motion.tracks.travelRatio) % motion.tracks.treadSpacing;
   }
 
   private moveAxis(delta: number, axis: 'x' | 'y', terrain: TerrainGrid, bounds: VehicleUpdateBounds): void {
@@ -283,7 +286,7 @@ export class Vehicle {
     this.systems.resetRuntime();
     for (const module of this.getCombatModules()) module.resetRuntime();
     this.facingAngle = -Math.PI / 2;
-    this.isMoving = false;
+    this.treadOffset = 0;
   }
 
   public render(render: RenderContext): void {
@@ -311,10 +314,13 @@ export class Vehicle {
       0,
       0,
       {
-        frame: render.reducedMotion || !this.isMoving ? 0 : Math.floor(render.time / 0.12) % 4,
+        // The other source frames shift the whole hull sideways; keep its silhouette stable.
+        frame: 0,
         scale: Math.max(this.gridCols, this.gridRows),
       },
     );
+
+    this.renderTracks(render, frameX, frameY, frameWidth, frameHeight);
 
     for (let gy = 0; gy < this.gridRows; gy++) {
       for (let gx = 0; gx < this.gridCols; gx++) {
@@ -363,6 +369,28 @@ export class Vehicle {
     }
 
     ctx.restore();
+  }
+
+  private renderTracks(render: RenderContext, x: number, y: number, width: number, height: number): void {
+    const ctx = render.ctx;
+    const tracks = motion.tracks;
+    const top = y + tracks.endInset;
+    const trackHeight = height - tracks.endInset * 2;
+    const offset = render.reducedMotion ? 0 : this.treadOffset;
+
+    for (const left of [x + tracks.inset, x + width - tracks.inset - tracks.width]) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(left, top, tracks.width, trackHeight);
+      ctx.clip();
+      ctx.fillStyle = '#101b24';
+      ctx.fillRect(left, top, tracks.width, trackHeight);
+      ctx.fillStyle = '#607b89';
+      for (let treadY = top - tracks.treadSpacing + offset; treadY < top + trackHeight; treadY += tracks.treadSpacing) {
+        ctx.fillRect(left + 1, treadY, tracks.width - 2, tracks.treadHeight);
+      }
+      ctx.restore();
+    }
   }
 
   private getImpactModule(direction: { x: number; y: number }): CombatModule | null {
