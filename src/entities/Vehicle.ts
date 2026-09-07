@@ -201,9 +201,37 @@ export class Vehicle {
     };
   }
 
-  public isTerrainPositionValid(position: { x: number; y: number }, terrain: TerrainGrid): boolean {
+  public getTerrainFootprintPolygon(
+    position: { x: number; y: number } = { x: this.x, y: this.y },
+    angle = this.getFacingRotation(),
+  ): Array<{ x: number; y: number }> {
     const footprint = this.getTerrainFootprint();
-    return terrain.isOpenForFootprint(position, footprint, 'tank');
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    return [
+      { x: -footprint.halfWidth, y: -footprint.halfHeight },
+      { x: footprint.halfWidth, y: -footprint.halfHeight },
+      { x: footprint.halfWidth, y: footprint.halfHeight },
+      { x: -footprint.halfWidth, y: footprint.halfHeight },
+    ].map((point) => ({
+      x: position.x + point.x * cos - point.y * sin,
+      y: position.y + point.x * sin + point.y * cos,
+    }));
+  }
+
+  public isTerrainPositionValid(
+    position: { x: number; y: number },
+    terrain: TerrainGrid,
+    angle = this.getFacingRotation(),
+  ): boolean {
+    const footprint = this.getTerrainFootprint();
+    return !terrain.isBlockedOrientedRect(
+      position,
+      footprint.halfWidth,
+      footprint.halfHeight,
+      angle,
+      'tank',
+    );
   }
 
   public takeDamage(
@@ -235,45 +263,38 @@ export class Vehicle {
     moveInput: { x: number; y: number },
     bounds: VehicleUpdateBounds
   ): void {
-    if (moveInput.x !== 0 || moveInput.y !== 0) {
-      this.facingAngle = Math.atan2(moveInput.y, moveInput.x);
-    }
-
     const startX = this.x;
     const startY = this.y;
+    const hasInput = moveInput.x !== 0 || moveInput.y !== 0;
+    const requestedFacingAngle = hasInput ? Math.atan2(moveInput.y, moveInput.x) : this.facingAngle;
     const movementSpeed = this.getMovementSpeed();
     const deltaX = moveInput.x * movementSpeed * dt;
     const deltaY = moveInput.y * movementSpeed * dt;
     const terrain = bounds.terrain;
     if (terrain) {
-      this.moveAxis(deltaX, 'x', terrain, bounds);
-      this.moveAxis(deltaY, 'y', terrain, bounds);
+      const footprint = this.getTerrainFootprint();
+      const safeProgress = terrain.getSafeOrientedRectProgress(
+        { x: this.x, y: this.y },
+        { x: this.x + deltaX, y: this.y + deltaY },
+        footprint.halfWidth,
+        footprint.halfHeight,
+        this.getFacingRotation(),
+        requestedFacingAngle + Math.PI / 2,
+        'tank',
+      );
+      this.x += deltaX * safeProgress;
+      this.y += deltaY * safeProgress;
+      this.facingAngle = interpolateAngle(this.facingAngle, requestedFacingAngle, safeProgress);
     } else {
       this.x += deltaX;
       this.y += deltaY;
+      this.facingAngle = requestedFacingAngle;
       this.clampToBounds(bounds.width, bounds.height);
     }
 
     // Drive the treads from resolved travel so stopping or hitting a wall never snaps the animation.
     const distance = Math.hypot(this.x - startX, this.y - startY);
     this.treadOffset = (this.treadOffset + distance * motion.tracks.travelRatio) % motion.tracks.treadSpacing;
-  }
-
-  private moveAxis(delta: number, axis: 'x' | 'y', terrain: TerrainGrid, bounds: VehicleUpdateBounds): void {
-    if (delta === 0) return;
-    const stepLimit = terrain.cellSize / 2;
-    const steps = Math.max(1, Math.ceil(Math.abs(delta) / stepLimit));
-    const step = delta / steps;
-    for (let index = 0; index < steps; index++) {
-      const candidate = {
-        x: this.x + (axis === 'x' ? step : 0),
-        y: this.y + (axis === 'y' ? step : 0),
-      };
-      if (!this.isTerrainPositionValid(candidate, terrain)) break;
-      this.x = candidate.x;
-      this.y = candidate.y;
-    }
-    this.clampToBounds(bounds.width, bounds.height);
   }
 
   private clampToBounds(width: number, height: number): void {
@@ -487,4 +508,11 @@ export class Vehicle {
     if (onLeft) return { assetId: 'tank.starter.frame.edge', rotation: -Math.PI / 2 };
     return null;
   }
+}
+
+function interpolateAngle(start: number, end: number, progress: number): number {
+  let delta = (end - start) % (Math.PI * 2);
+  if (delta > Math.PI) delta -= Math.PI * 2;
+  if (delta < -Math.PI) delta += Math.PI * 2;
+  return start + delta * progress;
 }

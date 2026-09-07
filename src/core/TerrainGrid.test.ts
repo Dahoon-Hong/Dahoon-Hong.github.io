@@ -83,4 +83,33 @@ describe('TerrainGrid', () => {
     expect(hit?.progress).toBeCloseTo(0.5);
     expect(hit?.cell).toEqual({ x: 2, y: 1 });
   });
+
+  it('checks rotated rectangles and their translation plus rotation sweep', () => {
+    const grid = new TerrainGrid({
+      world: { cellSize: 36, columns: 6, rows: 6 },
+      terrain: {
+        legend: { '.': 'open', H: 'hill' },
+        rows: Array.from({ length: 6 }, () => '...H..'),
+      },
+      terrainTypes: map.terrainTypes,
+    });
+
+    expect(grid.isBlockedOrientedRect({ x: 87, y: 90 }, 20, 10, 0, 'tank')).toBe(false);
+    expect(grid.isBlockedOrientedRect({ x: 87, y: 90 }, 20, 10, Math.PI / 4, 'tank')).toBe(true);
+    expect(grid.isBlockedOrientedRect({ x: 20, y: 72 }, 20, 10, 0, 'tank')).toBe(false);
+    expect(grid.isBlockedOrientedRect({ x: 20, y: 72 }, 20, 10, Math.PI / 4, 'tank')).toBe(true);
+
+    const safeProgress = grid.getSafeOrientedRectProgress(
+      { x: 54, y: 90 },
+      { x: 162, y: 90 },
+      10,
+      10,
+      0,
+      Math.PI / 4,
+      'tank',
+    );
+    expect(safeProgress).toBeLessThan(1);
+    const safePoint = { x: 54 + (162 - 54) * safeProgress, y: 90 };
+    expect(grid.isBlockedOrientedRect(safePoint, 10, 10, Math.PI / 4 * safeProgress, 'tank')).toBe(false);
+  });
 });

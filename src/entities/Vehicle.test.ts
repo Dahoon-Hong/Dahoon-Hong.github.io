@@ -31,6 +31,12 @@ const terrain: TerrainMapData = {
   },
 };
 
+const rectangularDefinition: TankDefinition = {
+  ...definition,
+  id: 'rectangular-test',
+  grid: { columns: 2, rows: 4, blockedCells: [] },
+};
+
 describe('Vehicle terrain movement', () => {
   it('stops at a wall while allowing the unblocked axis to slide', () => {
     const vehicle = new Vehicle(90, 180, definition, new UpgradeManager(definition.modules));
@@ -52,6 +58,24 @@ describe('Vehicle terrain movement', () => {
     expect(vehicle.x).toBeLessThanOrEqual(120.01);
     expect(vehicle.y).toBeGreaterThanOrEqual(60);
     expect(vehicle.y).toBeLessThanOrEqual(300);
+  });
+
+  it('uses the rotated full hull for validity and movement resolution', () => {
+    const vehicle = new Vehicle(65, 108, rectangularDefinition, new UpgradeManager(rectangularDefinition.modules));
+    const grid = new TerrainGrid({
+      world: { cellSize: 36, columns: 6, rows: 6 },
+      terrain: {
+        legend: { '.': 'open', H: 'hill' },
+        rows: Array.from({ length: 6 }, () => '...H..'),
+      },
+      terrainTypes: terrain.terrainTypes,
+    });
+
+    expect(vehicle.isTerrainPositionValid({ x: 65, y: 108 }, grid, 0)).toBe(true);
+    expect(vehicle.isTerrainPositionValid({ x: 65, y: 108 }, grid, Math.PI / 4)).toBe(false);
+
+    vehicle.update(1, { x: 1, y: 1 }, { width: grid.width, height: grid.height, terrain: grid });
+    expect(vehicle.isTerrainPositionValid({ x: vehicle.x, y: vehicle.y }, grid)).toBe(true);
   });
 });
 

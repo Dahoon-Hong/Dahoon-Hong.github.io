@@ -404,6 +404,106 @@ export class TerrainGrid {
     }, target);
   }
 
+  public getOrientedRectCorners(
+    center: { x: number; y: number },
+    halfWidth: number,
+    halfHeight: number,
+    angle: number,
+  ): TerrainPoint[] {
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    return [
+      { x: -halfWidth, y: -halfHeight },
+      { x: halfWidth, y: -halfHeight },
+      { x: halfWidth, y: halfHeight },
+      { x: -halfWidth, y: halfHeight },
+    ].map((point) => ({
+      x: center.x + point.x * cos - point.y * sin,
+      y: center.y + point.x * sin + point.y * cos,
+    }));
+  }
+
+  public isBlockedOrientedRect(
+    center: { x: number; y: number },
+    halfWidth: number,
+    halfHeight: number,
+    angle: number,
+    target: TerrainCollisionTarget,
+  ): boolean {
+    const polygon = this.getOrientedRectCorners(center, halfWidth, halfHeight, angle);
+    const bounds = getPolygonBounds(polygon);
+    if (bounds.left < 0 || bounds.top < 0 || bounds.right > this.width || bounds.bottom > this.height) return true;
+    if (!this.terrainRows) {
+      return this.getCandidateRegions(bounds).some((region) => this.isRegionBlocked(region, target)
+        && polygonsIntersect(region.polygon, polygon));
+    }
+    return this.getCellsForAabb(bounds).some((cell) => this.isBlocked(cell, target)
+      && polygonIntersectsAabb(polygon, this.getCellBounds(cell)));
+  }
+
+  public isOpenForOrientedRectSegment(
+    start: { x: number; y: number },
+    end: { x: number; y: number },
+    halfWidth: number,
+    halfHeight: number,
+    startAngle: number,
+    endAngle: number,
+    target: TerrainCollisionTarget,
+  ): boolean {
+    return this.getSafeOrientedRectProgress(
+      start,
+      end,
+      halfWidth,
+      halfHeight,
+      startAngle,
+      endAngle,
+      target,
+    ) >= 1 - 1e-9;
+  }
+
+  public getSafeOrientedRectProgress(
+    start: { x: number; y: number },
+    end: { x: number; y: number },
+    halfWidth: number,
+    halfHeight: number,
+    startAngle: number,
+    endAngle: number,
+    target: TerrainCollisionTarget,
+  ): number {
+    if (this.isBlockedOrientedRect(start, halfWidth, halfHeight, startAngle, target)) return 0;
+    const distance = Math.hypot(end.x - start.x, end.y - start.y);
+    const angleDelta = shortestAngleDelta(startAngle, endAngle);
+    if (distance === 0 && Math.abs(angleDelta) <= 1e-9) return 1;
+
+    const samples = Math.max(
+      1,
+      Math.ceil(distance / Math.max(1, this.cellSize / 2)),
+      Math.ceil(Math.abs(angleDelta) / (Math.PI / 36)),
+    );
+    let previousProgress = 0;
+    for (let sample = 1; sample <= samples; sample++) {
+      const progress = sample / samples;
+      const point = interpolate(start, end, progress);
+      const angle = startAngle + angleDelta * progress;
+      if (!this.isBlockedOrientedRect(point, halfWidth, halfHeight, angle, target)) {
+        previousProgress = progress;
+        continue;
+      }
+
+      let low = previousProgress;
+      let high = progress;
+      for (let iteration = 0; iteration < 12; iteration++) {
+        const middle = (low + high) / 2;
+        const middlePoint = interpolate(start, end, middle);
+        const middleAngle = startAngle + angleDelta * middle;
+        if (this.isBlockedOrientedRect(middlePoint, halfWidth, halfHeight, middleAngle, target)) high = middle;
+        else low = middle;
+      }
+      return low;
+    }
+    return 1;
+  }
+
   public isOpenForRadius(center: { x: number; y: number }, radius: number, target: TerrainCollisionTarget): boolean {
     return !this.isBlockedCircle(center, radius, target);
   }
@@ -534,6 +634,25 @@ function polygonIntersectsAabb(polygon: readonly TerrainPoint[], aabb: TerrainAa
   return false;
 }
 
+function polygonsIntersect(first: readonly TerrainPoint[], second: readonly TerrainPoint[]): boolean {
+  if (first.some((point) => isPointInPolygon(point, second)) || second.some((point) => isPointInPolygon(point, first))) {
+    return true;
+  }
+  for (let firstIndex = 0; firstIndex < first.length; firstIndex++) {
+    const firstStart = first[firstIndex];
+    const firstEnd = first[(firstIndex + 1) % first.length];
+    for (let secondIndex = 0; secondIndex < second.length; secondIndex++) {
+      if (segmentsIntersect(
+        firstStart,
+        firstEnd,
+        second[secondIndex],
+        second[(secondIndex + 1) % second.length],
+      )) return true;
+    }
+  }
+  return false;
+}
+
 function polygonIntersectsCircle(polygon: readonly TerrainPoint[], center: TerrainPoint, radius: number): boolean {
   if (isPointInPolygon(center, polygon)) return true;
   const radiusSquared = radius * radius;
@@ -591,4 +710,11 @@ function segmentIntersectionProgress(
   const edgeProgress = (offsetX * rayY - offsetY * rayX) / denominator;
   if (progress < -1e-9 || progress > 1 + 1e-9 || edgeProgress < -1e-9 || edgeProgress > 1 + 1e-9) return null;
   return Math.max(0, Math.min(1, progress));
+}
+
+function shortestAngleDelta(start: number, end: number): number {
+  let delta = (end - start) % (Math.PI * 2);
+  if (delta > Math.PI) delta -= Math.PI * 2;
+  if (delta < -Math.PI) delta += Math.PI * 2;
+  return delta;
 }
