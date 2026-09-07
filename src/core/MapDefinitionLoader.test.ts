@@ -60,4 +60,11 @@ describe('MapDefinitionLoader', () => {
     const first = makeRoot().maps[0];
     expect(() => new MapDefinitionLoader(makeRoot({ maps: [first, first] }), noAssets)).toThrow(/duplicate map ID/);
   });
+
+  it('requires explicit terrain data instead of the legacy decorative fallback', () => {
+    const legacyMap = { ...(makeRoot().maps[0] as Record<string, unknown>) };
+    delete legacyMap.world;
+    delete legacyMap.terrain;
+    expect(() => new MapDefinitionLoader(makeRoot({ maps: [legacyMap] }), noAssets)).toThrow(/world/);
+  });
 });

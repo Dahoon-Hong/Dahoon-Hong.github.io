@@ -113,7 +113,7 @@ function parseTerrainTypes(value: unknown, path: string): Record<string, Terrain
   return types;
 }
 
-function parseAssets(value: unknown, path: string, legacy: Record<string, unknown> = {}): {
+function parseAssets(value: unknown, path: string): {
   backgroundAsset: string;
   groundAsset: string;
   tileAssets: string[];
@@ -121,7 +121,7 @@ function parseAssets(value: unknown, path: string, legacy: Record<string, unknow
   spawnEdgeAsset: string;
   terrainAssets: MapDefinition['terrainAssets'];
 } {
-  const source = value === undefined ? legacy : record(value, path);
+  const source = record(value, path);
   const terrainAssets = source.terrain === undefined
     ? {}
     : record(source.terrain, `${path}.terrain`);
@@ -139,13 +139,6 @@ function parseAssets(value: unknown, path: string, legacy: Record<string, unknow
   };
 }
 
-function defaultTerrainTypes(): Record<string, TerrainTypeDefinition> {
-  return {
-    open: { id: 'open', blocks: { tank: false, enemy: false, projectile: false } },
-    hill: { id: 'hill', blocks: { tank: true, enemy: true, projectile: true } },
-  };
-}
-
 export class MapDefinitionLoader {
   private readonly maps: readonly MapDefinition[];
   private readonly assetIds: ReadonlySet<string>;
@@ -156,7 +149,7 @@ export class MapDefinitionLoader {
   ) {
     this.assetIds = new Set(Object.keys(assets.sprites ?? {}));
     if (!Number.isInteger(raw.version) || raw.version < 1) fail('version', 'must be a positive integer');
-    const terrainTypes = raw.terrainTypes ? parseTerrainTypes(raw.terrainTypes, 'terrainTypes') : defaultTerrainTypes();
+    const terrainTypes = parseTerrainTypes(raw.terrainTypes, 'terrainTypes');
     for (const type of Object.values(terrainTypes)) {
       if (type.assetId && this.assetIds.size > 0 && !this.assetIds.has(type.assetId)) {
         fail(`terrainTypes.${type.id}.assetId`, `unknown asset ID '${type.assetId}'`);
@@ -175,18 +168,15 @@ export class MapDefinitionLoader {
       ids.add(mapId);
       if (mapId !== `${planetId}/${regionId}`) fail(`${path}.mapId`, 'must match planetId/regionId');
 
-      const hasTerrain = source.world !== undefined && source.terrain !== undefined;
-      const world = hasTerrain ? record(source.world, `${path}.world`) : {};
+      const world = record(source.world, `${path}.world`);
       const parsedWorld = {
-        cellSize: hasTerrain ? integer(world.cellSize, `${path}.world.cellSize`, 1) : 36,
-        columns: hasTerrain ? integer(world.columns, `${path}.world.columns`, 1) : 80,
-        rows: hasTerrain ? integer(world.rows, `${path}.world.rows`, 1) : 60,
+        cellSize: integer(world.cellSize, `${path}.world.cellSize`, 1),
+        columns: integer(world.columns, `${path}.world.columns`, 1),
+        rows: integer(world.rows, `${path}.world.rows`, 1),
       };
       if (parsedWorld.cellSize !== 36) fail(`${path}.world.cellSize`, 'must be 36');
 
-      const terrain = hasTerrain
-        ? record(source.terrain, `${path}.terrain`)
-        : { legend: { '.': 'open' }, rows: Array<string>(parsedWorld.rows).fill('.'.repeat(parsedWorld.columns)) };
+      const terrain = record(source.terrain, `${path}.terrain`);
       const legendSource = record(terrain.legend, `${path}.terrain.legend`);
       const legend: Record<string, string> = {};
       for (const [symbol, typeId] of Object.entries(legendSource)) {
@@ -210,7 +200,7 @@ export class MapDefinitionLoader {
         return row;
       });
 
-      const assetsForMap = parseAssets(source.assets, `${path}.assets`, source);
+      const assetsForMap = parseAssets(source.assets, `${path}.assets`);
       const assetRefs = [
         assetsForMap.backgroundAsset,
         assetsForMap.groundAsset,
@@ -228,13 +218,13 @@ export class MapDefinitionLoader {
       const terrainData: TerrainMapData = { world: parsedWorld, terrain: { legend, rows: parsedRows }, terrainTypes };
       const grid = new TerrainGrid(terrainData);
       const tankStartCell = cell(
-        source.tankStartCell ?? (hasTerrain ? undefined : { x: 40, y: 30 }),
+        source.tankStartCell,
         `${path}.tankStartCell`,
       );
       if (!grid.isInside(tankStartCell)) fail(`${path}.tankStartCell`, 'cell is outside the map');
       if (grid.isBlocked(tankStartCell, 'tank')) fail(`${path}.tankStartCell`, 'cell is blocked for tank');
 
-      const rawSpawns = source.enemySpawnCells ?? (hasTerrain ? undefined : [{ x: 2, y: 30 }, { x: 77, y: 30 }]);
+      const rawSpawns = source.enemySpawnCells;
       if (!Array.isArray(rawSpawns) || rawSpawns.length === 0) fail(`${path}.enemySpawnCells`, 'must contain at least one cell');
       const enemySpawnCells = rawSpawns.map((rawSpawn, spawnIndex) => {
         const spawn = cell(rawSpawn, `${path}.enemySpawnCells[${spawnIndex}]`);
