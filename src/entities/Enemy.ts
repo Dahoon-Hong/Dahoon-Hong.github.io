@@ -1,4 +1,6 @@
 import type { RenderContext } from '../rendering/RenderContext';
+import type { TerrainCell, TerrainGrid } from '../core/TerrainGrid';
+import type { TerrainPathfinder } from '../core/TerrainPathfinder';
 
 export type EnemyType = 'standard' | 'tanker';
 type EnemyVisualState = 'idle' | 'hit' | 'dead';
@@ -11,6 +13,12 @@ export interface EnemyDefinition {
   typeName: string;
   contactDamage: number;
   contactDamageInterval: number;
+}
+
+export interface EnemyNavigationContext {
+  terrain: TerrainGrid;
+  pathfinder: TerrainPathfinder;
+  targetCell?: TerrainCell | null;
 }
 
 export abstract class Enemy {
@@ -28,6 +36,11 @@ export abstract class Enemy {
   private dead: boolean = false;
   private contactDamageTimer = 0;
   private hitTimer = 0;
+  private path: TerrainCell[] = [];
+  private waypointIndex = 0;
+  private lastTargetCell: TerrainCell | null = null;
+  private repathTimer: number;
+  private readonly repathInterval = 0.25;
 
   constructor(
     x: number,
@@ -39,7 +52,8 @@ export abstract class Enemy {
     typeName: string,
     enemyType: EnemyType,
     contactDamage = 10,
-    contactDamageInterval = 0.2
+    contactDamageInterval = 0.2,
+    repathOffset = 0,
   ) {
     this.x = x;
     this.y = y;
@@ -52,6 +66,7 @@ export abstract class Enemy {
     this.enemyType = enemyType;
     this.contactDamage = contactDamage;
     this.contactDamageInterval = contactDamageInterval;
+    this.repathTimer = Math.max(0, repathOffset);
   }
 
   public isDead(): boolean {
@@ -69,20 +84,79 @@ export abstract class Enemy {
     }
   }
 
-  public update(dt: number, targetPos: { x: number; y: number }): void {
+  public getPath(): readonly TerrainCell[] {
+    return this.path.slice(this.waypointIndex);
+  }
+
+  public getWaypointIndex(): number {
+    return this.waypointIndex;
+  }
+
+  public update(dt: number, targetPos: { x: number; y: number }, navigation?: EnemyNavigationContext): void {
     if (this.isDead()) return;
 
     this.contactDamageTimer = Math.max(0, this.contactDamageTimer - dt);
     this.hitTimer = Math.max(0, this.hitTimer - dt);
 
+    if (navigation) {
+      this.updateWithTerrain(dt, targetPos, navigation);
+      return;
+    }
+
+    this.moveToward(targetPos, dt);
+  }
+
+  private updateWithTerrain(dt: number, targetPos: { x: number; y: number }, navigation: EnemyNavigationContext): void {
+    this.repathTimer = Math.max(0, this.repathTimer - dt);
+    const targetCell = navigation.targetCell ?? navigation.terrain.worldToCell(targetPos);
+    const enemyCell = navigation.terrain.worldToCell({ x: this.x, y: this.y });
+    const remainingPath = this.path.slice(this.waypointIndex);
+    const pathValid = enemyCell !== null && navigation.pathfinder.isPathValid(enemyCell, remainingPath, this.radius);
+    const targetChanged = !this.sameCell(this.lastTargetCell, targetCell);
+    const needsPath = targetCell !== null && (targetChanged || !pathValid || remainingPath.length === 0);
+
+    if (this.repathTimer <= 0 && needsPath) {
+      this.lastTargetCell = targetCell ? { ...targetCell } : null;
+      this.path = enemyCell && targetCell
+        ? navigation.pathfinder.findPath(enemyCell, targetCell, { radius: this.radius }) ?? []
+        : [];
+      this.waypointIndex = 0;
+      this.repathTimer = this.repathInterval;
+    }
+
+    if (targetCell === null || !enemyCell) return;
+    const currentPath = this.path.slice(this.waypointIndex);
+    if (currentPath.length > 0 && (targetChanged ? pathValid : true)) {
+      const waypoint = navigation.terrain.cellToWorldCenter(currentPath[0]);
+      if (this.moveToward(waypoint, dt)) this.waypointIndex++;
+      return;
+    }
+
+    if (this.path.length === 0 && this.lastTargetCell && this.sameCell(this.lastTargetCell, targetCell)) {
+      // A path may legitimately be empty when the enemy and target share a cell.
+      if (this.sameCell(enemyCell, targetCell)) this.moveToward(targetPos, dt);
+    }
+  }
+
+  private moveToward(targetPos: { x: number; y: number }, dt: number): boolean {
     const dx = targetPos.x - this.x;
     const dy = targetPos.y - this.y;
     const dist = Math.hypot(dx, dy);
+    if (dist <= 0) return true;
 
-    if (dist > 0) {
-      this.x += (dx / dist) * this.speed * dt;
-      this.y += (dy / dist) * this.speed * dt;
+    const moveDistance = this.speed * dt;
+    if (dist <= moveDistance) {
+      this.x = targetPos.x;
+      this.y = targetPos.y;
+      return true;
     }
+    this.x += (dx / dist) * moveDistance;
+    this.y += (dy / dist) * moveDistance;
+    return false;
+  }
+
+  private sameCell(a: TerrainCell | null, b: TerrainCell | null): boolean {
+    return a?.x === b?.x && a?.y === b?.y;
   }
 
   public tryContactDamage(): boolean {
@@ -117,7 +191,7 @@ export abstract class Enemy {
 }
 
 export class StandardEnemy extends Enemy {
-  constructor(x: number, y: number, definition: EnemyDefinition) {
+  constructor(x: number, y: number, definition: EnemyDefinition, repathOffset = 0) {
     super(
       x,
       y,
@@ -128,7 +202,8 @@ export class StandardEnemy extends Enemy {
       definition.typeName,
       'standard',
       definition.contactDamage,
-      definition.contactDamageInterval
+      definition.contactDamageInterval,
+      repathOffset,
     );
   }
 
@@ -140,7 +215,7 @@ export class StandardEnemy extends Enemy {
 }
 
 export class TankerEnemy extends Enemy {
-  constructor(x: number, y: number, definition: EnemyDefinition) {
+  constructor(x: number, y: number, definition: EnemyDefinition, repathOffset = 0) {
     super(
       x,
       y,
@@ -151,7 +226,8 @@ export class TankerEnemy extends Enemy {
       definition.typeName,
       'tanker',
       definition.contactDamage,
-      definition.contactDamageInterval
+      definition.contactDamageInterval,
+      repathOffset,
     );
   }
 
