@@ -4,6 +4,13 @@ import { VehicleSystems } from '../core/VehicleSystems';
 import { CombatGrid } from './CombatGrid';
 import { CombatModule } from './Module';
 import type { RenderContext } from '../rendering/RenderContext';
+import type { TerrainGrid } from '../core/TerrainGrid';
+
+export interface VehicleUpdateBounds {
+  width: number;
+  height: number;
+  terrain?: TerrainGrid;
+}
 
 export class Vehicle {
   public x: number;
@@ -186,6 +193,18 @@ export class Vehicle {
     };
   }
 
+  public getTerrainFootprint(): { halfWidth: number; halfHeight: number } {
+    return {
+      halfWidth: this.gridCols * this.tileSize / 2 + 6,
+      halfHeight: this.gridRows * this.tileSize / 2 + 6,
+    };
+  }
+
+  public isTerrainPositionValid(position: { x: number; y: number }, terrain: TerrainGrid): boolean {
+    const footprint = this.getTerrainFootprint();
+    return terrain.isOpenForFootprint(position, footprint, 'tank');
+  }
+
   public takeDamage(
     amount: number,
     penetration = 0,
@@ -213,7 +232,7 @@ export class Vehicle {
   public update(
     dt: number,
     moveInput: { x: number; y: number },
-    bounds: { width: number; height: number }
+    bounds: VehicleUpdateBounds
   ): void {
     if (moveInput.x !== 0 || moveInput.y !== 0) {
       this.facingAngle = Math.atan2(moveInput.y, moveInput.x);
@@ -223,13 +242,41 @@ export class Vehicle {
     }
 
     const movementSpeed = this.getMovementSpeed();
-    this.x += moveInput.x * movementSpeed * dt;
-    this.y += moveInput.y * movementSpeed * dt;
+    const deltaX = moveInput.x * movementSpeed * dt;
+    const deltaY = moveInput.y * movementSpeed * dt;
+    const terrain = bounds.terrain;
+    if (terrain) {
+      this.moveAxis(deltaX, 'x', terrain, bounds);
+      this.moveAxis(deltaY, 'y', terrain, bounds);
+      return;
+    }
 
-    const horizontalPadding = this.gridCols * this.tileSize / 2 + 6;
-    const verticalPadding = this.gridRows * this.tileSize / 2 + 6;
-    this.x = Math.max(horizontalPadding, Math.min(Math.max(horizontalPadding, bounds.width - horizontalPadding), this.x));
-    this.y = Math.max(verticalPadding, Math.min(Math.max(verticalPadding, bounds.height - verticalPadding), this.y));
+    this.x += deltaX;
+    this.y += deltaY;
+    this.clampToBounds(bounds.width, bounds.height);
+  }
+
+  private moveAxis(delta: number, axis: 'x' | 'y', terrain: TerrainGrid, bounds: VehicleUpdateBounds): void {
+    if (delta === 0) return;
+    const stepLimit = terrain.cellSize / 2;
+    const steps = Math.max(1, Math.ceil(Math.abs(delta) / stepLimit));
+    const step = delta / steps;
+    for (let index = 0; index < steps; index++) {
+      const candidate = {
+        x: this.x + (axis === 'x' ? step : 0),
+        y: this.y + (axis === 'y' ? step : 0),
+      };
+      if (!this.isTerrainPositionValid(candidate, terrain)) break;
+      this.x = candidate.x;
+      this.y = candidate.y;
+    }
+    this.clampToBounds(bounds.width, bounds.height);
+  }
+
+  private clampToBounds(width: number, height: number): void {
+    const footprint = this.getTerrainFootprint();
+    this.x = Math.max(footprint.halfWidth, Math.min(Math.max(footprint.halfWidth, width - footprint.halfWidth), this.x));
+    this.y = Math.max(footprint.halfHeight, Math.min(Math.max(footprint.halfHeight, height - footprint.halfHeight), this.y));
   }
 
   public resetRuntime(): void {

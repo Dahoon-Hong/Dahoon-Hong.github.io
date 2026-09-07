@@ -131,8 +131,8 @@ export class TerrainGrid {
   public getCellsForAabb(aabb: TerrainAabb): TerrainCell[] {
     const left = Math.max(0, Math.floor(aabb.left / this.cellSize));
     const top = Math.max(0, Math.floor(aabb.top / this.cellSize));
-    const right = Math.min(this.columns - 1, Math.ceil(aabb.right / this.cellSize - 1e-9));
-    const bottom = Math.min(this.rows - 1, Math.ceil(aabb.bottom / this.cellSize - 1e-9));
+    const right = Math.min(this.columns - 1, Math.floor((aabb.right - 1e-9) / this.cellSize));
+    const bottom = Math.min(this.rows - 1, Math.floor((aabb.bottom - 1e-9) / this.cellSize));
     if (right < left || bottom < top) return [];
 
     const cells: TerrainCell[] = [];
