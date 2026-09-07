@@ -1,37 +1,30 @@
 import { Enemy } from './Enemy';
 import type { RenderContext } from '../rendering/RenderContext';
+import type { TerrainGrid } from '../core/TerrainGrid';
 
-function distanceSquaredToSegment(
+function segmentHitProgress(
   pointX: number,
   pointY: number,
+  radius: number,
   startX: number,
   startY: number,
   endX: number,
-  endY: number
-): number {
-  const segmentX = endX - startX;
-  const segmentY = endY - startY;
-  const segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
-
-  if (segmentLengthSquared === 0) {
-    const dx = pointX - startX;
-    const dy = pointY - startY;
-    return dx * dx + dy * dy;
-  }
-
-  const projection = Math.max(
-    0,
-    Math.min(
-      1,
-      ((pointX - startX) * segmentX + (pointY - startY) * segmentY) /
-        segmentLengthSquared
-    )
-  );
-  const closestX = startX + segmentX * projection;
-  const closestY = startY + segmentY * projection;
-  const dx = pointX - closestX;
-  const dy = pointY - closestY;
-  return dx * dx + dy * dy;
+  endY: number,
+): number | null {
+  const dx = endX - startX;
+  const dy = endY - startY;
+  const offsetX = startX - pointX;
+  const offsetY = startY - pointY;
+  const a = dx * dx + dy * dy;
+  const radiusSquared = radius * radius;
+  if (a === 0) return offsetX * offsetX + offsetY * offsetY <= radiusSquared ? 0 : null;
+  const c = offsetX * offsetX + offsetY * offsetY - radiusSquared;
+  if (c <= 0) return 0;
+  const b = 2 * (offsetX * dx + offsetY * dy);
+  const discriminant = b * b - 4 * a * c;
+  if (discriminant < 0) return null;
+  const root = (-b - Math.sqrt(discriminant)) / (2 * a);
+  return root >= 0 && root <= 1 ? root : null;
 }
 
 export type ProjectileSoundEvent =
@@ -58,7 +51,8 @@ export abstract class Projectile {
     dt: number,
     enemies: Enemy[],
     spawnEffect: (effect: VisualEffect) => void,
-    emitSound: (event: ProjectileSoundEvent) => void
+    emitSound: (event: ProjectileSoundEvent) => void,
+    terrain?: TerrainGrid,
   ): void;
   public abstract render(render: RenderContext): void;
 }
@@ -147,7 +141,8 @@ export class DirectProjectile extends Projectile {
     dt: number,
     enemies: Enemy[],
     spawnEffect: (e: VisualEffect) => void,
-    emitSound: (event: ProjectileSoundEvent) => void
+    emitSound: (event: ProjectileSoundEvent) => void,
+    terrain?: TerrainGrid,
   ): void {
     if (this.dead) return;
 
@@ -158,20 +153,34 @@ export class DirectProjectile extends Projectile {
     this.y += this.dirY * moveDist;
     this.traveled += moveDist;
 
-    // Check hit against enemies
+    let enemyHit: { enemy: Enemy; progress: number } | null = null;
     for (const enemy of enemies) {
       if (enemy.isDead()) continue;
       const hitRadius = enemy.radius + 5;
-      if (
-        distanceSquaredToSegment(enemy.x, enemy.y, previousX, previousY, this.x, this.y) <=
-        hitRadius * hitRadius
-      ) {
-        enemy.takeDamage(this.damage);
-        spawnEffect(new VisualEffect(this.x, this.y, 15, '#29b6f6', 'effect.projectile.direct-hit'));
-        emitSound({ type: 'projectile-impact', position: { x: this.x, y: this.y } });
-        this.dead = true;
-        break;
+      const progress = segmentHitProgress(enemy.x, enemy.y, hitRadius, previousX, previousY, this.x, this.y);
+      if (progress !== null && (!enemyHit || progress < enemyHit.progress)) {
+        enemyHit = { enemy, progress };
       }
+    }
+
+    const terrainHit = terrain?.raycast({ x: previousX, y: previousY }, { x: this.x, y: this.y });
+    if (terrainHit && (!enemyHit || terrainHit.progress <= enemyHit.progress)) {
+      this.x = terrainHit.point.x;
+      this.y = terrainHit.point.y;
+      spawnEffect(new VisualEffect(this.x, this.y, 15, '#90a4ae', 'effect.projectile.direct-hit'));
+      emitSound({ type: 'projectile-impact', position: { x: this.x, y: this.y } });
+      this.dead = true;
+      return;
+    }
+
+    if (enemyHit) {
+      this.x = previousX + (this.x - previousX) * enemyHit.progress;
+      this.y = previousY + (this.y - previousY) * enemyHit.progress;
+      enemyHit.enemy.takeDamage(this.damage);
+      spawnEffect(new VisualEffect(this.x, this.y, 15, '#29b6f6', 'effect.projectile.direct-hit'));
+      emitSound({ type: 'projectile-impact', position: { x: this.x, y: this.y } });
+      this.dead = true;
+      return;
     }
 
     if (this.traveled >= this.maxDistance) {
@@ -219,16 +228,30 @@ export class ArcProjectile extends Projectile {
     dt: number,
     enemies: Enemy[],
     spawnEffect: (e: VisualEffect) => void,
-    emitSound: (event: ProjectileSoundEvent) => void
+    emitSound: (event: ProjectileSoundEvent) => void,
+    terrain?: TerrainGrid,
   ): void {
     if (this.dead) return;
 
     this.elapsedTime = Math.min(this.totalTime, this.elapsedTime + dt);
     const t = Math.min(1, this.elapsedTime / this.totalTime);
 
+    const previousX = this.x;
+    const previousY = this.y;
+
     // Ground position interpolation
     this.x = this.startX + (this.targetX - this.startX) * t;
     this.y = this.startY + (this.targetY - this.startY) * t;
+
+    const terrainHit = terrain?.raycast({ x: previousX, y: previousY }, { x: this.x, y: this.y });
+    if (terrainHit) {
+      this.x = terrainHit.point.x;
+      this.y = terrainHit.point.y;
+      spawnEffect(new VisualEffect(this.x, this.y, 15, '#90a4ae', 'effect.projectile.direct-hit'));
+      emitSound({ type: 'projectile-impact', position: { x: this.x, y: this.y } });
+      this.dead = true;
+      return;
+    }
 
     if (t >= 1) {
       // Arrived at target: AOE Explosion!

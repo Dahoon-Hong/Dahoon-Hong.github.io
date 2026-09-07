@@ -17,6 +17,11 @@ export type CombatSoundEvent = {
   position: { x: number; y: number };
 };
 
+export type LineOfSightQuery = (
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+) => boolean;
+
 export abstract class CombatModule {
   public readonly type = 'COMBAT';
   public readonly moduleId: string;
@@ -102,7 +107,8 @@ export abstract class CombatModule {
     enemies: Enemy[],
     spawnProjectile: (projectile: Projectile) => void,
     spendResource: (type: ResourceType, amount: number) => boolean,
-    emitSound: (event: CombatSoundEvent) => void
+    emitSound: (event: CombatSoundEvent) => void,
+    hasLineOfSight?: LineOfSightQuery,
   ): void;
 
   public abstract render(
@@ -150,13 +156,14 @@ export class DirectWeaponModule extends CombatModule {
     enemies: Enemy[],
     spawnProjectile: (projectile: Projectile) => void,
     spendResource: (type: ResourceType, amount: number) => boolean,
-    emitSound: (event: CombatSoundEvent) => void
+    emitSound: (event: CombatSoundEvent) => void,
+    hasLineOfSight: LineOfSightQuery = () => true,
   ): void {
     if (!this.isActive() || dt <= 0) return;
     this.cooldownTimer -= dt;
     if (this.cooldownTimer > 0) return;
 
-    const target = findClosestEnemy(modulePos, enemies, this.getRange(), fireAngle, this.fireArcDegrees);
+    const target = findClosestEnemy(modulePos, enemies, this.getRange(), fireAngle, this.fireArcDegrees, hasLineOfSight);
     if (!target || !spendResource('ammo', 1)) return;
 
     const distance = Math.hypot(target.x - modulePos.x, target.y - modulePos.y);
@@ -210,13 +217,14 @@ export class ArcWeaponModule extends CombatModule {
     enemies: Enemy[],
     spawnProjectile: (projectile: Projectile) => void,
     spendResource: (type: ResourceType, amount: number) => boolean,
-    emitSound: (event: CombatSoundEvent) => void
+    emitSound: (event: CombatSoundEvent) => void,
+    hasLineOfSight: LineOfSightQuery = () => true,
   ): void {
     if (!this.isActive() || dt <= 0) return;
     this.cooldownTimer -= dt;
     if (this.cooldownTimer > 0) return;
 
-    const target = findClosestEnemy(modulePos, enemies, this.getRange(), fireAngle, this.fireArcDegrees);
+    const target = findClosestEnemy(modulePos, enemies, this.getRange(), fireAngle, this.fireArcDegrees, hasLineOfSight);
     if (!target || !spendResource('ammo', 1)) return;
 
     this.cooldownTimer = this.getFireRate();
@@ -258,12 +266,13 @@ export class ArcWeaponModule extends CombatModule {
   }
 }
 
-function findClosestEnemy(
+export function findClosestEnemy(
   position: { x: number; y: number },
   enemies: Enemy[],
   range: number,
   fireAngle: number,
   fireArcDegrees: number,
+  hasLineOfSight: LineOfSightQuery = () => true,
 ): Enemy | null {
   let closest: Enemy | null = null;
   let minDistance = Number.POSITIVE_INFINITY;
@@ -280,6 +289,7 @@ function findClosestEnemy(
         Math.cos(targetAngle - fireAngle),
       ));
       if (angleDifference > (fireArcDegrees * Math.PI / 180) / 2) continue;
+      if (!hasLineOfSight(position, { x: enemy.x, y: enemy.y })) continue;
       closest = enemy;
       minDistance = distance;
     }
