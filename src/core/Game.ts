@@ -53,6 +53,8 @@ const LOGICAL_CANVAS_HEIGHT = 720;
 const MAX_EFFECTS = 128;
 const MAP_TILE_POSITIONS = [[128, 112], [760, 132], [154, 526], [716, 570]] as const;
 const MAP_PROP_POSITIONS = [[78, 174], [846, 176], [96, 626], [824, 614]] as const;
+const PAUSE_MENU_OPTIONS = ['RESUME', 'ABANDON RUN'] as const;
+
 export class Game {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
@@ -94,6 +96,8 @@ export class Game {
   private reducedMotionOverride: boolean | null = null;
   private campaignProgress: CampaignProgress = { ...EMPTY_CAMPAIGN_PROGRESS, clearedMapIds: [] };
   private progressReady = false;
+  private pauseMenuVisible = false;
+  private pauseMenuSelection = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -175,7 +179,7 @@ export class Game {
       onMusicControl: () => this.audio.cycleMusicVolume(),
       screenToWorld: (point) => this.camera.screenToWorld(point),
       getArmory: () => this.armory,
-      isActive: () => this.screen === AppScreen.GAMEPLAY,
+      isActive: () => this.screen === AppScreen.GAMEPLAY && !this.pauseMenuVisible,
       isPaused: () => this.state === GameState.PAUSED,
       onArmoryResearchSuccess: () => this.audio.playSfx('sfx.ui.upgrade-confirm'),
       onArmoryPurchaseSuccess: () => this.audio.playSfx('sfx.ui.upgrade-confirm'),
@@ -286,6 +290,39 @@ export class Game {
       if (event.code === 'Escape') this.openWorldMap();
       else if (event.code === 'Enter' || event.code === 'Space') this.handleTerminalAction();
       if (event.code === 'Escape' || event.code === 'Enter' || event.code === 'Space') event.preventDefault();
+      return;
+    }
+    if (this.screen === AppScreen.GAMEPLAY) {
+      this.handleGameplayKey(event);
+    }
+  }
+
+  private handleGameplayKey(event: KeyboardEvent): void {
+    if (this.pauseMenuVisible) {
+      this.input.consumePauseRequest();
+      if (event.code === 'Escape') {
+        if (!event.repeat) this.resumeFromPauseMenu();
+      } else if (event.code === 'ArrowUp' || event.code === 'KeyW') {
+        this.pauseMenuSelection = (this.pauseMenuSelection + PAUSE_MENU_OPTIONS.length - 1) % PAUSE_MENU_OPTIONS.length;
+      } else if (event.code === 'ArrowDown' || event.code === 'KeyS') {
+        this.pauseMenuSelection = (this.pauseMenuSelection + 1) % PAUSE_MENU_OPTIONS.length;
+      } else if (event.code === 'Enter' || event.code === 'Space') {
+        this.handlePauseMenuAction(PAUSE_MENU_OPTIONS[this.pauseMenuSelection]);
+      } else if (event.code === 'KeyP') {
+        event.preventDefault();
+        return;
+      } else {
+        return;
+      }
+      event.preventDefault();
+      return;
+    }
+
+    if (event.code === 'Escape' && !event.repeat) {
+      this.pauseMenuVisible = true;
+      this.pauseMenuSelection = 0;
+      this.setState(GameState.PAUSED);
+      event.preventDefault();
     }
   }
 
@@ -305,7 +342,10 @@ export class Game {
       this.handleWorldMapAction(this.worldMap.handlePointer(point, this.campaignProgress));
       return;
     }
-    if (this.screen === AppScreen.GAMEPLAY) this.handleRestartClick(event);
+    if (this.screen === AppScreen.GAMEPLAY) {
+      if (this.pauseMenuVisible) this.handlePauseMenuClick(event);
+      else this.handleRestartClick(event);
+    }
   }
 
   private handleWorldMapAction(action: { type: 'back' } | { type: 'select'; mapId: string } | { type: 'locked' } | null): void {
@@ -605,7 +645,97 @@ export class Game {
       this.camera,
     );
 
-    if (this.isTerminalState()) this.renderResultOverlay();
+    if (this.pauseMenuVisible) this.renderPauseMenuOverlay();
+    else if (this.isTerminalState()) this.renderResultOverlay();
+  }
+
+  private handlePauseMenuAction(action: typeof PAUSE_MENU_OPTIONS[number]): void {
+    if (action === 'RESUME') this.resumeFromPauseMenu();
+    else this.openWorldMap();
+  }
+
+  private resumeFromPauseMenu(): void {
+    this.pauseMenuVisible = false;
+    this.setState(GameState.PLAYING);
+  }
+
+  private handlePauseMenuClick(event: MouseEvent): void {
+    const point = this.toCanvasPoint(event);
+    const layout = this.getPauseMenuLayout();
+    for (const [index, button] of layout.buttons.entries()) {
+      if (!this.containsPauseMenuPoint(button, point.x, point.y)) continue;
+      this.pauseMenuSelection = index;
+      this.handlePauseMenuAction(PAUSE_MENU_OPTIONS[index]);
+      return;
+    }
+  }
+
+  private renderPauseMenuOverlay(): void {
+    const layout = this.getPauseMenuLayout();
+    this.ctx.save();
+    this.ctx.fillStyle = VisualTheme.color.overlay;
+    this.ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
+    this.ctx.fillStyle = VisualTheme.color.surfacePanel;
+    this.ctx.fillRect(layout.panelX, layout.panelY, layout.panelWidth, layout.panelHeight);
+    this.ctx.strokeStyle = VisualTheme.color.accent;
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(layout.panelX, layout.panelY, layout.panelWidth, layout.panelHeight);
+
+    this.ctx.textAlign = 'center';
+    this.ctx.fillStyle = VisualTheme.color.accent;
+    this.ctx.font = 'bold 32px monospace';
+    this.ctx.fillText('GAME PAUSED', this.logicalWidth / 2, layout.panelY + 58);
+    this.ctx.fillStyle = VisualTheme.color.textSecondary;
+    this.ctx.font = '12px monospace';
+    this.ctx.fillText('SELECT AN ACTION', this.logicalWidth / 2, layout.panelY + 84);
+
+    for (const [index, button] of layout.buttons.entries()) {
+      const selected = index === this.pauseMenuSelection;
+      this.ctx.fillStyle = selected ? VisualTheme.color.surfaceAvailable : VisualTheme.color.surfaceElevated;
+      this.ctx.fillRect(button.x, button.y, button.width, button.height);
+      this.ctx.strokeStyle = selected ? VisualTheme.color.accent : VisualTheme.color.border;
+      this.ctx.lineWidth = selected ? 2 : 1;
+      this.ctx.strokeRect(button.x, button.y, button.width, button.height);
+      this.ctx.fillStyle = selected ? VisualTheme.color.textPrimary : VisualTheme.color.textSecondary;
+      this.ctx.font = 'bold 16px monospace';
+      this.ctx.fillText(PAUSE_MENU_OPTIONS[index], this.logicalWidth / 2, button.y + 30);
+    }
+
+    this.ctx.fillStyle = VisualTheme.color.textMuted;
+    this.ctx.font = '11px monospace';
+    this.ctx.fillText('ESC RESUME  ·  ARROWS / WASD SELECT  ·  ENTER CONFIRM', this.logicalWidth / 2, layout.panelY + layout.panelHeight - 22);
+    this.ctx.restore();
+  }
+
+  private getPauseMenuLayout(): {
+    panelX: number;
+    panelY: number;
+    panelWidth: number;
+    panelHeight: number;
+    buttons: Array<{ x: number; y: number; width: number; height: number }>;
+  } {
+    const panelWidth = 420;
+    const panelHeight = 300;
+    const panelX = (this.logicalWidth - panelWidth) / 2;
+    const panelY = (this.logicalHeight - panelHeight) / 2;
+    const buttonWidth = 260;
+    const buttonHeight = 46;
+    const buttonX = (this.logicalWidth - buttonWidth) / 2;
+    const buttons = PAUSE_MENU_OPTIONS.map((_, index) => ({
+      x: buttonX,
+      y: panelY + 108 + index * 58,
+      width: buttonWidth,
+      height: buttonHeight,
+    }));
+    return { panelX, panelY, panelWidth, panelHeight, buttons };
+  }
+
+  private containsPauseMenuPoint(
+    button: { x: number; y: number; width: number; height: number },
+    x: number,
+    y: number,
+  ): boolean {
+    return x >= button.x && x <= button.x + button.width && y >= button.y && y <= button.y + button.height;
   }
 
   private renderMap(): void {
@@ -903,6 +1033,8 @@ export class Game {
     this.enemies = [];
     this.projectiles = [];
     this.effects = [];
+    this.pauseMenuVisible = false;
+    this.pauseMenuSelection = 0;
     this.renderContext.time = 0;
     this.terrainDebugVisible = false;
     this.recentTerrainHitCell = null;
