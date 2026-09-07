@@ -23,6 +23,10 @@ import { MapDefinition, mapDefinitionLoader } from './MapDefinitionLoader';
 import { TerrainGrid } from './TerrainGrid';
 import { TerrainPathfinder } from './TerrainPathfinder';
 import { SettingsScreen, StartMenu } from '../ui/StartMenu';
+import { CampaignProgress, EMPTY_CAMPAIGN_PROGRESS } from './CampaignProgressStore';
+import { LocalStorageCampaignProgressStore } from './LocalStorageCampaignProgressStore';
+import { WorldMapDataLoader } from './WorldMapDataLoader';
+import { WorldMap } from '../ui/WorldMap';
 
 export enum AppScreen {
   START_MENU = 'START_MENU',
@@ -59,6 +63,9 @@ export class Game {
   private readonly tankDefinition: TankDefinition;
   private readonly audio = new AudioManager();
   private readonly progression = new ProgressionManager();
+  private readonly worldMapData: WorldMapDataLoader;
+  private readonly campaignProgressStore: LocalStorageCampaignProgressStore;
+  private readonly worldMap: WorldMap;
   private readonly logicalWidth = LOGICAL_CANVAS_WIDTH;
   private readonly logicalHeight = LOGICAL_CANVAS_HEIGHT;
   private readonly gameplayWidth = LOGICAL_CANVAS_WIDTH - HUDManager.PANEL_WIDTH;
@@ -82,12 +89,25 @@ export class Game {
   private lastTime = 0;
   private terrainDebugVisible = false;
   private reducedMotionOverride: boolean | null = null;
+  private campaignProgress: CampaignProgress = { ...EMPTY_CAMPAIGN_PROGRESS, clearedMapIds: [] };
+  private progressReady = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     const context = canvas.getContext('2d');
     if (!context) throw new Error('2D canvas context is unavailable');
     this.ctx = context;
+    this.worldMapData = new WorldMapDataLoader(undefined, mapDefinitionLoader, this.progression);
+    this.campaignProgressStore = new LocalStorageCampaignProgressStore(this.worldMapData.getCampaignMapIds());
+    this.worldMap = new WorldMap(this.worldMapData.getNodes());
+    void this.campaignProgressStore.load()
+      .then((progress) => {
+        this.campaignProgress = progress;
+        this.progressReady = true;
+      })
+      .catch(() => {
+        this.progressReady = true;
+      });
     this.audio.attachUserGestureListeners();
     void this.audio.preload();
     this.resizeCanvas();
@@ -191,6 +211,7 @@ export class Game {
     this.audio.stopAll();
     this.resetArtState();
     this.input.reset();
+    this.resources.reset();
     this.state = GameState.PLAYING;
     this.screen = AppScreen.START_MENU;
     this.startMenu.reset();
@@ -207,13 +228,21 @@ export class Game {
 
   private handleStartMenuAction(action: 'start' | 'settings' | 'exit'): void {
     if (action === 'start') {
-      this.progression.selectMap('aurelia/landing-zone');
-      this.beginFreshRun();
+      this.openWorldMap();
     } else if (action === 'settings') {
       this.openSettings();
     } else {
       this.openStartMenu();
     }
+  }
+
+  private openWorldMap(): void {
+    this.audio.stopAll();
+    this.resetArtState();
+    this.input.reset();
+    this.state = GameState.PLAYING;
+    this.screen = AppScreen.WORLD_MAP;
+    this.worldMap.reset();
   }
 
   private handleSettingsAction(action: 'back' | 'music' | 'sfx' | 'reducedMotion'): void {
@@ -240,6 +269,14 @@ export class Game {
       const action = this.settingsScreen.handleKey(event.code);
       if (action) this.handleSettingsAction(action);
       if (['ArrowUp', 'ArrowDown', 'KeyW', 'KeyS', 'Enter', 'Space', 'Escape'].includes(event.code)) event.preventDefault();
+      return;
+    }
+    if (this.screen === AppScreen.WORLD_MAP) {
+      const action = this.worldMap.handleKey(event.code, this.campaignProgress);
+      this.handleWorldMapAction(action);
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Enter', 'Space', 'Escape'].includes(event.code)) {
+        event.preventDefault();
+      }
     }
   }
 
@@ -255,7 +292,21 @@ export class Game {
       if (action) this.handleSettingsAction(action);
       return;
     }
+    if (this.screen === AppScreen.WORLD_MAP) {
+      this.handleWorldMapAction(this.worldMap.handlePointer(point, this.campaignProgress));
+      return;
+    }
     if (this.screen === AppScreen.GAMEPLAY) this.handleRestartClick(event);
+  }
+
+  private handleWorldMapAction(action: { type: 'back' } | { type: 'select'; mapId: string } | { type: 'locked' } | null): void {
+    if (!action) return;
+    if (action.type === 'back') {
+      this.openStartMenu();
+    } else if (action.type === 'select' && (this.progressReady || action.mapId === 'test/terrain-test')) {
+      this.progression.selectMap(action.mapId);
+      this.beginFreshRun();
+    }
   }
 
   private toCanvasPoint(event: MouseEvent): { x: number; y: number } {
@@ -307,31 +358,16 @@ export class Game {
     this.beginFreshRun();
   }
 
-  private advanceProgression(): void {
-    const transition = this.progression.advance();
-    if (transition === 'complete') {
-      this.audio.stopAll();
-      this.setState(GameState.VICTORY);
-      return;
-    }
-
+  private recordCurrentMapClear(): void {
     const map = this.getCurrentMap();
-    if (map) this.setTerrainContext(map);
-
-    if (transition === 'planet') {
-      this.upgradeManager = new UpgradeManager(this.tankDefinition.modules);
-      this.vehicle = this.createVehicle();
-      this.armory = this.createArmory();
-      this.resources.reset();
-    } else {
-      this.vehicle.resetRuntime();
-    }
-
-    this.waveManager = this.createWaveManager();
-    this.resetArtState();
-    this.pickups = this.createInitialPickups();
-    this.camera.snapTo(this.vehicle);
-    this.setState(GameState.PLAYING);
+    if (!map?.gameplay.campaign || this.campaignProgress.clearedMapIds.includes(map.mapId)) return;
+    this.campaignProgress = {
+      version: 1,
+      clearedMapIds: [...this.campaignProgress.clearedMapIds, map.mapId],
+    };
+    void this.campaignProgressStore.save(this.campaignProgress).catch(() => {
+      console.warn('[Game] campaign progress save failed; keeping the in-memory unlock');
+    });
   }
 
   private createInitialPickups(): ResourcePickup[] {
@@ -437,9 +473,8 @@ export class Game {
     if (this.waveManager.waveCleared) {
       if (this.waveManager.currentWave >= this.waveManager.totalWaves) {
         this.audio.stopAll();
-        if (this.progression.hasNextRegion()) this.setState(GameState.REGION_CLEARED);
-        else if (this.progression.hasNextPlanet()) this.setState(GameState.PLANET_CLEARED);
-        else this.setState(GameState.VICTORY);
+        this.recordCurrentMapClear();
+        this.setState(GameState.REGION_CLEARED);
         return;
       }
       this.waveManager.nextWave();
@@ -510,6 +545,14 @@ export class Game {
           sfxVolume: this.audio.getSfxVolume(),
           reducedMotion: this.renderContext.reducedMotion,
         });
+      } else if (this.screen === AppScreen.WORLD_MAP) {
+        this.worldMap.render(
+          this.renderContext,
+          this.logicalWidth,
+          this.logicalHeight,
+          this.campaignProgress,
+          this.progressReady,
+        );
       } else {
         this.renderUnavailableScreen();
       }
@@ -724,11 +767,7 @@ export class Game {
         : isPlanetCleared
           ? 'PLANET CLEARED'
           : 'CAMPAIGN COMPLETE';
-    const buttonLabel = isRegionCleared
-      ? 'NEXT REGION'
-      : isPlanetCleared && this.progression.hasNextPlanet()
-        ? 'NEXT PLANET'
-        : 'RESTART REGION';
+    const buttonLabel = isGameOver ? 'RETRY' : 'WORLD MAP';
     this.ctx.save();
     this.ctx.fillStyle = VisualTheme.color.overlay;
     this.ctx.fillRect(0, 0, gameplayWidth, this.logicalHeight);
@@ -886,11 +925,8 @@ export class Game {
       mouseY >= this.logicalHeight / 2 + 30 &&
       mouseY <= this.logicalHeight / 2 + 80
     ) {
-      if (this.state === GameState.REGION_CLEARED || (this.state === GameState.PLANET_CLEARED && this.progression.hasNextPlanet())) {
-        this.advanceProgression();
-      } else {
-        this.restartGame();
-      }
+      if (this.state === GameState.GAME_OVER) this.restartGame();
+      else this.openWorldMap();
     }
   }
 

@@ -111,6 +111,25 @@ export class SpriteRenderer {
     if (fallback.includes('map.field-base') || fallback === 'shape.map.background') {
       ctx.fillStyle = '#17232d';
       ctx.fillRect(left, top, w, h);
+    } else if (fallback === 'shape.ui.galaxy') {
+      ctx.fillStyle = '#07101d';
+      ctx.fillRect(left, top, w, h);
+      ctx.fillStyle = 'rgba(164, 239, 255, 0.72)';
+      for (const [starX, starY, starSize] of [[0.08, 0.18, 1], [0.21, 0.62, 2], [0.39, 0.27, 1], [0.58, 0.74, 1], [0.76, 0.34, 2], [0.9, 0.15, 1]] as const) {
+        ctx.fillRect(left + w * starX, top + h * starY, starSize, starSize);
+      }
+    } else if (fallback === 'shape.map.terrain.hill') {
+      ctx.fillStyle = '#182f42';
+      ctx.strokeStyle = '#4deaea';
+      ctx.beginPath();
+      ctx.moveTo(left + w * 0.16, top + h * 0.74);
+      ctx.lineTo(left + w * 0.28, top + h * 0.34);
+      ctx.lineTo(left + w * 0.56, top + h * 0.18);
+      ctx.lineTo(left + w * 0.84, top + h * 0.42);
+      ctx.lineTo(left + w * 0.9, top + h * 0.78);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
     } else if (fallback === 'shape.map.tile') {
       ctx.fillStyle = 'rgba(65, 86, 96, 0.35)';
       ctx.strokeStyle = 'rgba(111, 153, 163, 0.5)';

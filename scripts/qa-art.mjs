@@ -115,11 +115,40 @@ for (const file of walk(tanksDirectory).filter((candidate) => candidate.endsWith
 }
 
 const maps = readJson('src/data/maps.json');
+for (const [terrainId, terrainType] of Object.entries(maps.terrainTypes ?? {})) {
+  if (terrainType?.assetId && !sprites[terrainType.assetId]) {
+    fail(`terrain type ${terrainId} requires missing manifest ID ${terrainType.assetId}`);
+  }
+}
 for (const map of maps.maps ?? []) {
-  for (const id of [map.backgroundAsset, ...(map.tileAssets ?? []), ...(map.propAssets ?? []), map.spawnEdgeAsset]) {
+  const assets = map.assets ?? map;
+  const terrainAssets = assets.terrain ?? {};
+  for (const id of [
+    assets.background ?? assets.backgroundAsset,
+    assets.ground ?? assets.groundAsset,
+    ...(assets.tiles ?? assets.tileAssets ?? []),
+    ...(assets.props ?? assets.propAssets ?? []),
+    assets.spawnEdge ?? assets.spawnEdgeAsset,
+    terrainAssets.hillCenter,
+    terrainAssets.hillEdge,
+    terrainAssets.hillCorner,
+  ]) {
     if (id && !sprites[id]) fail(`${map.planetId}/${map.regionId} requires missing manifest ID ${id}`);
   }
 }
+
+const terrainTest = (maps.maps ?? []).find((map) => map.mapId === 'test/terrain-test');
+for (const id of [
+  'map.test.terrain-test.background',
+  'map.test.terrain-test.ground',
+  'map.test.terrain-test.hill-center',
+  'map.test.terrain-test.hill-edge',
+  'map.test.terrain-test.hill-corner',
+  'map.test.terrain-test.spawn-edge',
+]) {
+  if (!sprites[id]) fail(`terrain-test requires missing manifest ID ${id}`);
+}
+if (!terrainTest) fail('terrain-test map is missing from maps.json');
 
 const publicAssetRoot = path.join(root, 'public', 'assets', 'game');
 for (const file of walk(publicAssetRoot)) {

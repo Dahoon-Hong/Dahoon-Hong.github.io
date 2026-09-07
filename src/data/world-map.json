@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "landing-zone",
+      "mapId": "aurelia/landing-zone",
+      "label": "AURELIA // LANDING ZONE",
+      "position": { "x": 0.32, "y": 0.66 },
+      "nextMapId": "aurelia/relay-fields",
+      "test": false
+    },
+    {
+      "id": "relay-fields",
+      "mapId": "aurelia/relay-fields",
+      "label": "AURELIA // RELAY FIELDS",
+      "position": { "x": 0.47, "y": 0.52 },
+      "nextMapId": "cinder/ash-basin",
+      "test": false
+    },
+    {
+      "id": "ash-basin",
+      "mapId": "cinder/ash-basin",
+      "label": "CINDER // ASH BASIN",
+      "position": { "x": 0.63, "y": 0.39 },
+      "nextMapId": "cinder/core-ruins",
+      "test": false
+    },
+    {
+      "id": "core-ruins",
+      "mapId": "cinder/core-ruins",
+      "label": "CINDER // CORE RUINS",
+      "position": { "x": 0.78, "y": 0.25 },
+      "nextMapId": null,
+      "test": false
+    },
+    {
+      "id": "terrain-test",
+      "mapId": "test/terrain-test",
+      "label": "TEST RANGE // TERRAIN",
+      "position": { "x": 0.12, "y": 0.80 },
+      "nextMapId": null,
+      "test": true
+    }
+  ]
+}
