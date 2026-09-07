@@ -83,6 +83,9 @@ export class WorldMapDataLoader {
 
       const map = maps.getById(node.mapId);
       if (!map) fail(`${path}.mapId`, `unknown map '${node.mapId}'`);
+      if (node.test === map.gameplay.campaign) {
+        fail(`${path}.test`, `does not match map campaign flag for '${node.mapId}'`);
+      }
       const region = progression.getRegionByMapId(node.mapId);
       if (!region) fail(`${path}.mapId`, `map '${node.mapId}' is missing from progression`);
       if (node.test !== (region.campaign === false)) {

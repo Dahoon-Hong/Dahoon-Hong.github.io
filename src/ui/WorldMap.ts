@@ -29,7 +29,7 @@ export class WorldMap {
     progress: CampaignProgress,
     progressReady: boolean,
   ): void {
-    render.renderer.drawSprite(render, 'ui.galaxy-map.background', width / 2, height / 2);
+    render.renderer.drawSprite(render, 'ui.galaxy-map.background', 0, 0);
     const ctx = render.ctx;
     const statuses = this.getStatuses(progress);
     this.renderedNodes = this.nodes.map((node, index) => ({
@@ -50,7 +50,7 @@ export class WorldMap {
     ctx.font = '11px monospace';
     ctx.fillText(progressReady ? 'SELECT A DEPLOYMENT NODE' : 'SYNCING CAMPAIGN PROGRESS...', 30, 63);
 
-    this.renderConnections(ctx, width, height);
+    this.renderConnections(ctx);
     for (const [index, node] of this.renderedNodes.entries()) this.renderNode(ctx, node, index === this.selectedIndex);
 
     ctx.fillStyle = VisualTheme.color.textMuted;
@@ -104,7 +104,7 @@ export class WorldMap {
     });
   }
 
-  private renderConnections(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+  private renderConnections(ctx: CanvasRenderingContext2D): void {
     const byMapId = new Map(this.renderedNodes.map((node) => [node.mapId, node]));
     ctx.lineWidth = 2;
     for (const node of this.renderedNodes) {
@@ -117,8 +117,6 @@ export class WorldMap {
       ctx.lineTo(next.screenX, next.screenY);
       ctx.stroke();
     }
-    void width;
-    void height;
   }
 
   private renderNode(ctx: CanvasRenderingContext2D, node: RenderNode, selected: boolean): void {

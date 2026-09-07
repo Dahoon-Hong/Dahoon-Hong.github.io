@@ -199,9 +199,10 @@ Plan 26 adds the minimum visual contract for the explicit terrain grid and the c
 | Logical ID | Generated source | Runtime file | Logical draw box |
 | --- | --- | --- | ---: |
 | `map.terrain.hill.center` / `.edge` / `.corner` | `exec-a9705211-8e52-43c4-bc3b-251bb629b0c9.png` | `public/assets/game/maps/terrain-hill.png` | 36x36 |
+| `map.cinder.terrain.hill.center` / `.edge` / `.corner` | `exec-cee870b3-04f6-4499-a5c3-d24ea5977f2b.png` | `public/assets/game/maps/terrain-hill-cinder.png` | 36x36 |
 | `ui.galaxy-map.background` | `exec-e4ea424b-4d06-4df4-9732-07e39969bedf.png` | `public/assets/game/ui/galaxy-background.png` | 1280x720 |
 
-Both images were generated with the built-in `image_gen` tool and visually inspected before being copied into the workspace. The terrain prompt requested a single centered top-down rocky hill tile on transparent background, hard pixel clusters, dark navy/cyan technical palette, and no text or UI. The world-map prompt requested a dark navy galaxy starfield with sparse cyan/white stars, a restrained tactical mood, and no text, UI, or focal planet so map nodes remain readable above it.
+All images were generated with the built-in `image_gen` tool and visually inspected before being copied into the workspace. The Aurelia/test terrain prompt requested a single centered top-down rocky hill tile on transparent background, hard pixel clusters, dark navy/cyan technical palette, and no text or UI. The Cinder terrain prompt used burnt charcoal, rust, and muted ember-orange volcanic strata. The world-map prompt requested a dark navy galaxy starfield with sparse cyan/white stars, a restrained tactical mood, and no text, UI, or focal planet so map nodes remain readable above it.
 
 | Date | Change |
 | --- | --- |

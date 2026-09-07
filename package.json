@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "qa:art": "node scripts/qa-art.mjs",
     "qa:audio": "node scripts/qa-audio.mjs",
-    "qa:release": "npm run qa:art && npm run qa:audio && npm run build"
+    "qa:release": "npm test && npm run qa:art && npm run qa:audio && npm run build"
   },
   "devDependencies": {
     "typescript": "^5.3.3",

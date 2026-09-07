@@ -19,12 +19,12 @@ export class WaveManager {
   private spawnTimer = 0;
   private spawnInterval = 1.2;
   private spawnQueue: EnemyType[] = [];
-  private readonly spawnContext?: WaveSpawnContext;
+  private readonly spawnContext: WaveSpawnContext;
 
   constructor(
     region: RegionDefinition,
     enemyDefinitions: Readonly<Record<EnemyType, EnemyDefinition>>,
-    spawnContext?: WaveSpawnContext,
+    spawnContext: WaveSpawnContext,
   ) {
     this.region = region;
     this.enemyDefinitions = enemyDefinitions;
@@ -36,8 +36,8 @@ export class WaveManager {
   public update(
     dt: number,
     enemies: Enemy[],
-    canvasWidth: number,
-    canvasHeight: number,
+    _canvasWidth: number,
+    _canvasHeight: number,
     _vehiclePos: { x: number; y: number }
   ): void {
     if (this.spawnedEnemiesCount >= this.totalWaveEnemies) {
@@ -48,7 +48,7 @@ export class WaveManager {
     this.spawnTimer += dt;
     if (this.spawnTimer >= this.spawnInterval) {
       this.spawnTimer -= this.spawnInterval;
-      this.spawnEnemy(enemies, canvasWidth, canvasHeight);
+      this.spawnEnemy(enemies);
       this.spawnedEnemiesCount++;
     }
   }
@@ -75,42 +75,13 @@ export class WaveManager {
     this.waveCleared = false;
   }
 
-  private spawnEnemy(enemies: Enemy[], width: number, height: number): void {
+  private spawnEnemy(enemies: Enemy[]): void {
     const type = this.spawnQueue[this.spawnedEnemiesCount] ?? 'standard';
-    const spawnCell = this.spawnContext?.spawnCells.length
-      ? this.spawnContext.spawnCells[this.spawnedEnemiesCount % this.spawnContext.spawnCells.length]
-      : null;
-    const spawnPoint = spawnCell && this.spawnContext
-      ? this.spawnContext.terrain.cellToWorldCenter(spawnCell)
-      : this.randomEdgeSpawn(width, height);
+    const spawnCell = this.spawnContext.spawnCells[this.spawnedEnemiesCount % this.spawnContext.spawnCells.length];
+    const spawnPoint = this.spawnContext.terrain.cellToWorldCenter(spawnCell);
     const repathOffset = (this.spawnedEnemiesCount % 4) * 0.06;
     if (type === 'tanker') enemies.push(new TankerEnemy(spawnPoint.x, spawnPoint.y, this.enemyDefinitions.tanker, repathOffset));
     else enemies.push(new StandardEnemy(spawnPoint.x, spawnPoint.y, this.enemyDefinitions.standard, repathOffset));
   }
 
-  private randomEdgeSpawn(width: number, height: number): { x: number; y: number } {
-    let x = 0;
-    let y = 0;
-    const side = Math.floor(Math.random() * 4);
-    const margin = 40;
-    switch (side) {
-      case 0:
-        x = Math.random() * width;
-        y = -margin;
-        break;
-      case 1:
-        x = width + margin;
-        y = Math.random() * height;
-        break;
-      case 2:
-        x = Math.random() * width;
-        y = height + margin;
-        break;
-      default:
-        x = -margin;
-        y = Math.random() * height;
-        break;
-    }
-    return { x, y };
-  }
 }

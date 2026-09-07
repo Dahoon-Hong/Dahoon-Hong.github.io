@@ -21,6 +21,7 @@ import { ArmoryManager } from './ArmoryManager';
 import type { ModuleOrientation } from './TankDefinitionLoader';
 import { MapDefinition, mapDefinitionLoader } from './MapDefinitionLoader';
 import { TerrainGrid } from './TerrainGrid';
+import type { TerrainCell } from './TerrainGrid';
 import { TerrainPathfinder } from './TerrainPathfinder';
 import { SettingsScreen, StartMenu } from '../ui/StartMenu';
 import { CampaignProgress, EMPTY_CAMPAIGN_PROGRESS } from './CampaignProgressStore';
@@ -88,6 +89,8 @@ export class Game {
   private readonly resources = new ResourceStorage({ resource: 50 });
   private lastTime = 0;
   private terrainDebugVisible = false;
+  private recentTerrainHitCell: TerrainCell | null = null;
+  private recentTerrainHitTimer = 0;
   private reducedMotionOverride: boolean | null = null;
   private campaignProgress: CampaignProgress = { ...EMPTY_CAMPAIGN_PROGRESS, clearedMapIds: [] };
   private progressReady = false;
@@ -277,6 +280,12 @@ export class Game {
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Enter', 'Space', 'Escape'].includes(event.code)) {
         event.preventDefault();
       }
+      return;
+    }
+    if (this.screen === AppScreen.GAMEPLAY && this.isTerminalState()) {
+      if (event.code === 'Escape') this.openWorldMap();
+      else if (event.code === 'Enter' || event.code === 'Space') this.handleTerminalAction();
+      if (event.code === 'Escape' || event.code === 'Enter' || event.code === 'Space') event.preventDefault();
     }
   }
 
@@ -327,10 +336,11 @@ export class Game {
 
   private createWaveManager(): WaveManager {
     const map = this.getCurrentMap();
+    if (!map) throw new Error(`[Game] map is missing for ${this.progression.currentRegion.mapId}`);
     return new WaveManager(
       this.progression.currentRegion,
       this.progression.enemyDefinitions,
-      map ? { terrain: this.terrainGrid, spawnCells: map.enemySpawnCells } : undefined,
+      { terrain: this.terrainGrid, spawnCells: map.enemySpawnCells },
     );
   }
 
@@ -425,6 +435,7 @@ export class Game {
 
     if (this.isTerminalState()) return;
     const isPaused = this.state === GameState.PAUSED;
+    if (!isPaused) this.recentTerrainHitTimer = Math.max(0, this.recentTerrainHitTimer - dt);
 
     if (!isPaused) {
       this.renderContext.time += dt;
@@ -521,6 +532,10 @@ export class Game {
         (event) => this.handleProjectileSound(event),
         this.terrainGrid,
       );
+      if (projectile.terrainHitCell) {
+        this.recentTerrainHitCell = { ...projectile.terrainHitCell };
+        this.recentTerrainHitTimer = 0.45;
+      }
       if (projectile.isDead()) this.projectiles.splice(i, 1);
     }
 
@@ -693,10 +708,20 @@ export class Game {
     for (let y = 0; y < this.terrainGrid.rows; y++) {
       for (let x = 0; x < this.terrainGrid.columns; x++) {
         const cell = { x, y };
-        if (!this.terrainGrid.isBlocked(cell, 'tank')) continue;
+        const blockedTargets = TerrainGrid.allTargets().filter((target) => this.terrainGrid.isBlocked(cell, target));
+        if (blockedTargets.length === 0) continue;
         const bounds = this.terrainGrid.getCellBounds(cell);
-        ctx.fillStyle = 'rgba(255, 23, 68, 0.18)';
+        ctx.fillStyle = blockedTargets.includes('tank')
+          ? 'rgba(255, 23, 68, 0.18)'
+          : blockedTargets.includes('enemy')
+            ? 'rgba(255, 179, 0, 0.16)'
+            : 'rgba(171, 71, 188, 0.16)';
         ctx.fillRect(bounds.left, bounds.top, this.terrainGrid.cellSize, this.terrainGrid.cellSize);
+        for (const [index, target] of TerrainGrid.allTargets().entries()) {
+          if (!blockedTargets.includes(target)) continue;
+          ctx.fillStyle = target === 'tank' ? '#ff1744' : target === 'enemy' ? '#ffb300' : '#ab47bc';
+          ctx.fillRect(bounds.left + 3 + index * 8, bounds.bottom - 6, 6, 3);
+        }
       }
     }
 
@@ -719,9 +744,8 @@ export class Game {
       ctx.stroke();
     }
 
-    for (const projectile of this.projectiles) {
-      if (!projectile.terrainHitCell) continue;
-      const bounds = this.terrainGrid.getCellBounds(projectile.terrainHitCell);
+    if (this.recentTerrainHitCell && this.recentTerrainHitTimer > 0) {
+      const bounds = this.terrainGrid.getCellBounds(this.recentTerrainHitCell);
       ctx.strokeStyle = '#ab47bc';
       ctx.lineWidth = 3;
       ctx.strokeRect(bounds.left + 2, bounds.top + 2, this.terrainGrid.cellSize - 4, this.terrainGrid.cellSize - 4);
@@ -881,6 +905,8 @@ export class Game {
     this.effects = [];
     this.renderContext.time = 0;
     this.terrainDebugVisible = false;
+    this.recentTerrainHitCell = null;
+    this.recentTerrainHitTimer = 0;
     this.hud.resetSelection();
   }
 
@@ -925,9 +951,13 @@ export class Game {
       mouseY >= this.logicalHeight / 2 + 30 &&
       mouseY <= this.logicalHeight / 2 + 80
     ) {
-      if (this.state === GameState.GAME_OVER) this.restartGame();
-      else this.openWorldMap();
+      this.handleTerminalAction();
     }
+  }
+
+  private handleTerminalAction(): void {
+    if (this.state === GameState.GAME_OVER) this.restartGame();
+    else this.openWorldMap();
   }
 
   private isTerminalState(): boolean {

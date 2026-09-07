@@ -537,6 +537,30 @@
       "layer": "terrain",
       "fallback": "shape.map.terrain.hill"
     },
+    "map.cinder.terrain.hill.center": {
+      "src": "/assets/game/maps/terrain-hill-cinder.png",
+      "draw": { "width": 36, "height": 36 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "terrain",
+      "fallback": "shape.map.terrain.hill"
+    },
+    "map.cinder.terrain.hill.edge": {
+      "src": "/assets/game/maps/terrain-hill-cinder.png",
+      "draw": { "width": 36, "height": 36 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "terrain",
+      "fallback": "shape.map.terrain.hill"
+    },
+    "map.cinder.terrain.hill.corner": {
+      "src": "/assets/game/maps/terrain-hill-cinder.png",
+      "draw": { "width": 36, "height": 36 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "terrain",
+      "fallback": "shape.map.terrain.hill"
+    },
     "map.test.terrain-test.hill-center": {
       "src": "/assets/game/maps/terrain-hill.png",
       "draw": { "width": 36, "height": 36 },

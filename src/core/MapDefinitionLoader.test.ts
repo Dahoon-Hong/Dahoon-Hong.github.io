@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MapDataRoot, MapDefinitionLoader } from './MapDefinitionLoader';
+import { MapDataRoot, MapDefinitionLoader, mapDefinitionLoader } from './MapDefinitionLoader';
 
 const makeRoot = (overrides: Partial<MapDataRoot> = {}): MapDataRoot => ({
   version: 1,
@@ -66,5 +66,16 @@ describe('MapDefinitionLoader', () => {
     delete legacyMap.world;
     delete legacyMap.terrain;
     expect(() => new MapDefinitionLoader(makeRoot({ maps: [legacyMap] }), noAssets)).toThrow(/world/);
+  });
+
+  it('loads every production map and the terrain test map at the explicit world size', () => {
+    expect(mapDefinitionLoader.getAll()).toHaveLength(5);
+    for (const map of mapDefinitionLoader.getAll()) {
+      expect(map.world).toEqual({ cellSize: 36, columns: 80, rows: 60 });
+      expect(map.terrain.rows).toHaveLength(60);
+      expect(map.enemySpawnCells.length).toBeGreaterThanOrEqual(3);
+      expect(mapDefinitionLoader.getAccessiblePickupCells(map.mapId, 10)).not.toHaveLength(0);
+    }
+    expect(mapDefinitionLoader.getById('test/terrain-test')?.gameplay.campaign).toBe(false);
   });
 });

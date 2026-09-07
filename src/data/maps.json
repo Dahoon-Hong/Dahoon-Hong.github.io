@@ -323,9 +323,9 @@
         ],
         "spawnEdge": "map.cinder.ash-basin.spawn-edge",
         "terrain": {
-          "hillCenter": "map.terrain.hill.center",
-          "hillEdge": "map.terrain.hill.edge",
-          "hillCorner": "map.terrain.hill.corner"
+          "hillCenter": "map.cinder.terrain.hill.center",
+          "hillEdge": "map.cinder.terrain.hill.edge",
+          "hillCorner": "map.cinder.terrain.hill.corner"
         }
       },
       "terrain": {
@@ -453,9 +453,9 @@
         ],
         "spawnEdge": "map.cinder.core-ruins.spawn-edge",
         "terrain": {
-          "hillCenter": "map.terrain.hill.center",
-          "hillEdge": "map.terrain.hill.edge",
-          "hillCorner": "map.terrain.hill.corner"
+          "hillCenter": "map.cinder.terrain.hill.center",
+          "hillEdge": "map.cinder.terrain.hill.edge",
+          "hillCorner": "map.cinder.terrain.hill.corner"
         }
       },
       "terrain": {
