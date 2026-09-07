@@ -794,6 +794,7 @@ export class Game {
   }
 
   private renderTerrain(map: MapDefinition): void {
+    if (map.artwork) return;
     for (let y = 0; y < this.terrainGrid.rows; y++) {
       for (let x = 0; x < this.terrainGrid.columns; x++) {
         const cell = { x, y };

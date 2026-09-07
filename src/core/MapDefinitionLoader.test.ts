@@ -77,10 +77,10 @@ describe('MapDefinitionLoader', () => {
           id: 'west-wall',
           type: 'hill',
           polygon: [
-            { x: 0, y: 0 },
-            { x: 36, y: 0 },
-            { x: 36, y: 36 },
             { x: 0, y: 36 },
+            { x: 36, y: 36 },
+            { x: 36, y: 72 },
+            { x: 0, y: 72 },
           ],
         }],
       },
@@ -97,7 +97,7 @@ describe('MapDefinitionLoader', () => {
       worldSize: { width: 108, height: 72 },
       origin: { x: 0, y: 0 },
     });
-    expect(loader.createTerrainGrid('test/example').getTerrainTypeId({ x: 0, y: 0 })).toBe('hill');
+    expect(loader.createTerrainGrid('test/example').getTerrainTypeId({ x: 0, y: 1 })).toBe('hill');
 
     expect(() => new MapDefinitionLoader(makeRoot({
       maps: [{ ...regionMap, terrain: { ...regionMap.terrain, rows: ['...', '...'], legend: { '.': 'open' } } }],
@@ -128,10 +128,18 @@ describe('MapDefinitionLoader', () => {
     expect(mapDefinitionLoader.getAll()).toHaveLength(5);
     for (const map of mapDefinitionLoader.getAll()) {
       expect(map.world).toEqual({ cellSize: 36, columns: 80, rows: 60 });
-      expect(map.terrain.rows).toHaveLength(60);
+      if (map.mapId === 'test/terrain-test') {
+        expect(map.terrain.regions).toHaveLength(11);
+      } else {
+        expect(map.terrain.rows).toHaveLength(60);
+      }
       expect(map.enemySpawnCells.length).toBeGreaterThanOrEqual(3);
       expect(mapDefinitionLoader.getAccessiblePickupCells(map.mapId, 10)).not.toHaveLength(0);
     }
     expect(mapDefinitionLoader.getById('test/terrain-test')?.gameplay.campaign).toBe(false);
+    expect(mapDefinitionLoader.getById('test/terrain-test')?.artwork).toEqual({
+      worldSize: { width: 2880, height: 2160 },
+      origin: { x: 0, y: 0 },
+    });
   });
 });

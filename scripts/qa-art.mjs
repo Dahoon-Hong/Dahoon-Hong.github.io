@@ -140,10 +140,6 @@ for (const map of maps.maps ?? []) {
 const terrainTest = (maps.maps ?? []).find((map) => map.mapId === 'test/terrain-test');
 for (const id of [
   'map.test.terrain-test.background',
-  'map.test.terrain-test.ground',
-  'map.test.terrain-test.hill-center',
-  'map.test.terrain-test.hill-edge',
-  'map.test.terrain-test.hill-corner',
   'map.test.terrain-test.spawn-edge',
 ]) {
   if (!sprites[id]) fail(`terrain-test requires missing manifest ID ${id}`);

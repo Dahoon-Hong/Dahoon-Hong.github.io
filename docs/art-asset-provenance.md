@@ -212,3 +212,13 @@ All images were generated with the built-in `image_gen` tool and visually inspec
 | Date | Change |
 | --- | --- |
 | 2026-09-07 | Added Plan 26 terrain hill sprite and galaxy world-map background with provenance and manifest entries. |
+
+### Plan 27.2 테스트 맵 결과
+
+`test/terrain-test`는 `test-terrain-map.png` 한 장으로 월드 전체를 그린다. PNG의 월드 크기는 2880x2160이며, `maps.json`의 11개 hill polygon과 같은 36px 셀 경계에서 생성했다. 기존 hill 타일 반복 렌더링은 이 맵에서 사용하지 않는다. 경계 판정은 같은 polygon을 `TerrainGrid`가 재사용하며, 반지름 footprint·구간 스윕·raycast가 이미지 윤곽과 일치한다.
+
+| Logical ID | Source | Runtime file | Logical draw box |
+| --- | --- | --- | ---: |
+| `map.test.terrain-test.background` | `scripts/generate-test-terrain-map.ps1` + `field-base.png` | `public/assets/game/maps/test-terrain-map.png` | 2880x2160 |
+
+생성 스크립트는 어두운 전술 지형 위에 고정 hill polygon, 그림자, 림과 내부 등고선을 결정론적으로 합성한다. 충돌용 obstacle object나 반복 hill sprite는 이미지 위에 추가하지 않는다.

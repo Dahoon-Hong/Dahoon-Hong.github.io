@@ -586,8 +586,8 @@
       "fallback": "shape.map.terrain.hill"
     },
     "map.test.terrain-test.background": {
-      "src": "/assets/game/maps/field-base.png",
-      "draw": { "width": 940, "height": 720 },
+      "src": "/assets/game/maps/test-terrain-map.png",
+      "draw": { "width": 2880, "height": 2160 },
       "pivot": { "x": 0, "y": 0 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "map",
