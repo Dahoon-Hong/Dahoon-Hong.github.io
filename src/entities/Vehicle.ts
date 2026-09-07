@@ -272,19 +272,16 @@ export class Vehicle {
     const deltaY = moveInput.y * movementSpeed * dt;
     const terrain = bounds.terrain;
     if (terrain) {
-      const footprint = this.getTerrainFootprint();
-      const safeProgress = terrain.getSafeOrientedRectProgress(
+      const resolved = this.resolveTerrainMovement(
         { x: this.x, y: this.y },
-        { x: this.x + deltaX, y: this.y + deltaY },
-        footprint.halfWidth,
-        footprint.halfHeight,
+        { x: deltaX, y: deltaY },
         this.getFacingRotation(),
         requestedFacingAngle + Math.PI / 2,
-        'tank',
+        terrain,
       );
-      this.x += deltaX * safeProgress;
-      this.y += deltaY * safeProgress;
-      this.facingAngle = interpolateAngle(this.facingAngle, requestedFacingAngle, safeProgress);
+      this.x = resolved.position.x;
+      this.y = resolved.position.y;
+      this.facingAngle = resolved.angle - Math.PI / 2;
     } else {
       this.x += deltaX;
       this.y += deltaY;
@@ -295,6 +292,117 @@ export class Vehicle {
     // Drive the treads from resolved travel so stopping or hitting a wall never snaps the animation.
     const distance = Math.hypot(this.x - startX, this.y - startY);
     this.treadOffset = (this.treadOffset + distance * motion.tracks.travelRatio) % motion.tracks.treadSpacing;
+  }
+
+  private resolveTerrainMovement(
+    start: { x: number; y: number },
+    delta: { x: number; y: number },
+    startAngle: number,
+    endAngle: number,
+    terrain: TerrainGrid,
+  ): { position: { x: number; y: number }; angle: number } {
+    const footprint = this.getTerrainFootprint();
+    const contactEpsilon = motion.collision.contactEpsilon;
+    const maxIterations = motion.collision.maxSlideIterations;
+    let position = { ...start };
+    let remaining = { ...delta };
+    let angle = startAngle;
+    let travelRemaining = Math.hypot(delta.x, delta.y);
+
+    for (let iteration = 0; iteration < maxIterations; iteration++) {
+      const remainingDistance = Math.hypot(remaining.x, remaining.y);
+      if (remainingDistance <= contactEpsilon) {
+        const rotationProgress = terrain.getSafeOrientedRectProgress(
+          position,
+          position,
+          footprint.halfWidth,
+          footprint.halfHeight,
+          angle,
+          endAngle,
+          'tank',
+        );
+        angle = interpolateAngle(angle, endAngle, rotationProgress);
+        break;
+      }
+
+      const target = { x: position.x + remaining.x, y: position.y + remaining.y };
+      const progress = terrain.getSafeOrientedRectProgress(
+        position,
+        target,
+        footprint.halfWidth,
+        footprint.halfHeight,
+        angle,
+        endAngle,
+        'tank',
+      );
+      if (progress >= 1 - 1e-9) {
+        position = target;
+        angle = endAngle;
+        remaining = { x: 0, y: 0 };
+        break;
+      }
+
+      const applied = Math.max(0, progress - contactEpsilon / Math.max(remainingDistance, 1));
+      travelRemaining = Math.max(0, travelRemaining - remainingDistance * applied);
+      position.x += remaining.x * applied;
+      position.y += remaining.y * applied;
+      angle = interpolateAngle(angle, endAngle, applied);
+      remaining.x *= 1 - applied;
+      remaining.y *= 1 - applied;
+
+      const candidates = this.getSlideCandidates(remaining);
+      let best: { delta: { x: number; y: number }; progress: number; distance: number } | null = null;
+      for (const candidate of candidates) {
+        const candidateDistance = Math.hypot(candidate.x, candidate.y);
+        if (candidateDistance <= contactEpsilon) continue;
+        const candidateProgress = terrain.getSafeOrientedRectProgress(
+          position,
+          { x: position.x + candidate.x, y: position.y + candidate.y },
+          footprint.halfWidth,
+          footprint.halfHeight,
+          angle,
+          endAngle,
+          'tank',
+        );
+        const resolvedDistance = Math.min(travelRemaining, candidateDistance * candidateProgress);
+        if (!best || resolvedDistance > best.distance) {
+          best = { delta: candidate, progress: candidateProgress, distance: resolvedDistance };
+        }
+      }
+      if (!best || best.distance <= contactEpsilon) break;
+
+      const bestProgress = Math.min(best.progress, travelRemaining / Math.max(Math.hypot(best.delta.x, best.delta.y), 1));
+      const bestDistance = Math.hypot(best.delta.x, best.delta.y) * bestProgress;
+      travelRemaining = Math.max(0, travelRemaining - bestDistance);
+      position.x += best.delta.x * bestProgress;
+      position.y += best.delta.y * bestProgress;
+      angle = interpolateAngle(angle, endAngle, bestProgress);
+      remaining.x -= best.delta.x * bestProgress;
+      remaining.y -= best.delta.y * bestProgress;
+    }
+
+    return { position, angle };
+  }
+
+  private getSlideCandidates(remaining: { x: number; y: number }): Array<{ x: number; y: number }> {
+    const directions = [
+      { x: 1, y: 0 },
+      { x: -1, y: 0 },
+      { x: 0, y: 1 },
+      { x: 0, y: -1 },
+      { x: Math.SQRT1_2, y: Math.SQRT1_2 },
+      { x: -Math.SQRT1_2, y: Math.SQRT1_2 },
+      { x: Math.SQRT1_2, y: -Math.SQRT1_2 },
+      { x: -Math.SQRT1_2, y: -Math.SQRT1_2 },
+    ];
+    return directions
+      .map((direction) => {
+        const projection = remaining.x * direction.x + remaining.y * direction.y;
+        return projection > 0
+          ? { x: direction.x * projection, y: direction.y * projection }
+          : { x: 0, y: 0 };
+      })
+      .filter((candidate) => candidate.x !== 0 || candidate.y !== 0);
   }
 
   private clampToBounds(width: number, height: number): void {

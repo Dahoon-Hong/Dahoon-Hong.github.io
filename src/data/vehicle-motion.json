@@ -6,5 +6,9 @@
     "treadSpacing": 6,
     "treadHeight": 2,
     "travelRatio": 0.35
+  },
+  "collision": {
+    "contactEpsilon": 0.5,
+    "maxSlideIterations": 4
   }
 }

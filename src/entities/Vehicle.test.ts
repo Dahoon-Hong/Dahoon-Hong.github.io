@@ -77,6 +77,53 @@ describe('Vehicle terrain movement', () => {
     vehicle.update(1, { x: 1, y: 1 }, { width: grid.width, height: grid.height, terrain: grid });
     expect(vehicle.isTerrainPositionValid({ x: vehicle.x, y: vehicle.y }, grid)).toBe(true);
   });
+
+  it('slides along a wall and remains stable in a blocked corner', () => {
+    const vehicle = new Vehicle(90, 90, definition, new UpgradeManager(definition.modules));
+    const grid = new TerrainGrid({
+      world: { cellSize: 36, columns: 10, rows: 10 },
+      terrain: {
+        legend: { '.': 'open', H: 'hill' },
+        rows: [
+          '..........',
+          '..........',
+          '..........',
+          '..........',
+          '..........',
+          '.....HHHHH',
+          '.....H....',
+          '.....H....',
+          '.....H....',
+          '.....H....',
+        ],
+      },
+      terrainTypes: terrain.terrainTypes,
+    });
+    const start = { x: vehicle.x, y: vehicle.y };
+
+    vehicle.update(1, { x: 1, y: 1 }, { width: grid.width, height: grid.height, terrain: grid });
+    const first = { x: vehicle.x, y: vehicle.y };
+    expect(grid.isBlockedOrientedRect(
+      first,
+      vehicle.getTerrainFootprint().halfWidth,
+      vehicle.getTerrainFootprint().halfHeight,
+      vehicle.getFacingRotation(),
+      'tank',
+    )).toBe(false);
+    expect(Math.hypot(first.x - start.x, first.y - start.y)).toBeLessThanOrEqual(180.01);
+    expect(first.y).toBeGreaterThan(start.y);
+
+    vehicle.update(1, { x: 1, y: 1 }, { width: grid.width, height: grid.height, terrain: grid });
+    const second = { x: vehicle.x, y: vehicle.y };
+    vehicle.update(1, { x: 1, y: 1 }, { width: grid.width, height: grid.height, terrain: grid });
+    expect(vehicle.x).toBeCloseTo(second.x, 4);
+    expect(vehicle.y).toBeCloseTo(second.y, 4);
+
+    vehicle.update(0.5, { x: -1, y: -1 }, { width: grid.width, height: grid.height, terrain: grid });
+    expect(vehicle.x).toBeLessThan(second.x);
+    expect(vehicle.y).toBeLessThan(second.y);
+    expect(vehicle.isTerrainPositionValid({ x: vehicle.x, y: vehicle.y }, grid)).toBe(true);
+  });
 });
 
 describe('Vehicle movement animation', () => {
