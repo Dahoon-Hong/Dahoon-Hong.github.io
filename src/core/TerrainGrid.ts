@@ -5,6 +5,17 @@ export interface TerrainCell {
   y: number;
 }
 
+export interface TerrainPoint {
+  x: number;
+  y: number;
+}
+
+export interface TerrainRegion {
+  id: string;
+  terrainTypeId: string;
+  polygon: TerrainPoint[];
+}
+
 export interface TerrainBlocks {
   tank: boolean;
   enemy: boolean;
@@ -25,7 +36,8 @@ export interface TerrainMapData {
   };
   terrain: {
     legend: Record<string, string>;
-    rows: string[];
+    rows?: string[];
+    regions?: TerrainRegion[];
   };
   terrainTypes: Readonly<Record<string, TerrainTypeDefinition>>;
 }
@@ -61,7 +73,8 @@ export class TerrainGrid {
   public readonly width: number;
   public readonly height: number;
   private readonly legend: Readonly<Record<string, string>>;
-  private readonly terrainRows: readonly string[];
+  private readonly terrainRows: readonly string[] | null;
+  private readonly regions: readonly TerrainRegion[];
   private readonly terrainTypes: Readonly<Record<string, TerrainTypeDefinition>>;
 
   public constructor(map: TerrainMapData) {
@@ -71,7 +84,12 @@ export class TerrainGrid {
     this.width = this.columns * this.cellSize;
     this.height = this.rows * this.cellSize;
     this.legend = { ...map.terrain.legend };
-    this.terrainRows = [...map.terrain.rows];
+    this.terrainRows = map.terrain.rows ? [...map.terrain.rows] : null;
+    this.regions = (map.terrain.regions ?? []).map((region) => ({
+      id: region.id,
+      terrainTypeId: region.terrainTypeId,
+      polygon: region.polygon.map((point) => ({ ...point })),
+    }));
     this.terrainTypes = Object.fromEntries(
       Object.entries(map.terrainTypes).map(([id, type]) => [id, { ...type, blocks: { ...type.blocks } }]),
     );
@@ -115,12 +133,23 @@ export class TerrainGrid {
 
   public getTerrainTypeId(cell: TerrainCell): string | null {
     if (!this.isInside(cell)) return null;
-    return this.legend[this.terrainRows[cell.y][cell.x]] ?? null;
+    if (this.terrainRows) return this.legend[this.terrainRows[cell.y][cell.x]] ?? null;
+
+    const center = this.cellToWorldCenter(cell);
+    return this.regions.find((region) => isPointInPolygon(center, region.polygon))?.terrainTypeId ?? 'open';
   }
 
   public getTerrainType(cell: TerrainCell): TerrainTypeDefinition | null {
     const typeId = this.getTerrainTypeId(cell);
     return typeId ? this.terrainTypes[typeId] ?? null : null;
+  }
+
+  public getTerrainRegions(): TerrainRegion[] {
+    return this.regions.map((region) => ({
+      id: region.id,
+      terrainTypeId: region.terrainTypeId,
+      polygon: region.polygon.map((point) => ({ ...point })),
+    }));
   }
 
   public isBlocked(cell: TerrainCell, target: TerrainCollisionTarget): boolean {
@@ -324,4 +353,18 @@ export class TerrainGrid {
       y: Math.floor(point.y / this.cellSize),
     };
   }
+}
+
+function isPointInPolygon(point: TerrainPoint, polygon: readonly TerrainPoint[]): boolean {
+  let inside = false;
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+    const currentPoint = polygon[index];
+    const previousPoint = polygon[previous];
+    const crosses = (currentPoint.y > point.y) !== (previousPoint.y > point.y);
+    if (!crosses) continue;
+    const intersectionX = (previousPoint.x - currentPoint.x) * (point.y - currentPoint.y)
+      / (previousPoint.y - currentPoint.y) + currentPoint.x;
+    if (point.x < intersectionX) inside = !inside;
+  }
+  return inside;
 }

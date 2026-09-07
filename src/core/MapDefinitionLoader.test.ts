@@ -68,6 +68,62 @@ describe('MapDefinitionLoader', () => {
     expect(() => new MapDefinitionLoader(makeRoot({ maps: [legacyMap] }), noAssets)).toThrow(/world/);
   });
 
+  it('loads polygon regions, validates artwork coordinates, and rejects mixed terrain sources', () => {
+    const baseMap = makeRoot().maps[0] as Record<string, unknown>;
+    const regionMap = {
+      ...baseMap,
+      terrain: {
+        regions: [{
+          id: 'west-wall',
+          type: 'hill',
+          polygon: [
+            { x: 0, y: 0 },
+            { x: 36, y: 0 },
+            { x: 36, y: 36 },
+            { x: 0, y: 36 },
+          ],
+        }],
+      },
+      artwork: {
+        worldSize: { width: 108, height: 72 },
+        origin: { x: 0, y: 0 },
+      },
+    };
+    const loader = new MapDefinitionLoader(makeRoot({ maps: [regionMap] }), noAssets);
+    const map = loader.getById('test/example');
+    expect(map?.terrain.rows).toBeUndefined();
+    expect(map?.terrain.regions).toHaveLength(1);
+    expect(map?.artwork).toEqual({
+      worldSize: { width: 108, height: 72 },
+      origin: { x: 0, y: 0 },
+    });
+    expect(loader.createTerrainGrid('test/example').getTerrainTypeId({ x: 0, y: 0 })).toBe('hill');
+
+    expect(() => new MapDefinitionLoader(makeRoot({
+      maps: [{ ...regionMap, terrain: { ...regionMap.terrain, rows: ['...', '...'], legend: { '.': 'open' } } }],
+    }), noAssets)).toThrow(/either rows or regions/);
+    expect(() => new MapDefinitionLoader(makeRoot({
+      maps: [{ ...regionMap, artwork: { worldSize: { width: 72, height: 72 }, origin: { x: 0, y: 0 } } }],
+    }), noAssets)).toThrow(/must match the terrain world/);
+  });
+
+  it('rejects non-convex, duplicate, and out-of-bounds region polygons', () => {
+    const baseMap = makeRoot().maps[0] as Record<string, unknown>;
+    const withPolygon = (polygon: Array<{ x: number; y: number }>) => ({
+      ...baseMap,
+      terrain: { regions: [{ id: 'region', type: 'hill', polygon }] },
+    });
+    expect(() => new MapDefinitionLoader(makeRoot({
+      maps: [withPolygon([{ x: 0, y: 0 }, { x: 72, y: 0 }, { x: 36, y: 18 }, { x: 72, y: 36 }, { x: 0, y: 36 }])],
+    }), noAssets)).toThrow(/must be convex/);
+    expect(() => new MapDefinitionLoader(makeRoot({
+      maps: [withPolygon([{ x: 0, y: 0 }, { x: 36, y: 0 }, { x: 36, y: 36 }, { x: 36, y: 36 }])],
+    }), noAssets)).toThrow(/duplicate points/);
+    expect(() => new MapDefinitionLoader(makeRoot({
+      maps: [withPolygon([{ x: 0, y: 0 }, { x: 109, y: 0 }, { x: 109, y: 36 }, { x: 0, y: 36 }])],
+    }), noAssets)).toThrow(/inside the world bounds/);
+  });
+
   it('loads every production map and the terrain test map at the explicit world size', () => {
     expect(mapDefinitionLoader.getAll()).toHaveLength(5);
     for (const map of mapDefinitionLoader.getAll()) {

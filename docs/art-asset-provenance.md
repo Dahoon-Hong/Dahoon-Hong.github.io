@@ -162,6 +162,10 @@ C:\Users\slaye\.codex\generated_images\01a06efb-5500-77b0-ac41-2c1e599d5304\
 
 15단계는 progression의 네 region ID에 맞춘 map background와 장식 보조 asset 세트다. map layer는 전투 영역 아래에서 읽히는 낮은 대비의 배경이며 actor, projectile, pickup, HUD 의미를 대신하지 않는다.
 
+## Plan 27 map alignment record
+
+Plan 27부터 전환한 맵은 완성 배경 이미지와 `maps.json`의 `terrain.regions`를 같은 월드 좌표 계약으로 제작한다. 배경에 보이는 벽·언덕은 별도 장애물 sprite로 반복 배치하지 않으며, polygon guide와 최종 PNG를 겹쳐 확인한 결과를 지역별 provenance에 기록한다. 이 단계에서는 기존 940x720 배경을 유지하고, 월드 크기 이미지와 실제 region별 생성 원본은 27.2와 27.5에서 추가한다.
+
 ### Background image generation 결과
 
 | Region ID | Accepted generated source | Runtime file | Logical draw box |
