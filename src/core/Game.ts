@@ -22,6 +22,14 @@ import type { ModuleOrientation } from './TankDefinitionLoader';
 import { MapDefinition, mapDefinitionLoader } from './MapDefinitionLoader';
 import { TerrainGrid } from './TerrainGrid';
 import { TerrainPathfinder } from './TerrainPathfinder';
+import { SettingsScreen, StartMenu } from '../ui/StartMenu';
+
+export enum AppScreen {
+  START_MENU = 'START_MENU',
+  SETTINGS = 'SETTINGS',
+  WORLD_MAP = 'WORLD_MAP',
+  GAMEPLAY = 'GAMEPLAY',
+}
 
 export enum GameState {
   PLAYING = 'PLAYING',
@@ -55,9 +63,12 @@ export class Game {
   private readonly logicalHeight = LOGICAL_CANVAS_HEIGHT;
   private readonly gameplayWidth = LOGICAL_CANVAS_WIDTH - HUDManager.PANEL_WIDTH;
   private readonly camera: Camera;
+  private readonly startMenu = new StartMenu();
+  private readonly settingsScreen = new SettingsScreen();
   private terrainGrid: TerrainGrid;
   private pathfinder: TerrainPathfinder;
 
+  private screen: AppScreen = AppScreen.START_MENU;
   private state: GameState = GameState.PLAYING;
   private vehicle: Vehicle;
   private armory: ArmoryManager;
@@ -70,6 +81,7 @@ export class Game {
   private readonly resources = new ResourceStorage({ resource: 50 });
   private lastTime = 0;
   private terrainDebugVisible = false;
+  private reducedMotionOverride: boolean | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -78,7 +90,6 @@ export class Game {
     this.ctx = context;
     this.audio.attachUserGestureListeners();
     void this.audio.preload();
-    this.audio.playMusic();
     this.resizeCanvas();
     const initialMap = mapDefinitionLoader.getByLocation(
       this.progression.currentPlanet.id,
@@ -98,15 +109,16 @@ export class Game {
     const reducedMotionQuery = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
       ? window.matchMedia('(prefers-reduced-motion: reduce)')
       : null;
+    const systemReducedMotion = reducedMotionQuery?.matches ?? false;
     this.renderContext = {
       ctx: this.ctx,
       renderer: this.renderer,
       time: 0,
-      reducedMotion: reducedMotionQuery?.matches ?? false,
+      reducedMotion: systemReducedMotion,
     };
     if (reducedMotionQuery) {
       const updateMotionPreference = (event: MediaQueryListEvent) => {
-        this.renderContext.reducedMotion = event.matches;
+        this.renderContext.reducedMotion = this.reducedMotionOverride ?? event.matches;
       };
       if (typeof reducedMotionQuery.addEventListener === 'function') {
         reducedMotionQuery.addEventListener('change', updateMotionPreference);
@@ -140,18 +152,118 @@ export class Game {
       onMusicControl: () => this.audio.cycleMusicVolume(),
       screenToWorld: (point) => this.camera.screenToWorld(point),
       getArmory: () => this.armory,
+      isActive: () => this.screen === AppScreen.GAMEPLAY,
       isPaused: () => this.state === GameState.PAUSED,
       onArmoryResearchSuccess: () => this.audio.playSfx('sfx.ui.upgrade-confirm'),
       onArmoryPurchaseSuccess: () => this.audio.playSfx('sfx.ui.upgrade-confirm'),
       installPurchasedModule: (moduleId, anchor, orientation) => this.installPurchasedModule(moduleId, anchor, orientation),
     }, { width: this.logicalWidth, height: this.logicalHeight });
 
-    this.canvas.addEventListener('click', (event) => this.handleRestartClick(event));
+    window.addEventListener('keydown', (event) => this.handleScreenKey(event));
+    this.canvas.addEventListener('click', (event) => this.handleCanvasClick(event));
   }
 
   public start(): void {
     this.lastTime = performance.now();
     requestAnimationFrame((time) => this.gameLoop(time));
+  }
+
+  private beginFreshRun(): void {
+    const map = this.getCurrentMap();
+    if (!map) throw new Error(`[Game] map is missing for ${this.progression.currentRegion.mapId}`);
+    this.audio.stopAll();
+    this.setTerrainContext(map);
+    this.upgradeManager = new UpgradeManager(this.tankDefinition.modules);
+    this.vehicle = this.createVehicle();
+    this.armory = this.createArmory();
+    this.waveManager = this.createWaveManager();
+    this.resetArtState();
+    this.pickups = this.createInitialPickups();
+    this.resources.reset();
+    this.camera.snapTo(this.vehicle);
+    this.state = GameState.PLAYING;
+    this.screen = AppScreen.GAMEPLAY;
+    this.input.reset();
+    this.audio.playMusic();
+  }
+
+  private openStartMenu(): void {
+    this.audio.stopAll();
+    this.resetArtState();
+    this.input.reset();
+    this.state = GameState.PLAYING;
+    this.screen = AppScreen.START_MENU;
+    this.startMenu.reset();
+    this.settingsScreen.reset();
+  }
+
+  private openSettings(): void {
+    this.audio.stopMusic();
+    this.input.reset();
+    this.hud.resetSelection();
+    this.screen = AppScreen.SETTINGS;
+    this.settingsScreen.reset();
+  }
+
+  private handleStartMenuAction(action: 'start' | 'settings' | 'exit'): void {
+    if (action === 'start') {
+      this.progression.selectMap('aurelia/landing-zone');
+      this.beginFreshRun();
+    } else if (action === 'settings') {
+      this.openSettings();
+    } else {
+      this.openStartMenu();
+    }
+  }
+
+  private handleSettingsAction(action: 'back' | 'music' | 'sfx' | 'reducedMotion'): void {
+    if (action === 'back') {
+      this.openStartMenu();
+    } else if (action === 'music') {
+      this.audio.cycleMusicVolume();
+    } else if (action === 'sfx') {
+      this.audio.cycleSfxVolume();
+    } else {
+      this.reducedMotionOverride = !this.renderContext.reducedMotion;
+      this.renderContext.reducedMotion = this.reducedMotionOverride;
+    }
+  }
+
+  private handleScreenKey(event: KeyboardEvent): void {
+    if (this.screen === AppScreen.START_MENU) {
+      const action = this.startMenu.handleKey(event.code);
+      if (action) this.handleStartMenuAction(action);
+      if (['ArrowUp', 'ArrowDown', 'KeyW', 'KeyS', 'Enter', 'Space'].includes(event.code)) event.preventDefault();
+      return;
+    }
+    if (this.screen === AppScreen.SETTINGS) {
+      const action = this.settingsScreen.handleKey(event.code);
+      if (action) this.handleSettingsAction(action);
+      if (['ArrowUp', 'ArrowDown', 'KeyW', 'KeyS', 'Enter', 'Space', 'Escape'].includes(event.code)) event.preventDefault();
+    }
+  }
+
+  private handleCanvasClick(event: MouseEvent): void {
+    const point = this.toCanvasPoint(event);
+    if (this.screen === AppScreen.START_MENU) {
+      const action = this.startMenu.handlePointer(point);
+      if (action) this.handleStartMenuAction(action);
+      return;
+    }
+    if (this.screen === AppScreen.SETTINGS) {
+      const action = this.settingsScreen.handlePointer(point);
+      if (action) this.handleSettingsAction(action);
+      return;
+    }
+    if (this.screen === AppScreen.GAMEPLAY) this.handleRestartClick(event);
+  }
+
+  private toCanvasPoint(event: MouseEvent): { x: number; y: number } {
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left) * (this.logicalWidth / rect.width),
+      y: (event.clientY - rect.top) * (this.logicalHeight / rect.height),
+    };
   }
 
   private createVehicle(): Vehicle {
@@ -176,7 +288,10 @@ export class Game {
   }
 
   private setState(nextState: GameState): void {
-    if (this.state === nextState) return;
+    if (this.state === nextState) {
+      if (nextState === GameState.PLAYING && this.screen === AppScreen.GAMEPLAY) this.audio.playMusic();
+      return;
+    }
     this.state = nextState;
     if (nextState === GameState.PAUSED) {
       this.audio.setMusicDucked(true);
@@ -189,16 +304,7 @@ export class Game {
   }
 
   private restartGame(): void {
-    this.audio.stopAll();
-    this.upgradeManager = new UpgradeManager(this.tankDefinition.modules);
-    this.vehicle = this.createVehicle();
-    this.armory = this.createArmory();
-    this.waveManager = this.createWaveManager();
-    this.resetArtState();
-    this.pickups = this.createInitialPickups();
-    this.resources.reset();
-    this.camera.snapTo(this.vehicle);
-    this.setState(GameState.PLAYING);
+    this.beginFreshRun();
   }
 
   private advanceProgression(): void {
@@ -268,6 +374,11 @@ export class Game {
   }
 
   private update(dt: number): void {
+    if (this.screen !== AppScreen.GAMEPLAY) {
+      this.input.consumePauseRequest();
+      this.input.consumeDebugOverlayRequest();
+      return;
+    }
     if (this.input.consumeDebugOverlayRequest() && this.getCurrentMap()?.mapId === 'test/terrain-test') {
       this.terrainDebugVisible = !this.terrainDebugVisible;
     }
@@ -389,6 +500,21 @@ export class Game {
     const gameplayWidth = this.gameplayWidth;
     this.ctx.clearRect(0, 0, this.logicalWidth, this.logicalHeight);
     this.ctx.imageSmoothingEnabled = false;
+
+    if (this.screen !== AppScreen.GAMEPLAY) {
+      if (this.screen === AppScreen.START_MENU) {
+        this.startMenu.render(this.ctx, this.logicalWidth, this.logicalHeight);
+      } else if (this.screen === AppScreen.SETTINGS) {
+        this.settingsScreen.render(this.ctx, this.logicalWidth, this.logicalHeight, {
+          musicVolume: this.audio.getMusicVolume(),
+          sfxVolume: this.audio.getSfxVolume(),
+          reducedMotion: this.renderContext.reducedMotion,
+        });
+      } else {
+        this.renderUnavailableScreen();
+      }
+      return;
+    }
 
     this.ctx.save();
     this.ctx.beginPath();
@@ -558,6 +684,19 @@ export class Game {
       ctx.strokeRect(bounds.left + 2, bounds.top + 2, this.terrainGrid.cellSize - 4, this.terrainGrid.cellSize - 4);
     }
     ctx.restore();
+  }
+
+  private renderUnavailableScreen(): void {
+    this.ctx.fillStyle = '#0c111c';
+    this.ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
+    this.ctx.fillStyle = VisualTheme.color.accent;
+    this.ctx.font = 'bold 28px monospace';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('WORLD MAP', this.logicalWidth / 2, this.logicalHeight / 2 - 16);
+    this.ctx.fillStyle = VisualTheme.color.textMuted;
+    this.ctx.font = '12px monospace';
+    this.ctx.fillText('CAMPAIGN NAVIGATION IS LOADING', this.logicalWidth / 2, this.logicalHeight / 2 + 16);
+    this.ctx.textAlign = 'left';
   }
 
   private getCurrentMap(): MapDefinition | null {

@@ -18,6 +18,7 @@ interface HUDCallbacks {
   onMusicControl: () => void;
   screenToWorld: (point: { x: number; y: number }) => { x: number; y: number };
   getArmory: () => ArmoryManager;
+  isActive: () => boolean;
   isPaused: () => boolean;
   onArmoryResearchSuccess: () => void;
   onArmoryPurchaseSuccess: () => void;
@@ -102,6 +103,7 @@ export class HUDManager {
     canvas.addEventListener('mousemove', (event) => {
       const point = this.toCanvasPoint(canvas, event, viewport);
       this.pointer = point;
+      if (!callbacks.isActive()) return;
       this.updateDragPreview(point, callbacks.getVehicle());
     });
     canvas.addEventListener('mouseleave', () => {
@@ -109,16 +111,20 @@ export class HUDManager {
       if (this.dragState) this.dragState.previewAnchor = null;
     });
     canvas.addEventListener('mousedown', (event) => {
+      if (!callbacks.isActive()) return;
       this.handlePointerDown(this.toCanvasPoint(canvas, event, viewport), callbacks);
     });
     canvas.addEventListener('mouseup', (event) => {
+      if (!callbacks.isActive()) return;
       this.handlePointerUp(this.toCanvasPoint(canvas, event, viewport), callbacks);
     });
     window.addEventListener('keydown', (event) => {
       if (event.code !== 'KeyR' || event.repeat) return;
+      if (!callbacks.isActive()) return;
       if (this.handleRotation(callbacks)) event.preventDefault();
     });
     canvas.addEventListener('click', (event) => {
+      if (!callbacks.isActive()) return;
       if (this.suppressNextClick) {
         this.suppressNextClick = false;
         return;

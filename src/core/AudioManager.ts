@@ -49,13 +49,6 @@ interface Voice {
   release: () => void;
 }
 
-interface StoredAudioSettings {
-  masterVolume?: number;
-  sfxVolume?: number;
-  musicVolume?: number;
-  muted?: boolean;
-}
-
 type AudioContextConstructor = new () => AudioContext;
 type AudioWindow = Window & {
   AudioContext?: AudioContextConstructor;
@@ -102,7 +95,6 @@ export class AudioManager {
   };
 
   public constructor() {
-    this.loadSettings();
     if (!Number.isInteger(manifest.version)) {
       this.validationErrors.push('Audio manifest version is invalid.');
     }
@@ -154,29 +146,29 @@ export class AudioManager {
     this.muted = muted;
     if (this.masterGain) this.masterGain.gain.value = muted ? 0 : this.masterVolume;
     this.applyMusicGain();
-    this.saveSettings();
   }
 
   public setMasterVolume(volume: number): void {
     this.masterVolume = Math.max(0, Math.min(1, volume));
     if (this.masterGain) this.masterGain.gain.value = this.muted ? 0 : this.masterVolume;
-    this.saveSettings();
   }
 
   public setSfxVolume(volume: number): void {
     this.sfxVolume = Math.max(0, Math.min(1, volume));
     if (this.sfxGain) this.sfxGain.gain.value = this.sfxVolume;
-    this.saveSettings();
   }
 
   public setMusicVolume(volume: number): void {
     this.musicVolume = Math.max(0, Math.min(1, volume));
     this.applyMusicGain();
-    this.saveSettings();
   }
 
   public getMusicVolume(): number {
     return this.musicVolume;
+  }
+
+  public getSfxVolume(): number {
+    return this.sfxVolume;
   }
 
   public isMusicMuted(): boolean {
@@ -187,6 +179,12 @@ export class AudioManager {
     const levels = [0, 0.2, 0.4];
     const currentIndex = levels.findIndex((level) => Math.abs(level - this.musicVolume) < 0.01);
     this.setMusicVolume(levels[currentIndex >= 0 ? (currentIndex + 1) % levels.length : 0]);
+  }
+
+  public cycleSfxVolume(): void {
+    const levels = [0, 0.4, 0.8];
+    const currentIndex = levels.findIndex((level) => Math.abs(level - this.sfxVolume) < 0.01);
+    this.setSfxVolume(levels[currentIndex >= 0 ? (currentIndex + 1) % levels.length : 0]);
   }
 
   public setMusicDucked(ducked: boolean): void {
@@ -207,41 +205,6 @@ export class AudioManager {
   public stopMusic(): void {
     this.musicRequested = false;
     this.stopMusicSource();
-  }
-
-  private loadSettings(): void {
-    if (typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem('pvd.audio.settings');
-      if (!raw) return;
-      const stored = JSON.parse(raw) as StoredAudioSettings;
-      if (typeof stored.masterVolume === 'number' && Number.isFinite(stored.masterVolume)) {
-        this.masterVolume = Math.max(0, Math.min(1, stored.masterVolume));
-      }
-      if (typeof stored.sfxVolume === 'number' && Number.isFinite(stored.sfxVolume)) {
-        this.sfxVolume = Math.max(0, Math.min(1, stored.sfxVolume));
-      }
-      if (typeof stored.musicVolume === 'number' && Number.isFinite(stored.musicVolume)) {
-        this.musicVolume = Math.max(0, Math.min(1, stored.musicVolume));
-      }
-      if (typeof stored.muted === 'boolean') this.muted = stored.muted;
-    } catch {
-      // Private browsing and malformed settings fall back to defaults.
-    }
-  }
-
-  private saveSettings(): void {
-    if (typeof window === 'undefined') return;
-    try {
-      window.localStorage.setItem('pvd.audio.settings', JSON.stringify({
-        masterVolume: this.masterVolume,
-        sfxVolume: this.sfxVolume,
-        musicVolume: this.musicVolume,
-        muted: this.muted,
-      }));
-    } catch {
-      // Storage failure must not interrupt audio or gameplay.
-    }
   }
 
   public ensureReady(): AudioContext | null {
