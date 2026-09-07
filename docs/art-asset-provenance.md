@@ -209,9 +209,24 @@ Plan 26 adds the minimum visual contract for the explicit terrain grid and the c
 
 All images were generated with the built-in `image_gen` tool and visually inspected before being copied into the workspace. The Aurelia/test terrain prompt requested a single centered top-down rocky hill tile on transparent background, hard pixel clusters, dark navy/cyan technical palette, and no text or UI. The Cinder terrain prompt used burnt charcoal, rust, and muted ember-orange volcanic strata. The world-map prompt requested a dark navy galaxy starfield with sparse cyan/white stars, a restrained tactical mood, and no text, UI, or focal planet so map nodes remain readable above it.
 
+The Plan 26 hill sprite entries above were retired in Plan 27.5 after all maps moved to full-world artwork and polygon terrain regions. The galaxy background remains active for the world-map screen.
+
 | Date | Change |
 | --- | --- |
 | 2026-09-07 | Added Plan 26 terrain hill sprite and galaxy world-map background with provenance and manifest entries. |
+
+Plan 27.5에서 hill 타일 두 종류와 맵별 hill sprite 참조를 제거했다. 아래 월드 크기 이미지가 다섯 맵의 배경과 표시 경계를 함께 담당하며, `TerrainGrid`는 각 이미지와 같은 좌표의 `terrain.regions`만 판정에 사용한다.
+
+### Plan 27.5 캠페인 맵 결과
+
+| Map ID | Source | Runtime file | Logical draw box |
+| --- | --- | --- | ---: |
+| `aurelia/landing-zone` | `scripts/map-source/aurelia-landing-zone-background.png` + polygon overlay | `public/assets/game/maps/aurelia-landing-zone-map.png` | 2880x2160 |
+| `aurelia/relay-fields` | `scripts/map-source/aurelia-relay-fields-background.png` + polygon overlay | `public/assets/game/maps/aurelia-relay-fields-map.png` | 2880x2160 |
+| `cinder/ash-basin` | `scripts/map-source/cinder-ash-basin-background.png` + polygon overlay | `public/assets/game/maps/cinder-ash-basin-map.png` | 2880x2160 |
+| `cinder/core-ruins` | `scripts/map-source/cinder-core-ruins-background.png` + polygon overlay | `public/assets/game/maps/cinder-core-ruins-map.png` | 2880x2160 |
+
+`scripts/generate-campaign-terrain-maps.ps1`는 기존 지역 색감과 `maps.json`의 polygon을 한 번에 rasterize한다. 캠페인과 테스트 맵 모두 배경을 반복하지 않고, tiles/props/hill sprite를 별도 장애물처럼 얹지 않는다.
 
 ### Plan 27.2 테스트 맵 결과
 

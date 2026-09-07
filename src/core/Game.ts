@@ -794,32 +794,6 @@ export class Game {
       this.renderer.drawSprite(this.renderContext, map.spawnEdgeAsset, 0, worldY, { alpha: 0.65 });
       if (spawnEdgeHeight <= 0) break;
     }
-    this.renderTerrain(map);
-  }
-
-  private renderTerrain(map: MapDefinition): void {
-    if (map.artwork) return;
-    for (let y = 0; y < this.terrainGrid.rows; y++) {
-      for (let x = 0; x < this.terrainGrid.columns; x++) {
-        const cell = { x, y };
-        if (this.terrainGrid.getTerrainTypeId(cell) !== 'hill') continue;
-        const missingNeighbors = [
-          { x: x - 1, y },
-          { x: x + 1, y },
-          { x, y: y - 1 },
-          { x, y: y + 1 },
-        ].filter((neighbor) => this.terrainGrid.getTerrainTypeId(neighbor) !== 'hill').length;
-        const assetId = missingNeighbors >= 2
-          ? map.terrainAssets.hillCorner
-          : missingNeighbors === 1
-            ? map.terrainAssets.hillEdge
-            : map.terrainAssets.hillCenter;
-        const center = this.terrainGrid.cellToWorldCenter(cell);
-        this.renderer.drawSprite(this.renderContext, assetId, center.x, center.y, {
-          scale: this.terrainGrid.cellSize / 36,
-        });
-      }
-    }
   }
 
   private renderTerrainDebugOverlay(): void {

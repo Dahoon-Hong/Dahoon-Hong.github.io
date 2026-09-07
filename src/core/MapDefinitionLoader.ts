@@ -21,11 +21,6 @@ export interface MapDefinition extends TerrainMapData {
   tileAssets: string[];
   propAssets: string[];
   spawnEdgeAsset: string;
-  terrainAssets: {
-    hillCenter: string;
-    hillEdge: string;
-    hillCorner: string;
-  };
   artwork: MapArtworkDefinition | null;
   repeat: { background: boolean; tile: boolean };
   safeMargin: { top: number; right: number; bottom: number; left: number };
@@ -243,23 +238,14 @@ function parseAssets(value: unknown, path: string): {
   tileAssets: string[];
   propAssets: string[];
   spawnEdgeAsset: string;
-  terrainAssets: MapDefinition['terrainAssets'];
 } {
   const source = record(value, path);
-  const terrainAssets = source.terrain === undefined
-    ? {}
-    : record(source.terrain, `${path}.terrain`);
   return {
     backgroundAsset: string(source.background ?? source.backgroundAsset, `${path}.background`),
     groundAsset: string(source.ground ?? source.background ?? source.backgroundAsset, `${path}.ground`),
     tileAssets: stringArray(source.tiles ?? source.tileAssets ?? [], `${path}.tiles`),
     propAssets: stringArray(source.props ?? source.propAssets ?? [], `${path}.props`),
     spawnEdgeAsset: string(source.spawnEdge ?? source.spawnEdgeAsset, `${path}.spawnEdge`),
-    terrainAssets: {
-      hillCenter: string(terrainAssets.hillCenter ?? source.ground ?? source.background ?? source.backgroundAsset, `${path}.terrain.hillCenter`),
-      hillEdge: string(terrainAssets.hillEdge ?? source.ground ?? source.background ?? source.backgroundAsset, `${path}.terrain.hillEdge`),
-      hillCorner: string(terrainAssets.hillCorner ?? source.ground ?? source.background ?? source.backgroundAsset, `${path}.terrain.hillCorner`),
-    },
   };
 }
 
@@ -347,9 +333,6 @@ export class MapDefinitionLoader {
         ...assetsForMap.tileAssets,
         ...assetsForMap.propAssets,
         assetsForMap.spawnEdgeAsset,
-        assetsForMap.terrainAssets.hillCenter,
-        assetsForMap.terrainAssets.hillEdge,
-        assetsForMap.terrainAssets.hillCorner,
       ];
       for (const assetId of assetRefs) {
         if (this.assetIds.size > 0 && !this.assetIds.has(assetId)) fail(`${path}.assets`, `unknown asset ID '${assetId}'`);

@@ -126,13 +126,16 @@ describe('MapDefinitionLoader', () => {
 
   it('loads every production map and the terrain test map at the explicit world size', () => {
     expect(mapDefinitionLoader.getAll()).toHaveLength(5);
+    const expectedRegionCounts: Record<string, number> = {
+      'aurelia/landing-zone': 3,
+      'aurelia/relay-fields': 4,
+      'cinder/ash-basin': 4,
+      'cinder/core-ruins': 7,
+      'test/terrain-test': 11,
+    };
     for (const map of mapDefinitionLoader.getAll()) {
       expect(map.world).toEqual({ cellSize: 36, columns: 80, rows: 60 });
-      if (map.mapId === 'test/terrain-test') {
-        expect(map.terrain.regions).toHaveLength(11);
-      } else {
-        expect(map.terrain.rows).toHaveLength(60);
-      }
+      expect(map.terrain.regions).toHaveLength(expectedRegionCounts[map.mapId]);
       expect(map.enemySpawnCells.length).toBeGreaterThanOrEqual(3);
       expect(mapDefinitionLoader.getAccessiblePickupCells(map.mapId, 10)).not.toHaveLength(0);
     }

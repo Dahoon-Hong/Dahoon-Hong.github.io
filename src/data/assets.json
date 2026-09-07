@@ -386,8 +386,8 @@
       "fallback": "shape.map.field-base"
     },
     "map.aurelia.landing-zone.background": {
-      "src": "/assets/game/maps/aurelia-landing-zone-background.png",
-      "draw": { "width": 940, "height": 720 },
+      "src": "/assets/game/maps/aurelia-landing-zone-map.png",
+      "draw": { "width": 2880, "height": 2160 },
       "pivot": { "x": 0, "y": 0 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "map",
@@ -418,8 +418,8 @@
       "fallback": "shape.map.spawn-edge"
     },
     "map.aurelia.relay-fields.background": {
-      "src": "/assets/game/maps/aurelia-relay-fields-background.png",
-      "draw": { "width": 940, "height": 720 },
+      "src": "/assets/game/maps/aurelia-relay-fields-map.png",
+      "draw": { "width": 2880, "height": 2160 },
       "pivot": { "x": 0, "y": 0 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "map",
@@ -450,8 +450,8 @@
       "fallback": "shape.map.spawn-edge"
     },
     "map.cinder.ash-basin.background": {
-      "src": "/assets/game/maps/cinder-ash-basin-background.png",
-      "draw": { "width": 940, "height": 720 },
+      "src": "/assets/game/maps/cinder-ash-basin-map.png",
+      "draw": { "width": 2880, "height": 2160 },
       "pivot": { "x": 0, "y": 0 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "map",
@@ -482,8 +482,8 @@
       "fallback": "shape.map.spawn-edge"
     },
     "map.cinder.core-ruins.background": {
-      "src": "/assets/game/maps/cinder-core-ruins-background.png",
-      "draw": { "width": 940, "height": 720 },
+      "src": "/assets/game/maps/cinder-core-ruins-map.png",
+      "draw": { "width": 2880, "height": 2160 },
       "pivot": { "x": 0, "y": 0 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "map",
@@ -512,78 +512,6 @@
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "map",
       "fallback": "shape.map.spawn-edge"
-    },
-    "map.terrain.hill.center": {
-      "src": "/assets/game/maps/terrain-hill.png",
-      "draw": { "width": 36, "height": 36 },
-      "pivot": { "x": 0.5, "y": 0.5 },
-      "frames": { "columns": 1, "rows": 1, "duration": 0 },
-      "layer": "terrain",
-      "fallback": "shape.map.terrain.hill"
-    },
-    "map.terrain.hill.edge": {
-      "src": "/assets/game/maps/terrain-hill.png",
-      "draw": { "width": 36, "height": 36 },
-      "pivot": { "x": 0.5, "y": 0.5 },
-      "frames": { "columns": 1, "rows": 1, "duration": 0 },
-      "layer": "terrain",
-      "fallback": "shape.map.terrain.hill"
-    },
-    "map.terrain.hill.corner": {
-      "src": "/assets/game/maps/terrain-hill.png",
-      "draw": { "width": 36, "height": 36 },
-      "pivot": { "x": 0.5, "y": 0.5 },
-      "frames": { "columns": 1, "rows": 1, "duration": 0 },
-      "layer": "terrain",
-      "fallback": "shape.map.terrain.hill"
-    },
-    "map.cinder.terrain.hill.center": {
-      "src": "/assets/game/maps/terrain-hill-cinder.png",
-      "draw": { "width": 36, "height": 36 },
-      "pivot": { "x": 0.5, "y": 0.5 },
-      "frames": { "columns": 1, "rows": 1, "duration": 0 },
-      "layer": "terrain",
-      "fallback": "shape.map.terrain.hill"
-    },
-    "map.cinder.terrain.hill.edge": {
-      "src": "/assets/game/maps/terrain-hill-cinder.png",
-      "draw": { "width": 36, "height": 36 },
-      "pivot": { "x": 0.5, "y": 0.5 },
-      "frames": { "columns": 1, "rows": 1, "duration": 0 },
-      "layer": "terrain",
-      "fallback": "shape.map.terrain.hill"
-    },
-    "map.cinder.terrain.hill.corner": {
-      "src": "/assets/game/maps/terrain-hill-cinder.png",
-      "draw": { "width": 36, "height": 36 },
-      "pivot": { "x": 0.5, "y": 0.5 },
-      "frames": { "columns": 1, "rows": 1, "duration": 0 },
-      "layer": "terrain",
-      "fallback": "shape.map.terrain.hill"
-    },
-    "map.test.terrain-test.hill-center": {
-      "src": "/assets/game/maps/terrain-hill.png",
-      "draw": { "width": 36, "height": 36 },
-      "pivot": { "x": 0.5, "y": 0.5 },
-      "frames": { "columns": 1, "rows": 1, "duration": 0 },
-      "layer": "terrain",
-      "fallback": "shape.map.terrain.hill"
-    },
-    "map.test.terrain-test.hill-edge": {
-      "src": "/assets/game/maps/terrain-hill.png",
-      "draw": { "width": 36, "height": 36 },
-      "pivot": { "x": 0.5, "y": 0.5 },
-      "frames": { "columns": 1, "rows": 1, "duration": 0 },
-      "layer": "terrain",
-      "fallback": "shape.map.terrain.hill"
-    },
-    "map.test.terrain-test.hill-corner": {
-      "src": "/assets/game/maps/terrain-hill.png",
-      "draw": { "width": 36, "height": 36 },
-      "pivot": { "x": 0.5, "y": 0.5 },
-      "frames": { "columns": 1, "rows": 1, "duration": 0 },
-      "layer": "terrain",
-      "fallback": "shape.map.terrain.hill"
     },
     "map.test.terrain-test.background": {
       "src": "/assets/game/maps/test-terrain-map.png",

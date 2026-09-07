@@ -123,8 +123,9 @@ for (const [terrainId, terrainType] of Object.entries(maps.terrainTypes ?? {})) 
 for (const map of maps.maps ?? []) {
   const assets = map.assets ?? map;
   const terrainAssets = assets.terrain ?? {};
+  const backgroundId = assets.background ?? assets.backgroundAsset;
   for (const id of [
-    assets.background ?? assets.backgroundAsset,
+    backgroundId,
     assets.ground ?? assets.groundAsset,
     ...(assets.tiles ?? assets.tileAssets ?? []),
     ...(assets.props ?? assets.propAssets ?? []),
@@ -134,6 +135,15 @@ for (const map of maps.maps ?? []) {
     terrainAssets.hillCorner,
   ]) {
     if (id && !sprites[id]) fail(`${map.planetId}/${map.regionId} requires missing manifest ID ${id}`);
+  }
+  if (map.artwork) {
+    if (map.terrain?.rows) fail(`${map.planetId}/${map.regionId} artwork maps must use terrain.regions`);
+    const background = sprites[backgroundId];
+    const expectedWidth = map.artwork.worldSize?.width;
+    const expectedHeight = map.artwork.worldSize?.height;
+    if (background && (background.draw.width !== expectedWidth || background.draw.height !== expectedHeight)) {
+      fail(`${map.planetId}/${map.regionId} artwork size must match background draw box`);
+    }
   }
 }
 
