@@ -27,3 +27,9 @@ PR 본문은 `.github/pull_request_template.md`를 사용한다.
 - 스킬 사용 지침
 plan 문서를 작성하거나 plan 작업을 시작할 때 `brainstorming` 스킬을 먼저 사용한다.
 설계 및 구현 작업을 시작할 때 `ponytail` 스킬을 사용한다. 기본 강도는 `full`로 한다.
+
+- QA 지침
+문서 작업이 아닌 기능 개발(게임플레이, UI, 입력, 런타임 또는 빌드 결과 변경)은 PR을 생성하기 전에 반드시 실제 게임을 로컬에서 실행해 확인한다.
+이 검증은 프로젝트 sub-agent인 `integration-tester`(`.codex/agents/integration-tester.toml`)를 사용한다. 해당 agent는 저장소 루트에서 `npm run dev`를 실행하고 Computer Use로 브라우저에서 실제 게임을 조작해 변경된 기능을 검증한다.
+`integration-tester`의 결과가 PASS가 아니면 PR을 생성하지 않는다. 서버 실행이나 브라우저 검증이 막힌 경우에도 원인을 해결하거나 명확한 BLOCKED 결과를 남긴 뒤 PR 생성을 중단한다.
+문서만 변경한 작업은 이 런타임 QA 대상이 아니며 `git diff --check`와 링크·명령어 확인을 수행한다.

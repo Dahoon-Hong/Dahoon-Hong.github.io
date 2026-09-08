@@ -1,4 +1,7 @@
-.codex
+.codex/*
+!.codex/agents/
+.codex/agents/*
+!.codex/agents/*.toml
 # Dependencies
 node_modules/
 
