@@ -124,6 +124,26 @@ describe('Vehicle terrain movement', () => {
     expect(vehicle.y).toBeLessThan(second.y);
     expect(vehicle.isTerrainPositionValid({ x: vehicle.x, y: vehicle.y }, grid)).toBe(true);
   });
+
+  it('keeps the resolved wall route stable across common frame rates', () => {
+    const simulate = (steps: number): { x: number; y: number } => {
+      const vehicle = new Vehicle(90, 180, definition, new UpgradeManager(definition.modules));
+      const grid = new TerrainGrid(terrain);
+      for (let index = 0; index < steps; index++) {
+        vehicle.update(1 / steps, { x: 1, y: 1 }, { width: grid.width, height: grid.height, terrain: grid });
+      }
+      expect(vehicle.isTerrainPositionValid({ x: vehicle.x, y: vehicle.y }, grid)).toBe(true);
+      return { x: vehicle.x, y: vehicle.y };
+    };
+
+    const thirty = simulate(30);
+    const sixty = simulate(60);
+    const oneTwenty = simulate(120);
+    for (const result of [sixty, oneTwenty]) {
+      expect(Math.abs(result.x - thirty.x)).toBeLessThanOrEqual(1.5);
+      expect(Math.abs(result.y - thirty.y)).toBeLessThanOrEqual(1.5);
+    }
+  });
 });
 
 describe('Vehicle movement animation', () => {

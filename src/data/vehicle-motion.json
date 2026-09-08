@@ -8,7 +8,7 @@
     "travelRatio": 0.35
   },
   "collision": {
-    "contactEpsilon": 0.5,
+    "contactEpsilon": 0.05,
     "maxSlideIterations": 4
   }
 }

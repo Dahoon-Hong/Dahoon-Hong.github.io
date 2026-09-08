@@ -272,11 +272,24 @@ export class Vehicle {
     const deltaY = moveInput.y * movementSpeed * dt;
     const terrain = bounds.terrain;
     if (terrain) {
+      const footprint = this.getTerrainFootprint();
+      const startAngle = this.getFacingRotation();
+      const requestedAngle = requestedFacingAngle + Math.PI / 2;
+      const rotationProgress = terrain.getSafeOrientedRectProgress(
+        { x: this.x, y: this.y },
+        { x: this.x, y: this.y },
+        footprint.halfWidth,
+        footprint.halfHeight,
+        startAngle,
+        requestedAngle,
+        'tank',
+      );
+      const movementAngle = rotationProgress >= 1 - 1e-9 ? requestedAngle : startAngle;
       const resolved = this.resolveTerrainMovement(
         { x: this.x, y: this.y },
         { x: deltaX, y: deltaY },
-        this.getFacingRotation(),
-        requestedFacingAngle + Math.PI / 2,
+        movementAngle,
+        movementAngle,
         terrain,
       );
       this.x = resolved.position.x;
