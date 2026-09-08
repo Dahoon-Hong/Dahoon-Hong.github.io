@@ -6,6 +6,8 @@ import {
   TerrainCell,
   TerrainGrid,
   TerrainMapData,
+  TerrainPoint,
+  TerrainRegion,
   TerrainTypeDefinition,
 } from './TerrainGrid';
 import { TerrainPathfinder } from './TerrainPathfinder';
@@ -19,16 +21,17 @@ export interface MapDefinition extends TerrainMapData {
   tileAssets: string[];
   propAssets: string[];
   spawnEdgeAsset: string;
-  terrainAssets: {
-    hillCenter: string;
-    hillEdge: string;
-    hillCorner: string;
-  };
+  artwork: MapArtworkDefinition | null;
   repeat: { background: boolean; tile: boolean };
   safeMargin: { top: number; right: number; bottom: number; left: number };
   gameplay: { decorativeOnly: boolean; campaign: boolean };
   tankStartCell: TerrainCell;
   enemySpawnCells: TerrainCell[];
+}
+
+export interface MapArtworkDefinition {
+  worldSize: { width: number; height: number };
+  origin: TerrainPoint;
 }
 
 export interface MapDataRoot {
@@ -89,6 +92,122 @@ function stringArray(value: unknown, path: string): string[] {
   return value.map((entry, index) => string(entry, `${path}[${index}]`));
 }
 
+function point(value: unknown, path: string, world: { width: number; height: number }): TerrainPoint {
+  const source = record(value, path);
+  const x = number(source.x, `${path}.x`);
+  const y = number(source.y, `${path}.y`);
+  if (x > world.width || y > world.height) fail(path, 'point must stay inside the world bounds');
+  return { x, y };
+}
+
+function cross(a: TerrainPoint, b: TerrainPoint, c: TerrainPoint): number {
+  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+}
+
+function samePoint(a: TerrainPoint, b: TerrainPoint): boolean {
+  return a.x === b.x && a.y === b.y;
+}
+
+function orientation(a: TerrainPoint, b: TerrainPoint, c: TerrainPoint): number {
+  const value = cross(a, b, c);
+  return Math.abs(value) <= 1e-9 ? 0 : Math.sign(value);
+}
+
+function onSegment(a: TerrainPoint, b: TerrainPoint, pointValue: TerrainPoint): boolean {
+  return pointValue.x >= Math.min(a.x, b.x) - 1e-9
+    && pointValue.x <= Math.max(a.x, b.x) + 1e-9
+    && pointValue.y >= Math.min(a.y, b.y) - 1e-9
+    && pointValue.y <= Math.max(a.y, b.y) + 1e-9;
+}
+
+function segmentsIntersect(a: TerrainPoint, b: TerrainPoint, c: TerrainPoint, d: TerrainPoint): boolean {
+  const first = orientation(a, b, c);
+  const second = orientation(a, b, d);
+  const third = orientation(c, d, a);
+  const fourth = orientation(c, d, b);
+  if (first !== second && third !== fourth) return true;
+  return (first === 0 && onSegment(a, b, c))
+    || (second === 0 && onSegment(a, b, d))
+    || (third === 0 && onSegment(c, d, a))
+    || (fourth === 0 && onSegment(c, d, b));
+}
+
+function validatePolygon(points: readonly TerrainPoint[], path: string): void {
+  if (points.length < 3) fail(path, 'polygon must contain at least 3 points');
+  for (let index = 0; index < points.length; index++) {
+    for (let other = index + 1; other < points.length; other++) {
+      if (samePoint(points[index], points[other])) fail(path, 'polygon cannot contain duplicate points');
+    }
+  }
+
+  let winding = 0;
+  for (let index = 0; index < points.length; index++) {
+    const sign = orientation(points[index], points[(index + 1) % points.length], points[(index + 2) % points.length]);
+    if (sign === 0) continue;
+    if (winding === 0) winding = sign;
+    else if (winding !== sign) fail(path, 'polygon must be convex');
+  }
+  if (winding === 0) fail(path, 'polygon must have a non-zero area');
+
+  for (let first = 0; first < points.length; first++) {
+    const firstEnd = (first + 1) % points.length;
+    for (let second = first + 1; second < points.length; second++) {
+      const secondEnd = (second + 1) % points.length;
+      if (first === second || firstEnd === second || secondEnd === first) continue;
+      if (segmentsIntersect(points[first], points[firstEnd], points[second], points[secondEnd])) {
+        fail(path, 'polygon edges cannot intersect');
+      }
+    }
+  }
+}
+
+function parseRegions(
+  value: unknown,
+  path: string,
+  world: { width: number; height: number },
+  terrainTypes: Readonly<Record<string, TerrainTypeDefinition>>,
+): TerrainRegion[] {
+  if (!Array.isArray(value) || value.length === 0) fail(path, 'must contain at least one region');
+  const ids = new Set<string>();
+  return value.map((rawRegion, index) => {
+    const regionPath = `${path}[${index}]`;
+    const source = record(rawRegion, regionPath);
+    const id = string(source.id, `${regionPath}.id`);
+    if (ids.has(id)) fail(`${regionPath}.id`, `duplicate region ID '${id}'`);
+    ids.add(id);
+    const terrainTypeId = string(source.type, `${regionPath}.type`);
+    if (!terrainTypes[terrainTypeId]) fail(`${regionPath}.type`, `unknown terrain type '${terrainTypeId}'`);
+    if (!Array.isArray(source.polygon)) fail(`${regionPath}.polygon`, 'expected an array');
+    const polygon = source.polygon.map((rawPoint, pointIndex) => point(
+      rawPoint,
+      `${regionPath}.polygon[${pointIndex}]`,
+      world,
+    ));
+    validatePolygon(polygon, `${regionPath}.polygon`);
+    return { id, terrainTypeId, polygon };
+  });
+}
+
+function parseArtwork(
+  value: unknown,
+  path: string,
+  world: { width: number; height: number },
+): MapArtworkDefinition | null {
+  if (value === undefined) return null;
+  const source = record(value, path);
+  const worldSize = record(source.worldSize, `${path}.worldSize`);
+  const parsedWorldSize = {
+    width: number(worldSize.width, `${path}.worldSize.width`, 1),
+    height: number(worldSize.height, `${path}.worldSize.height`, 1),
+  };
+  if (parsedWorldSize.width !== world.width || parsedWorldSize.height !== world.height) {
+    fail(`${path}.worldSize`, `must match the terrain world (${world.width}x${world.height})`);
+  }
+  const origin = point(source.origin, `${path}.origin`, world);
+  if (origin.x !== 0 || origin.y !== 0) fail(`${path}.origin`, 'must be { x: 0, y: 0 }');
+  return { worldSize: parsedWorldSize, origin };
+}
+
 function parseBlocks(value: unknown, path: string): TerrainBlocks {
   const source = record(value, path);
   return {
@@ -119,23 +238,14 @@ function parseAssets(value: unknown, path: string): {
   tileAssets: string[];
   propAssets: string[];
   spawnEdgeAsset: string;
-  terrainAssets: MapDefinition['terrainAssets'];
 } {
   const source = record(value, path);
-  const terrainAssets = source.terrain === undefined
-    ? {}
-    : record(source.terrain, `${path}.terrain`);
   return {
     backgroundAsset: string(source.background ?? source.backgroundAsset, `${path}.background`),
     groundAsset: string(source.ground ?? source.background ?? source.backgroundAsset, `${path}.ground`),
     tileAssets: stringArray(source.tiles ?? source.tileAssets ?? [], `${path}.tiles`),
     propAssets: stringArray(source.props ?? source.propAssets ?? [], `${path}.props`),
     spawnEdgeAsset: string(source.spawnEdge ?? source.spawnEdgeAsset, `${path}.spawnEdge`),
-    terrainAssets: {
-      hillCenter: string(terrainAssets.hillCenter ?? source.ground ?? source.background ?? source.backgroundAsset, `${path}.terrain.hillCenter`),
-      hillEdge: string(terrainAssets.hillEdge ?? source.ground ?? source.background ?? source.backgroundAsset, `${path}.terrain.hillEdge`),
-      hillCorner: string(terrainAssets.hillCorner ?? source.ground ?? source.background ?? source.backgroundAsset, `${path}.terrain.hillCorner`),
-    },
   };
 }
 
@@ -177,28 +287,44 @@ export class MapDefinitionLoader {
       if (parsedWorld.cellSize !== 36) fail(`${path}.world.cellSize`, 'must be 36');
 
       const terrain = record(source.terrain, `${path}.terrain`);
-      const legendSource = record(terrain.legend, `${path}.terrain.legend`);
+      const hasRows = Object.prototype.hasOwnProperty.call(terrain, 'rows');
+      const hasRegions = Object.prototype.hasOwnProperty.call(terrain, 'regions');
+      if (hasRows && hasRegions) fail(`${path}.terrain`, 'must define either rows or regions, not both');
+      if (!hasRows && !hasRegions) fail(`${path}.terrain`, 'must define rows or regions');
+
       const legend: Record<string, string> = {};
-      for (const [symbol, typeId] of Object.entries(legendSource)) {
-        if (symbol.length !== 1) fail(`${path}.terrain.legend`, 'symbols must be one character');
-        const parsedTypeId = string(typeId, `${path}.terrain.legend.${symbol}`);
-        if (!terrainTypes[parsedTypeId]) fail(`${path}.terrain.legend.${symbol}`, `unknown terrain type '${parsedTypeId}'`);
-        legend[symbol] = parsedTypeId;
-      }
-      const rows = terrain.rows;
-      if (!Array.isArray(rows) || rows.length !== parsedWorld.rows) {
-        fail(`${path}.terrain.rows`, `must contain exactly ${parsedWorld.rows} rows`);
-      }
-      const parsedRows = rows.map((rawRow, rowIndex) => {
-        const row = string(rawRow, `${path}.terrain.rows[${rowIndex}]`);
-        if (row.length !== parsedWorld.columns) {
-          fail(`${path}.terrain.rows[${rowIndex}]`, `must contain exactly ${parsedWorld.columns} cells`);
+      let parsedRows: string[] | undefined;
+      if (hasRows) {
+        const legendSource = record(terrain.legend, `${path}.terrain.legend`);
+        for (const [symbol, typeId] of Object.entries(legendSource)) {
+          if (symbol.length !== 1) fail(`${path}.terrain.legend`, 'symbols must be one character');
+          const parsedTypeId = string(typeId, `${path}.terrain.legend.${symbol}`);
+          if (!terrainTypes[parsedTypeId]) fail(`${path}.terrain.legend.${symbol}`, `unknown terrain type '${parsedTypeId}'`);
+          legend[symbol] = parsedTypeId;
         }
-        for (const symbol of row) {
-          if (!legend[symbol]) fail(`${path}.terrain.rows[${rowIndex}]`, `unknown terrain symbol '${symbol}'`);
+        const rows = terrain.rows;
+        if (!Array.isArray(rows) || rows.length !== parsedWorld.rows) {
+          fail(`${path}.terrain.rows`, `must contain exactly ${parsedWorld.rows} rows`);
         }
-        return row;
-      });
+        parsedRows = rows.map((rawRow, rowIndex) => {
+          const row = string(rawRow, `${path}.terrain.rows[${rowIndex}]`);
+          if (row.length !== parsedWorld.columns) {
+            fail(`${path}.terrain.rows[${rowIndex}]`, `must contain exactly ${parsedWorld.columns} cells`);
+          }
+          for (const symbol of row) {
+            if (!legend[symbol]) fail(`${path}.terrain.rows[${rowIndex}]`, `unknown terrain symbol '${symbol}'`);
+          }
+          return row;
+        });
+      }
+      const regions = hasRegions
+        ? parseRegions(
+          terrain.regions,
+          `${path}.terrain.regions`,
+          { width: parsedWorld.columns * parsedWorld.cellSize, height: parsedWorld.rows * parsedWorld.cellSize },
+          terrainTypes,
+        )
+        : undefined;
 
       const assetsForMap = parseAssets(source.assets, `${path}.assets`);
       const assetRefs = [
@@ -207,15 +333,24 @@ export class MapDefinitionLoader {
         ...assetsForMap.tileAssets,
         ...assetsForMap.propAssets,
         assetsForMap.spawnEdgeAsset,
-        assetsForMap.terrainAssets.hillCenter,
-        assetsForMap.terrainAssets.hillEdge,
-        assetsForMap.terrainAssets.hillCorner,
       ];
       for (const assetId of assetRefs) {
         if (this.assetIds.size > 0 && !this.assetIds.has(assetId)) fail(`${path}.assets`, `unknown asset ID '${assetId}'`);
       }
 
-      const terrainData: TerrainMapData = { world: parsedWorld, terrain: { legend, rows: parsedRows }, terrainTypes };
+      const worldBounds = {
+        width: parsedWorld.columns * parsedWorld.cellSize,
+        height: parsedWorld.rows * parsedWorld.cellSize,
+      };
+      const terrainData: TerrainMapData = {
+        world: parsedWorld,
+        terrain: {
+          legend,
+          ...(parsedRows ? { rows: parsedRows } : {}),
+          ...(regions ? { regions } : {}),
+        },
+        terrainTypes,
+      };
       const grid = new TerrainGrid(terrainData);
       const tankStartCell = cell(
         source.tankStartCell,
@@ -235,12 +370,14 @@ export class MapDefinitionLoader {
 
       const gameplay = record(source.gameplay, `${path}.gameplay`);
       const safeMargin = record(source.safeMargin, `${path}.safeMargin`);
+      const artwork = parseArtwork(source.artwork, `${path}.artwork`, worldBounds);
       return {
         ...terrainData,
         mapId,
         planetId,
         regionId,
         ...assetsForMap,
+        artwork,
         repeat: {
           background: boolean(record(source.repeat, `${path}.repeat`).background, `${path}.repeat.background`),
           tile: boolean(record(source.repeat, `${path}.repeat`).tile, `${path}.repeat.tile`),

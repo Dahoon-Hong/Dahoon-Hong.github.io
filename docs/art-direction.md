@@ -53,6 +53,15 @@ Reading this as: PC 브라우저용 2D 탑다운 차량 방어 게임, 전투 �
 - sprite의 transparent padding은 draw box 안에만 두며, padding이 collision center를 바꾸지 않는다.
 - Canvas는 nearest-neighbor를 사용하고 `imageSmoothingEnabled = false`를 기본으로 한다. 실제 적용은 16단계 renderer가 담당한다.
 
+## Map artwork and terrain outline contract
+
+- 전환한 맵의 배경은 월드 전체를 덮는 하나의 완성 이미지다. 논리 원점은 항상 `(0, 0)`이고 표시 범위는 `world.columns * cellSize` × `world.rows * cellSize`다.
+- 이미지에 벽·언덕·길을 함께 그리며, 통과 불가 경계는 `maps.json`의 `terrain.regions`에 같은 월드 좌표로 기록한다. 별도 장애물 오브젝트나 반복 바위 스프라이트를 collision 표현으로 사용하지 않는다.
+- 각 region은 하나의 단순 볼록 polygon이다. 오목하거나 복잡한 지형은 여러 polygon으로 나누고, 내부 접합선은 벽으로 보거나 판정하지 않는다.
+- 배경 이미지의 그림자·빛 번짐·작은 균열은 충돌 경계가 아니다. 지면에서 읽히는 고형 구조의 경계만 polygon으로 만든다.
+- 이미지와 polygon은 생성·편집 단계에서 같은 guide 위에 겹쳐 확인한다. 개발 overlay로 대표 직선 벽, 언덕, 안쪽·바깥쪽 코너를 다시 확인한다.
+- 이미지 로드 실패는 열린 지형으로 바뀌는 이유가 되지 않는다. 판정은 JSON 지형 데이터에 남고, fallback은 경계를 확인할 수 있는 단순 표시만 제공한다.
+
 ## View and shape rules
 
 - 모든 월드 asset은 2D top-down orthographic 시점이다.

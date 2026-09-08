@@ -91,6 +91,9 @@ export class TerrainPathfinder {
     const dy = to.y - from.y;
     if (Math.abs(dx) > 1 || Math.abs(dy) > 1 || (dx === 0 && dy === 0)) return false;
     if (!this.isCellWalkable(to, radius)) return false;
+    const fromPoint = this.grid.cellToWorldCenter(from);
+    const toPoint = this.grid.cellToWorldCenter(to);
+    if (!this.grid.isOpenForRadiusSegment(fromPoint, toPoint, radius, 'enemy')) return false;
     if (dx !== 0 && dy !== 0) {
       if (!this.isCellWalkable({ x: from.x + dx, y: from.y }, radius)) return false;
       if (!this.isCellWalkable({ x: from.x, y: from.y + dy }, radius)) return false;

@@ -162,6 +162,10 @@ C:\Users\slaye\.codex\generated_images\01a06efb-5500-77b0-ac41-2c1e599d5304\
 
 15단계는 progression의 네 region ID에 맞춘 map background와 장식 보조 asset 세트다. map layer는 전투 영역 아래에서 읽히는 낮은 대비의 배경이며 actor, projectile, pickup, HUD 의미를 대신하지 않는다.
 
+## Plan 27 map alignment record
+
+Plan 27부터 전환한 맵은 완성 배경 이미지와 `maps.json`의 `terrain.regions`를 같은 월드 좌표 계약으로 제작한다. 배경에 보이는 벽·언덕은 별도 장애물 sprite로 반복 배치하지 않으며, polygon guide와 최종 PNG를 겹쳐 확인한 결과를 지역별 provenance에 기록한다. 이 단계에서는 기존 940x720 배경을 유지하고, 월드 크기 이미지와 실제 region별 생성 원본은 27.2와 27.5에서 추가한다.
+
 ### Background image generation 결과
 
 | Region ID | Accepted generated source | Runtime file | Logical draw box |
@@ -205,6 +209,31 @@ Plan 26 adds the minimum visual contract for the explicit terrain grid and the c
 
 All images were generated with the built-in `image_gen` tool and visually inspected before being copied into the workspace. The Aurelia/test terrain prompt requested a single centered top-down rocky hill tile on transparent background, hard pixel clusters, dark navy/cyan technical palette, and no text or UI. The Cinder terrain prompt used burnt charcoal, rust, and muted ember-orange volcanic strata. The world-map prompt requested a dark navy galaxy starfield with sparse cyan/white stars, a restrained tactical mood, and no text, UI, or focal planet so map nodes remain readable above it.
 
+The Plan 26 hill sprite entries above were retired in Plan 27.5 after all maps moved to full-world artwork and polygon terrain regions. The galaxy background remains active for the world-map screen.
+
 | Date | Change |
 | --- | --- |
 | 2026-09-07 | Added Plan 26 terrain hill sprite and galaxy world-map background with provenance and manifest entries. |
+
+Plan 27.5에서 hill 타일 두 종류와 맵별 hill sprite 참조를 제거했다. 아래 월드 크기 이미지가 다섯 맵의 배경과 표시 경계를 함께 담당하며, `TerrainGrid`는 각 이미지와 같은 좌표의 `terrain.regions`만 판정에 사용한다.
+
+### Plan 27.5 캠페인 맵 결과
+
+| Map ID | Source | Runtime file | Logical draw box |
+| --- | --- | --- | ---: |
+| `aurelia/landing-zone` | `scripts/map-source/aurelia-landing-zone-background.png` + polygon overlay | `public/assets/game/maps/aurelia-landing-zone-map.png` | 2880x2160 |
+| `aurelia/relay-fields` | `scripts/map-source/aurelia-relay-fields-background.png` + polygon overlay | `public/assets/game/maps/aurelia-relay-fields-map.png` | 2880x2160 |
+| `cinder/ash-basin` | `scripts/map-source/cinder-ash-basin-background.png` + polygon overlay | `public/assets/game/maps/cinder-ash-basin-map.png` | 2880x2160 |
+| `cinder/core-ruins` | `scripts/map-source/cinder-core-ruins-background.png` + polygon overlay | `public/assets/game/maps/cinder-core-ruins-map.png` | 2880x2160 |
+
+`scripts/generate-campaign-terrain-maps.ps1`는 기존 지역 색감과 `maps.json`의 polygon을 한 번에 rasterize한다. 캠페인과 테스트 맵 모두 배경을 반복하지 않고, tiles/props/hill sprite를 별도 장애물처럼 얹지 않는다.
+
+### Plan 27.2 테스트 맵 결과
+
+`test/terrain-test`는 `test-terrain-map.png` 한 장으로 월드 전체를 그린다. PNG의 월드 크기는 2880x2160이며, `maps.json`의 11개 hill polygon과 같은 36px 셀 경계에서 생성했다. 기존 hill 타일 반복 렌더링은 이 맵에서 사용하지 않는다. 경계 판정은 같은 polygon을 `TerrainGrid`가 재사용하며, 반지름 footprint·구간 스윕·raycast가 이미지 윤곽과 일치한다.
+
+| Logical ID | Source | Runtime file | Logical draw box |
+| --- | --- | --- | ---: |
+| `map.test.terrain-test.background` | `scripts/generate-test-terrain-map.ps1` + `field-base.png` | `public/assets/game/maps/test-terrain-map.png` | 2880x2160 |
+
+생성 스크립트는 어두운 전술 지형 위에 고정 hill polygon, 그림자, 림과 내부 등고선을 결정론적으로 합성한다. 충돌용 obstacle object나 반복 hill sprite는 이미지 위에 추가하지 않는다.

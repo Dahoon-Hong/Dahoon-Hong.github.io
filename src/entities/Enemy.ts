@@ -128,31 +128,34 @@ export abstract class Enemy {
     const currentPath = this.path.slice(this.waypointIndex);
     if (currentPath.length > 0 && (targetChanged ? pathValid : true)) {
       const waypoint = navigation.terrain.cellToWorldCenter(currentPath[0]);
-      if (this.moveToward(waypoint, dt)) this.waypointIndex++;
+      if (this.moveToward(waypoint, dt, navigation.terrain)) this.waypointIndex++;
       return;
     }
 
     if (this.path.length === 0 && this.lastTargetCell && this.sameCell(this.lastTargetCell, targetCell)) {
       // A path may legitimately be empty when the enemy and target share a cell.
-      if (this.sameCell(enemyCell, targetCell)) this.moveToward(targetPos, dt);
+      if (this.sameCell(enemyCell, targetCell)) this.moveToward(targetPos, dt, navigation.terrain);
     }
   }
 
-  private moveToward(targetPos: { x: number; y: number }, dt: number): boolean {
+  private moveToward(targetPos: { x: number; y: number }, dt: number, terrain?: TerrainGrid): boolean {
     const dx = targetPos.x - this.x;
     const dy = targetPos.y - this.y;
     const dist = Math.hypot(dx, dy);
     if (dist <= 0) return true;
 
     const moveDistance = this.speed * dt;
-    if (dist <= moveDistance) {
-      this.x = targetPos.x;
-      this.y = targetPos.y;
-      return true;
-    }
-    this.x += (dx / dist) * moveDistance;
-    this.y += (dy / dist) * moveDistance;
-    return false;
+    const requestedDistance = Math.min(dist, moveDistance);
+    const requestedEnd = {
+      x: this.x + (dx / dist) * requestedDistance,
+      y: this.y + (dy / dist) * requestedDistance,
+    };
+    const safeProgress = terrain
+      ? terrain.getSafeRadiusProgress({ x: this.x, y: this.y }, requestedEnd, this.radius, 'enemy')
+      : 1;
+    this.x += (requestedEnd.x - this.x) * safeProgress;
+    this.y += (requestedEnd.y - this.y) * safeProgress;
+    return requestedDistance >= dist - 1e-9 && safeProgress >= 1 - 1e-9;
   }
 
   private sameCell(a: TerrainCell | null, b: TerrainCell | null): boolean {

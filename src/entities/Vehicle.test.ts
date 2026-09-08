@@ -31,6 +31,12 @@ const terrain: TerrainMapData = {
   },
 };
 
+const rectangularDefinition: TankDefinition = {
+  ...definition,
+  id: 'rectangular-test',
+  grid: { columns: 2, rows: 4, blockedCells: [] },
+};
+
 describe('Vehicle terrain movement', () => {
   it('stops at a wall while allowing the unblocked axis to slide', () => {
     const vehicle = new Vehicle(90, 180, definition, new UpgradeManager(definition.modules));
@@ -52,6 +58,91 @@ describe('Vehicle terrain movement', () => {
     expect(vehicle.x).toBeLessThanOrEqual(120.01);
     expect(vehicle.y).toBeGreaterThanOrEqual(60);
     expect(vehicle.y).toBeLessThanOrEqual(300);
+  });
+
+  it('uses the rotated full hull for validity and movement resolution', () => {
+    const vehicle = new Vehicle(65, 108, rectangularDefinition, new UpgradeManager(rectangularDefinition.modules));
+    const grid = new TerrainGrid({
+      world: { cellSize: 36, columns: 6, rows: 6 },
+      terrain: {
+        legend: { '.': 'open', H: 'hill' },
+        rows: Array.from({ length: 6 }, () => '...H..'),
+      },
+      terrainTypes: terrain.terrainTypes,
+    });
+
+    expect(vehicle.isTerrainPositionValid({ x: 65, y: 108 }, grid, 0)).toBe(true);
+    expect(vehicle.isTerrainPositionValid({ x: 65, y: 108 }, grid, Math.PI / 4)).toBe(false);
+
+    vehicle.update(1, { x: 1, y: 1 }, { width: grid.width, height: grid.height, terrain: grid });
+    expect(vehicle.isTerrainPositionValid({ x: vehicle.x, y: vehicle.y }, grid)).toBe(true);
+  });
+
+  it('slides along a wall and remains stable in a blocked corner', () => {
+    const vehicle = new Vehicle(90, 90, definition, new UpgradeManager(definition.modules));
+    const grid = new TerrainGrid({
+      world: { cellSize: 36, columns: 10, rows: 10 },
+      terrain: {
+        legend: { '.': 'open', H: 'hill' },
+        rows: [
+          '..........',
+          '..........',
+          '..........',
+          '..........',
+          '..........',
+          '.....HHHHH',
+          '.....H....',
+          '.....H....',
+          '.....H....',
+          '.....H....',
+        ],
+      },
+      terrainTypes: terrain.terrainTypes,
+    });
+    const start = { x: vehicle.x, y: vehicle.y };
+
+    vehicle.update(1, { x: 1, y: 1 }, { width: grid.width, height: grid.height, terrain: grid });
+    const first = { x: vehicle.x, y: vehicle.y };
+    expect(grid.isBlockedOrientedRect(
+      first,
+      vehicle.getTerrainFootprint().halfWidth,
+      vehicle.getTerrainFootprint().halfHeight,
+      vehicle.getFacingRotation(),
+      'tank',
+    )).toBe(false);
+    expect(Math.hypot(first.x - start.x, first.y - start.y)).toBeLessThanOrEqual(180.01);
+    expect(first.y).toBeGreaterThan(start.y);
+
+    vehicle.update(1, { x: 1, y: 1 }, { width: grid.width, height: grid.height, terrain: grid });
+    const second = { x: vehicle.x, y: vehicle.y };
+    vehicle.update(1, { x: 1, y: 1 }, { width: grid.width, height: grid.height, terrain: grid });
+    expect(vehicle.x).toBeCloseTo(second.x, 4);
+    expect(vehicle.y).toBeCloseTo(second.y, 4);
+
+    vehicle.update(0.5, { x: -1, y: -1 }, { width: grid.width, height: grid.height, terrain: grid });
+    expect(vehicle.x).toBeLessThan(second.x);
+    expect(vehicle.y).toBeLessThan(second.y);
+    expect(vehicle.isTerrainPositionValid({ x: vehicle.x, y: vehicle.y }, grid)).toBe(true);
+  });
+
+  it('keeps the resolved wall route stable across common frame rates', () => {
+    const simulate = (steps: number): { x: number; y: number } => {
+      const vehicle = new Vehicle(90, 180, definition, new UpgradeManager(definition.modules));
+      const grid = new TerrainGrid(terrain);
+      for (let index = 0; index < steps; index++) {
+        vehicle.update(1 / steps, { x: 1, y: 1 }, { width: grid.width, height: grid.height, terrain: grid });
+      }
+      expect(vehicle.isTerrainPositionValid({ x: vehicle.x, y: vehicle.y }, grid)).toBe(true);
+      return { x: vehicle.x, y: vehicle.y };
+    };
+
+    const thirty = simulate(30);
+    const sixty = simulate(60);
+    const oneTwenty = simulate(120);
+    for (const result of [sixty, oneTwenty]) {
+      expect(Math.abs(result.x - thirty.x)).toBeLessThanOrEqual(1.5);
+      expect(Math.abs(result.y - thirty.y)).toBeLessThanOrEqual(1.5);
+    }
   });
 });
 
