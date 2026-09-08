@@ -22,7 +22,7 @@
 - 적·행성·지역 콘텐츠: [07-progression-content.md](07-progression-content.md)
 - 시스템 규칙: [../system.md](../system.md)
 - 현재 사용자 조작: [../user_guide.md](../user_guide.md)
-- 저장소 작업 규칙: [../../agents.md](../../agents.md)
+- 저장소 작업 규칙: [../../AGENTS.md](../../AGENTS.md)
 
 ## 목표
 
