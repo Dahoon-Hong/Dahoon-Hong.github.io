@@ -2,6 +2,11 @@
 plan 구현시 commit 진행. commit message는 plan 번호를 반드시 포함한다.
 plan구현이 아닌 경우 내용을 commit message는 짧은 설명으로 진행한다.
 
+- 기여 작업 지침
+branch 생성, commit, push, PR 생성·수정 등 repository 기여 활동을 시작하기 전에 `docs/contribution/README.md`를 읽고 따른다.
+기본 브랜치 `defence`는 보호되어 있으므로 직접 push하지 않고, 문서에 정의된 prefix의 작업 브랜치에서 작업한 뒤 `defence`를 대상으로 PR을 생성한다.
+PR 본문은 `.github/pull_request_template.md`를 사용한다.
+
 - 구현 지침
 과구현을 피하고 간결한 구조를 우선한다.
 구현 후 npm run dev나 이미 떠있는 서버를 확인하여 정상 구현되었는지 확인한다.
