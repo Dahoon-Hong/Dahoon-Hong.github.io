@@ -1,3 +1,8 @@
+- branch/PR 지침
+  - 브랜치는 `feature/`, `fix/`, `chore/`, `docs/`, `refactor/`, `test/` 중 하나로 시작한다. `ai/`, `codex/`는 사용하지 않는다.
+  - PR 전 `git fetch --prune origin defence`로 최신 `origin/defence`를 확인한다. 실패하면 작업을 중단한다.
+  - 최신 `origin/defence`에서 브랜치를 만들고, 사용자 변경을 제외한 의도한 diff와 PR template을 확인한 뒤 `defence` 대상으로 PR을 생성한다.
+
 - commit 지침
 plan 구현시 commit 진행. commit message는 plan 번호를 반드시 포함한다.
 plan구현이 아닌 경우 내용을 commit message는 짧은 설명으로 진행한다.
