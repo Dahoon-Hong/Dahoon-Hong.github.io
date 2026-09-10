@@ -4,7 +4,7 @@
 
 상태: 계획 문서화 완료, 구현 전
 
-구현 순서와 단계별 완료 기준: [Plan 27 구현 계획](../../../plans/implementation/27-map-art-and-terrain-interaction.md)
+구현 순서와 단계별 완료 기준: [6번 맵 아트·지형 구현 계획](../../../plans/implementation/6-map-art-terrain/6-map-art-terrain.md)
 
 ## 목표와 사용자 의도
 
