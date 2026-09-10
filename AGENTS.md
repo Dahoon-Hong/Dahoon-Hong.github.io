@@ -13,9 +13,11 @@ branch 생성, commit, push, PR 생성·수정 등 repository 기여 활동을 �
 PR 본문은 `.github/pull_request_template.md`를 사용한다.
 
 - 구현 지침
-과구현을 피하고 간결한 구조를 우선한다.
-구현 후 npm run dev나 이미 떠있는 서버를 확인하여 정상 구현되었는지 확인한다.
-변경용이성을 높은 우선순위로 두고, 변수 사용시 설정(json)으로 분리하는 것을 고려한다.
+  - 과구현을 피하고 간결한 구조를 우선한다.
+  - 구현 전 plans/implementation/progress.md와 대상 plan directory를 확인하고, 구현할 plan과 범위를 정한다.
+  - 구현 후 plans/implementation/progress.md에 yyyy-mm-dd | git user id | plan dir | 진행내용 형식으로 진행 내용을 업데이트한다.
+  - 구현 후 npm run dev나 이미 떠있는 서버를 확인하여 정상 구현되었는지 확인한다.
+  - 변경용이성을 높은 우선순위로 두고, 변수 사용시 설정(json)으로 분리하는 것을 고려한다.
 
 코드 작성이나 대화 중 agent가 나중에 기억해야할 내용은 여기에 기록한다.
 
@@ -27,7 +29,7 @@ PR 본문은 `.github/pull_request_template.md`를 사용한다.
 `docs/` 아래 파일을 작성하거나 수정하기 전에 `docs/agents.md`를 읽고 따른다.
 
 - 일시정지 중에는 01 기준으로 모듈 설치·업그레이드를 허용하고, 자동 생산·자원 수집은 중지한다.
-- 맵의 벽·언덕은 완성 맵 이미지 안에서 표현하며 별도 장애물 오브젝트나 반복 바위 스프라이트를 얹지 않는다. 이미지와 숨겨진 지형 윤곽을 함께 맞추고, 회전한 차체의 벽 관통 방지와 부드러운 코너 이동을 검증한다. 후속 설계와 구현 순서는 `plans/implementation/27-map-art-and-terrain-interaction.md`를 따른다.
+- 맵의 벽·언덕은 완성 맵 이미지 안에서 표현하며 별도 장애물 오브젝트나 반복 바위 스프라이트를 얹지 않는다. 이미지와 숨겨진 지형 윤곽을 함께 맞추고, 회전한 차체의 벽 관통 방지와 부드러운 코너 이동을 검증한다. 후속 설계와 구현 순서는 `plans/implementation/6-map-art-terrain/6-map-art-terrain.md`를 따른다.
 
 - 스킬 사용 지침
 plan 문서를 작성하거나 plan 작업을 시작할 때 `brainstorming` 스킬을 먼저 사용한다.

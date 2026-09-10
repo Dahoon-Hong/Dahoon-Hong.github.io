@@ -149,7 +149,7 @@ no photorealism, no 3D render, no soft bloom, no decorative background.
 
 ## References
 
-- 상세 작업 계획: `plans/implementation/11-art-direction-and-asset-contract.md`
+- 상세 작업 계획: `plans/implementation/2-design-art/2.1-art-direction-and-asset-contract.md`
 - runtime manifest: `src/data/assets.json`
 - asset provenance: `docs/art-asset-provenance.md`
 - generated raster assets: `public/assets/game/`

@@ -29,7 +29,7 @@
 
 벽과 언덕은 완성된 월드 크기 맵 이미지 안에 표현하고, 실제 충돌은 같은 좌표의 `terrain.regions`가 담당한다. 별도 장애물 오브젝트나 반복 바위 스프라이트를 덧붙이지 않는다.
 
-맵 구현과 검증은 `plans/implementation/27-map-art-and-terrain-interaction.md`의 확정된 지형 원칙을 따른다.
+맵 구현과 검증은 `plans/implementation/6-map-art-terrain/6-map-art-terrain.md`의 확정된 지형 원칙을 따른다.
 
 ## 파일 위치
 
