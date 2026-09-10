@@ -15,7 +15,7 @@ PR 본문은 `.github/pull_request_template.md`를 사용한다.
 - 구현 지침
   - 과구현을 피하고 간결한 구조를 우선한다.
   - 구현 전 plans/implementation/progress.md와 대상 plan directory를 확인하고, 구현할 plan과 범위를 정한다.
-  - 구현 후 plans/implementation/progress.md에 yyyy-mm-dd | git user id | plan dir | 진행내용 형식으로 진행 내용을 업데이트한다.
+  - 구현 후 plans/implementation/progress.md에 yyyy-mm-dd | plan dir | 진행내용 형식으로 진행 내용을 업데이트한다.
   - 구현 후 npm run dev나 이미 떠있는 서버를 확인하여 정상 구현되었는지 확인한다.
   - 변경용이성을 높은 우선순위로 두고, 변수 사용시 설정(json)으로 분리하는 것을 고려한다.
 
