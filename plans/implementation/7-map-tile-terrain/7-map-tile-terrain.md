@@ -31,7 +31,8 @@
 - 기존 36px 셀을 18px로 축소
 - 1번 맵 grid: `160 columns × 120 rows`
 - 기존 다른 맵: 36px 및 현재 polygon/rows 계약을 유지
-- 캠페인 순서, 웨이브 수치, 적 수치, 월드맵 연결, 탱크 크기와 게임 규칙은 변경하지 않음
+- 캠페인 순서, 웨이브 수치, 적 수치, 월드맵 연결과 탱크 시각 크기는 변경하지 않음
+- 후속 승인 단계 7.11에서 1번 맵에 한해 지형 충돌 footprint와 좁은 연결부의 tile 폭을 조정함
 
 ### 첨부 이미지 해석
 
@@ -85,6 +86,7 @@
 | [7.8](7.8-map1-gameplay-integration.md) | 탱크·적·투사체·자원 흐름 통합 | 자동 회귀와 map1 시나리오 |
 | [7.9](7.9-map1-tile-qa.md) | tile 전용 자동 검증과 debug overlay | 실패 케이스별 명확한 error |
 | [7.10](7.10-map1-runtime-verification.md) | 실제 게임 실행 및 integration-tester 검증 | PASS일 때만 완료 |
+| [7.11](7.11-map1-vehicle-clearance.md) | 1번 맵 탱크 hitbox 축소와 좁은 길 확장 | 3 tile 폭 통과·회전·실제 브라우저 검증 |
 
 앞 단계의 검증이 실패하면 다음 단계로 진행하지 않는다. 특히 7.5에서 모든 스폰의 적 경로가 확보되지 않으면 art와 런타임 QA를 진행하지 않는다.
 
