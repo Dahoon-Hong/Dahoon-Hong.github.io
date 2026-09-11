@@ -45,6 +45,7 @@ type AssetManifest = { sprites?: Record<string, unknown> };
 const DEFAULT_DATA = mapData as unknown as MapDataRoot;
 const DEFAULT_ASSETS = assetData as AssetManifest;
 const ENEMY_RADII = [enemyData.standard.radius, enemyData.tanker.radius];
+const SUPPORTED_CELL_SIZES = new Set([18, 36]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -284,7 +285,9 @@ export class MapDefinitionLoader {
         columns: integer(world.columns, `${path}.world.columns`, 1),
         rows: integer(world.rows, `${path}.world.rows`, 1),
       };
-      if (parsedWorld.cellSize !== 36) fail(`${path}.world.cellSize`, 'must be 36');
+      if (!SUPPORTED_CELL_SIZES.has(parsedWorld.cellSize)) {
+        fail(`${path}.world.cellSize`, 'must be one of 18 or 36');
+      }
 
       const terrain = record(source.terrain, `${path}.terrain`);
       const hasRows = Object.prototype.hasOwnProperty.call(terrain, 'rows');

@@ -42,6 +42,38 @@ describe('MapDefinitionLoader', () => {
     expect(loader.getAccessiblePickupCells('test/example', 2)).toEqual([{ x: 1, y: 0 }, { x: 0, y: 0 }]);
   });
 
+  it('loads an 18px tile map without changing its world dimensions', () => {
+    const loader = new MapDefinitionLoader(makeRoot({
+      maps: [{
+        ...makeRoot().maps[0] as Record<string, unknown>,
+        world: { cellSize: 18, columns: 5, rows: 5 },
+        terrain: { legend: { '.': 'open', H: 'hill' }, rows: ['.....', '.....', '.....', '.....', '.....'] },
+        tankStartCell: { x: 1, y: 1 },
+        enemySpawnCells: [{ x: 3, y: 3 }],
+      }],
+    }), noAssets);
+    const map = loader.getById('test/example');
+
+    expect(map?.world).toEqual({ cellSize: 18, columns: 5, rows: 5 });
+    expect(loader.createTerrainGrid('test/example').getWorldBounds()).toEqual({
+      left: 0,
+      top: 0,
+      right: 90,
+      bottom: 90,
+      width: 90,
+      height: 90,
+    });
+  });
+
+  it('rejects unsupported cell sizes', () => {
+    expect(() => new MapDefinitionLoader(makeRoot({
+      maps: [{
+        ...makeRoot().maps[0] as Record<string, unknown>,
+        world: { cellSize: 20, columns: 3, rows: 2 },
+      }],
+    }), noAssets)).toThrow(/must be one of 18 or 36/);
+  });
+
   it('rejects row shape, unknown symbols, and duplicate map IDs', () => {
     expect(() => new MapDefinitionLoader(makeRoot({
       maps: [{
