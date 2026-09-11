@@ -23,7 +23,7 @@
         "columns": 160,
         "rows": 120
       },
-      "tankCollisionScale": 0.5,
+      "tankCollisionScale": 0.45,
       "tankStartCell": {
         "x": 73,
         "y": 48

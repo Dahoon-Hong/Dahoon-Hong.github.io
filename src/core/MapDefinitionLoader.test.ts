@@ -184,7 +184,7 @@ describe('MapDefinitionLoader', () => {
     for (const map of mapDefinitionLoader.getAll()) {
       expect(map.world).toEqual(expectedWorlds[map.mapId as keyof typeof expectedWorlds]);
       if (map.mapId === 'aurelia/landing-zone') {
-        expect(map.tankCollisionScale).toBe(0.5);
+        expect(map.tankCollisionScale).toBe(0.45);
         expect(map.terrain.rows).toHaveLength(120);
         expect(map.terrain.regions).toBeUndefined();
         expect(map.tankStartCell).toEqual({ x: 73, y: 48 });

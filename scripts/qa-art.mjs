@@ -175,8 +175,8 @@ if (!map1) {
   for (const [key, value] of Object.entries(expectedWorld)) {
     if (map1.world?.[key] !== value) fail(`${map1.mapId}.world.${key} must be ${value}`);
   }
-  if (map1.tankCollisionScale !== 0.5) {
-    fail(`${map1.mapId}.tankCollisionScale must be 0.5 for the three-tile tank footprint`);
+  if (map1.tankCollisionScale !== 0.45) {
+    fail(`${map1.mapId}.tankCollisionScale must be 0.45 for the lenient three-tile tank footprint`);
   }
   if (Array.isArray(map1.terrain?.regions)) {
     fail(`${map1.mapId}.terrain.regions must be absent for tile terrain`);
