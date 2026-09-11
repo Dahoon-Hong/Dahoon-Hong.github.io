@@ -5,7 +5,14 @@ const root = process.cwd();
 const errors = [];
 const warnings = [];
 
-const readJson = (relativePath) => JSON.parse(fs.readFileSync(path.join(root, relativePath), 'utf8'));
+const readJson = (relativePath) => JSON.parse(
+  fs.readFileSync(path.join(root, relativePath), 'utf8').replace(/^\uFEFF/, ''),
+);
+const readPngDimensions = (filePath) => {
+  const buffer = fs.readFileSync(filePath);
+  if (buffer.length < 24 || buffer.toString('ascii', 1, 4) !== 'PNG') return null;
+  return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+};
 const walk = (directory) => fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
   const file = path.join(directory, entry.name);
   return entry.isDirectory() ? walk(file) : [file];
@@ -157,6 +164,101 @@ for (const map of maps.maps ?? []) {
     if (background && (background.draw.width !== expectedWidth || background.draw.height !== expectedHeight)) {
       fail(`${map.planetId}/${map.regionId} artwork size must match background draw box`);
     }
+  }
+}
+
+const map1 = (maps.maps ?? []).find((map) => map.mapId === 'aurelia/landing-zone');
+if (!map1) {
+  fail('aurelia/landing-zone map is missing');
+} else {
+  const expectedWorld = { cellSize: 18, columns: 160, rows: 120 };
+  for (const [key, value] of Object.entries(expectedWorld)) {
+    if (map1.world?.[key] !== value) fail(`${map1.mapId}.world.${key} must be ${value}`);
+  }
+  if (Array.isArray(map1.terrain?.regions)) {
+    fail(`${map1.mapId}.terrain.regions must be absent for tile terrain`);
+  }
+
+  const terrainRows = map1.terrain?.rows;
+  const openSymbols = Object.entries(map1.terrain?.legend ?? {})
+    .filter(([, terrainId]) => terrainId === 'open')
+    .map(([symbol]) => symbol);
+  const checkOpenCell = (cell, label) => {
+    if (!cell || !Number.isInteger(cell.x) || !Number.isInteger(cell.y)) {
+      fail(`${map1.mapId}.${label} must be an integer cell`);
+      return;
+    }
+    const symbol = terrainRows?.[cell.y]?.[cell.x];
+    if (!openSymbols.includes(symbol)) {
+      fail(`${map1.mapId}.${label} at row ${cell.y}, column ${cell.x} must be an open cell`);
+    }
+  };
+
+  checkOpenCell(map1.tankStartCell, 'tankStartCell');
+  if (!Array.isArray(map1.enemySpawnCells) || map1.enemySpawnCells.length !== 4) {
+    fail(`${map1.mapId}.enemySpawnCells must contain exactly 4 cells`);
+  } else {
+    map1.enemySpawnCells.forEach((cell, index) => checkOpenCell(cell, `enemySpawnCells[${index}]`));
+  }
+
+  const map1BackgroundId = map1.assets?.background ?? map1.backgroundAsset;
+  const map1Background = sprites[map1BackgroundId];
+  if (!map1Background?.src) {
+    fail(`${map1.mapId} background asset is missing from the manifest`);
+  } else {
+    const map1AssetPath = path.resolve(root, 'public', map1Background.src.replace(/^\/+/, ''));
+    try {
+      const dimensions = readPngDimensions(map1AssetPath);
+      if (!dimensions || dimensions.width !== 2880 || dimensions.height !== 2160) {
+        fail(`${map1.mapId} final PNG must be 2880x2160`);
+      }
+    } catch {
+      fail(`${map1.mapId} final PNG is missing or unreadable`);
+    }
+  }
+
+  const converterPath = path.join(root, 'scripts', 'convert-map1-layout.ps1');
+  if (!fs.existsSync(converterPath)) fail(`${map1.mapId} layout converter script is missing`);
+  const candidateRelativePath = 'scripts/map-source/aurelia-landing-zone-layout-candidate.json';
+  const candidatePath = path.join(root, candidateRelativePath);
+  if (!fs.existsSync(candidatePath)) {
+    fail(`${map1.mapId} source mapping metadata is missing: ${candidateRelativePath}`);
+  } else {
+    try {
+      const candidate = readJson(candidateRelativePath);
+      if (candidate.world?.cellSize !== 18 || candidate.world?.columns !== 160 || candidate.world?.rows !== 120) {
+        fail(`${map1.mapId} source mapping metadata has an invalid tile contract`);
+      }
+      const sourceRelativePath = candidate.source?.path;
+      if (typeof sourceRelativePath !== 'string' || !sourceRelativePath) {
+        fail(`${map1.mapId} source mapping metadata is missing source.path`);
+      } else {
+        const sourcePath = path.join(root, 'scripts', 'map-source', sourceRelativePath);
+        const dimensions = fs.existsSync(sourcePath) ? readPngDimensions(sourcePath) : null;
+        if (!dimensions || dimensions.width !== 814 || dimensions.height !== 709) {
+          fail(`${map1.mapId} source layout must be 814x709 PNG`);
+        }
+      }
+    } catch {
+      fail(`${map1.mapId} source mapping metadata is invalid JSON`);
+    }
+  }
+}
+
+const expectedRegionCounts = {
+  'aurelia/relay-fields': 4,
+  'cinder/ash-basin': 4,
+  'cinder/core-ruins': 7,
+  'test/terrain-test': 11,
+};
+for (const [mapId, expectedCount] of Object.entries(expectedRegionCounts)) {
+  const map = (maps.maps ?? []).find((candidate) => candidate.mapId === mapId);
+  if (!map) {
+    fail(`${mapId} map is missing`);
+  } else if (map.terrain?.rows) {
+    fail(`${mapId} must keep polygon terrain.regions instead of tile rows`);
+  } else if (!Array.isArray(map.terrain?.regions) || map.terrain.regions.length !== expectedCount) {
+    fail(`${mapId}.terrain.regions must contain ${expectedCount} regions`);
   }
 }
 
