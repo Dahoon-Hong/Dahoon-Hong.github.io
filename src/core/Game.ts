@@ -632,6 +632,8 @@ export class Game {
     for (const pickup of this.pickups) pickup.render(this.renderContext);
     for (const projectile of this.projectiles) projectile.render(this.renderContext);
     for (const effect of this.effects) effect.render(this.renderContext);
+    const currentMap = this.getCurrentMap();
+    if (currentMap?.mapId === TILE_TERRAIN_MAP_ID) this.renderEnemySpawnMarkers(currentMap);
     if (this.terrainDebugVisible) this.renderTerrainDebugOverlay();
     this.ctx.restore();
 
@@ -798,7 +800,6 @@ export class Game {
       if (spawnEdgeHeight <= 0) break;
     }
 
-    if (map.mapId === TILE_TERRAIN_MAP_ID) this.renderEnemySpawnMarkers(map);
   }
 
   private renderEnemySpawnMarkers(map: MapDefinition): void {
