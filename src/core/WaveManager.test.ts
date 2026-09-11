@@ -21,6 +21,14 @@ const terrain = new TerrainGrid({
   },
 } satisfies TerrainMapData);
 
+const tileTerrain = new TerrainGrid({
+  world: { cellSize: 18, columns: 4, rows: 3 },
+  terrain: { legend: { '.': 'open' }, rows: ['....', '....', '....'] },
+  terrainTypes: {
+    open: { id: 'open', blocks: { tank: false, enemy: false, projectile: false } },
+  },
+} satisfies TerrainMapData);
+
 const region: RegionDefinition = {
   id: 'test-wave',
   mapId: 'test/test-wave',
@@ -49,6 +57,24 @@ describe('WaveManager', () => {
       ['standard', 18, 18],
       ['standard', 126, 54],
       ['tanker', 18, 18],
+    ]);
+  });
+
+  it('uses 18px tile centers when spawning enemies on a tile map', () => {
+    const manager = new WaveManager(region, enemyDefinitions, {
+      terrain: tileTerrain,
+      spawnCells: [{ x: 1, y: 1 }, { x: 3, y: 2 }],
+    });
+    const enemies: Array<StandardEnemy | TankerEnemy> = [];
+
+    manager.update(0.1, enemies, tileTerrain.width, tileTerrain.height, { x: 0, y: 0 });
+    manager.update(0.1, enemies, tileTerrain.width, tileTerrain.height, { x: 0, y: 0 });
+    manager.update(0.1, enemies, tileTerrain.width, tileTerrain.height, { x: 0, y: 0 });
+
+    expect(enemies.map((enemy) => [enemy.enemyType, enemy.x, enemy.y])).toEqual([
+      ['standard', 27, 27],
+      ['standard', 63, 45],
+      ['tanker', 27, 27],
     ]);
   });
 

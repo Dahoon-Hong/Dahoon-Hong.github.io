@@ -183,6 +183,8 @@ describe('MapDefinitionLoader', () => {
           { x: 68, y: 72 },
           { x: 128, y: 18 },
         ]);
+        expect([map.tankStartCell, ...map.enemySpawnCells].every((cell) =>
+          map.terrain.rows?.[cell.y]?.[cell.x] === '.')).toBe(true);
       } else {
         expect(map.terrain.regions).toHaveLength(expectedRegionCounts[map.mapId]);
       }
