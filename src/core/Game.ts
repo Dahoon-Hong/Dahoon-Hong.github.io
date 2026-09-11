@@ -53,6 +53,7 @@ const LOGICAL_CANVAS_HEIGHT = 720;
 const MAX_EFFECTS = 128;
 const MAP_TILE_POSITIONS = [[128, 112], [760, 132], [154, 526], [716, 570]] as const;
 const MAP_PROP_POSITIONS = [[78, 174], [846, 176], [96, 626], [824, 614]] as const;
+const TILE_TERRAIN_MAP_ID = 'aurelia/landing-zone';
 const PAUSE_MENU_OPTIONS = ['RESUME', 'ABANDON RUN'] as const;
 
 export class Game {
@@ -469,7 +470,9 @@ export class Game {
       this.input.consumeDebugOverlayRequest();
       return;
     }
-    if (this.input.consumeDebugOverlayRequest() && this.getCurrentMap()?.mapId === 'test/terrain-test') {
+    const currentMap = this.getCurrentMap();
+    if (this.input.consumeDebugOverlayRequest() &&
+      (currentMap?.mapId === 'test/terrain-test' || currentMap?.mapId === TILE_TERRAIN_MAP_ID)) {
       this.terrainDebugVisible = !this.terrainDebugVisible;
     }
     if (this.input.consumePauseRequest()) {
@@ -794,6 +797,39 @@ export class Game {
       this.renderer.drawSprite(this.renderContext, map.spawnEdgeAsset, 0, worldY, { alpha: 0.65 });
       if (spawnEdgeHeight <= 0) break;
     }
+
+    if (map.mapId === TILE_TERRAIN_MAP_ID) this.renderEnemySpawnMarkers(map);
+  }
+
+  private renderEnemySpawnMarkers(map: MapDefinition): void {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#ff335e';
+    ctx.fillStyle = 'rgba(255, 51, 94, 0.14)';
+
+    for (const cell of map.enemySpawnCells) {
+      const bounds = this.terrainGrid.getCellBounds(cell);
+      const center = this.terrainGrid.cellToWorldCenter(cell);
+      const inset = Math.max(1, this.terrainGrid.cellSize * 0.1);
+      const radius = Math.max(4, Math.min(8, this.terrainGrid.cellSize * 0.4));
+      ctx.fillRect(
+        bounds.left + inset,
+        bounds.top + inset,
+        this.terrainGrid.cellSize - inset * 2,
+        this.terrainGrid.cellSize - inset * 2,
+      );
+      ctx.strokeRect(
+        bounds.left + inset,
+        bounds.top + inset,
+        this.terrainGrid.cellSize - inset * 2,
+        this.terrainGrid.cellSize - inset * 2,
+      );
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   private renderTerrainDebugOverlay(): void {
@@ -832,6 +868,20 @@ export class Game {
           ctx.fillRect(bounds.left + 3 + index * 8, bounds.bottom - 6, 6, 3);
         }
       }
+    }
+
+    const map = this.getCurrentMap();
+    if (map?.mapId === TILE_TERRAIN_MAP_ID) {
+      const bounds = this.terrainGrid.getCellBounds(map.tankStartCell);
+      const center = this.terrainGrid.cellToWorldCenter(map.tankStartCell);
+      ctx.fillStyle = 'rgba(41, 121, 255, 0.18)';
+      ctx.fillRect(bounds.left + 1, bounds.top + 1, this.terrainGrid.cellSize - 2, this.terrainGrid.cellSize - 2);
+      ctx.strokeStyle = '#2979ff';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(bounds.left + 1, bounds.top + 1, this.terrainGrid.cellSize - 2, this.terrainGrid.cellSize - 2);
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, Math.max(4, Math.min(8, this.terrainGrid.cellSize * 0.4)), 0, Math.PI * 2);
+      ctx.stroke();
     }
 
     const footprint = this.vehicle.getTerrainFootprintPolygon();
