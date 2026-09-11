@@ -3,7 +3,7 @@
   "kind": "builtin",
   "name": "Armor Plate",
   "behavior": "armor-plate",
-  "baseStats": { "armorValue": 1 },
+  "baseStats": { "armorValue": 5 },
   "upgradeTree": {
     "rootId": "root",
     "nodes": [
