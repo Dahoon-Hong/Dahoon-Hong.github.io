@@ -11,3 +11,4 @@
 | 2026-09-10 | plans/implementation/5-terrain-world-map/ | 기존 26.1~26.9를 5.1~5.9로 정리하고 지형·메뉴·월드맵·통합 회귀 순서를 유지한다. |
 | 2026-09-10 | plans/implementation/6-map-art-terrain/ | 기존 27.1~27.6을 6.1~6.6 세부 plan으로 분리하고 맵 이미지·지형·차체 상호작용을 추적한다. |
 | 2026-09-11 | plans/implementation/7-map-tile-terrain/ | 1번 맵을 18px tile rows 기반 160x120 지형으로 전환하고, 4개 enemy spawn marker·숨은 tank start·아트 정렬 QA·실제 브라우저 통합 검증(PASS)까지 7.1~7.10을 완료했다. |
+| 2026-09-11 | plans/implementation/7-map-tile-terrain/ | 7.11에서 1번 맵 탱크 terrain hitbox를 3 tile 폭 수준으로 축소하고 좁은 연결부를 1 tile 확장했으며, 자동 QA와 실제 브라우저 검증(PASS)을 완료했다. |
