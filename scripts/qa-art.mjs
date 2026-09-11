@@ -137,7 +137,20 @@ for (const map of maps.maps ?? []) {
     if (id && !sprites[id]) fail(`${map.planetId}/${map.regionId} requires missing manifest ID ${id}`);
   }
   if (map.artwork) {
-    if (map.terrain?.rows) fail(`${map.planetId}/${map.regionId} artwork maps must use terrain.regions`);
+    if (map.terrain?.rows && map.mapId !== 'aurelia/landing-zone') {
+      fail(`${map.planetId}/${map.regionId} rows-based artwork is only enabled for aurelia/landing-zone`);
+    }
+    if (map.terrain?.rows) {
+      if (map.terrain.rows.length !== map.world?.rows) {
+        fail(`${map.planetId}/${map.regionId} terrain row count must match world.rows`);
+      }
+      for (const [rowIndex, row] of map.terrain.rows.entries()) {
+        if (row.length !== map.world?.columns) {
+          fail(`${map.planetId}/${map.regionId} terrain row ${rowIndex} must match world.columns`);
+          break;
+        }
+      }
+    }
     const background = sprites[backgroundId];
     const expectedWidth = map.artwork.worldSize?.width;
     const expectedHeight = map.artwork.worldSize?.height;

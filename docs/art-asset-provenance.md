@@ -215,18 +215,33 @@ The Plan 26 hill sprite entries above were retired in Plan 27.5 after all maps m
 | --- | --- |
 | 2026-09-07 | Added Plan 26 terrain hill sprite and galaxy world-map background with provenance and manifest entries. |
 
-Plan 27.5에서 hill 타일 두 종류와 맵별 hill sprite 참조를 제거했다. 아래 월드 크기 이미지가 다섯 맵의 배경과 표시 경계를 함께 담당하며, `TerrainGrid`는 각 이미지와 같은 좌표의 `terrain.regions`만 판정에 사용한다.
+Plan 27.5에서 hill 타일 두 종류와 맵별 hill sprite 참조를 제거했다. 아래 월드 크기 이미지가 캠페인 맵의 배경과 표시 경계를 함께 담당한다. 현재는 `aurelia/landing-zone`에 한해 `maps.json`의 18px tile rows가 이미지와 같은 좌표의 지형 판정에 사용되며, 나머지 맵은 기존 `terrain.regions` 계약을 유지한다.
 
 ### Plan 27.5 캠페인 맵 결과
 
 | Map ID | Source | Runtime file | Logical draw box |
 | --- | --- | --- | ---: |
-| `aurelia/landing-zone` | `scripts/map-source/aurelia-landing-zone-background.png` + polygon overlay | `public/assets/game/maps/aurelia-landing-zone-map.png` | 2880x2160 |
+| `aurelia/landing-zone` | `scripts/map-source/aurelia-landing-zone-background.png` + `maps.json` 18px tile rows | `public/assets/game/maps/aurelia-landing-zone-map.png` | 2880x2160 |
 | `aurelia/relay-fields` | `scripts/map-source/aurelia-relay-fields-background.png` + polygon overlay | `public/assets/game/maps/aurelia-relay-fields-map.png` | 2880x2160 |
 | `cinder/ash-basin` | `scripts/map-source/cinder-ash-basin-background.png` + polygon overlay | `public/assets/game/maps/cinder-ash-basin-map.png` | 2880x2160 |
 | `cinder/core-ruins` | `scripts/map-source/cinder-core-ruins-background.png` + polygon overlay | `public/assets/game/maps/cinder-core-ruins-map.png` | 2880x2160 |
 
-`scripts/generate-campaign-terrain-maps.ps1`는 기존 지역 색감과 `maps.json`의 polygon을 한 번에 rasterize한다. 캠페인과 테스트 맵 모두 배경을 반복하지 않고, tiles/props/hill sprite를 별도 장애물처럼 얹지 않는다.
+`scripts/generate-campaign-terrain-maps.ps1`는 기존 지역 색감과 `maps.json`의 지형 정의를 한 번에 rasterize한다. `aurelia/landing-zone`은 tile row를 셀 단위로 채우고 외곽 림만 그리며, 나머지 캠페인 맵은 polygon을 사용한다. 캠페인과 테스트 맵 모두 배경을 반복하지 않고, tiles/props/hill sprite를 별도 장애물처럼 얹지 않는다.
+
+### Plan 7 map1 tile terrain conversion
+
+`aurelia/landing-zone`의 지형 원본은 사용자가 제공한 레이아웃 reference image다. 검은색 opaque 영역은 blocked terrain, 투명 영역은 open terrain으로 분류하고, 빨간 표시는 enemy spawn, 파란 표시는 숨겨진 tank start로 별도 추출했다. 레이아웃 이미지는 runtime art에 직접 사용하지 않고, 변환 결과를 `maps.json`의 canonical tile rows와 최종 월드 이미지에 반영한다.
+
+| Item | Value |
+| --- | --- |
+| Source reference | `scripts/map-source/aurelia-landing-zone-layout.png` |
+| Conversion / preview | `scripts/convert-map1-layout.ps1`, `aurelia-landing-zone-layout-candidate.json`, `aurelia-landing-zone-layout-preview.png` |
+| World mapping | 814x709 source to 2880x2160 world, centered contain mapping |
+| Tile contract | 18px cells, 160 columns x 120 rows |
+| Extracted markers | tank start `(73,48)`; enemy spawns `(25,67)`, `(38,32)`, `(68,72)`, `(128,18)` |
+| Runtime art | `public/assets/game/maps/aurelia-landing-zone-map.png` |
+
+Tank start is gameplay spawn data and is not drawn as terrain or a normal runtime marker. Enemy spawn cells are also not terrain; the game may show them as a distinct red visual marker while the tile rows remain the only collision source.
 
 ### Plan 27.2 테스트 맵 결과
 
