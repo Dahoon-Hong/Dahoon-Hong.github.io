@@ -24,6 +24,27 @@ describe('TerrainGrid', () => {
     expect(grid.getWorldBounds()).toEqual({ left: 0, top: 0, right: 180, bottom: 108, width: 180, height: 108 });
   });
 
+  it('keeps collision and raycast boundaries correct for an 18px grid', () => {
+    const grid = new TerrainGrid({
+      ...map,
+      world: { cellSize: 18, columns: 8, rows: 5 },
+      terrain: {
+        legend: { '.': 'open', H: 'hill' },
+        rows: ['........', '...H....', '........', '........', '........'],
+      },
+    });
+
+    expect(grid.worldToCell({ x: 18, y: 18 })).toEqual({ x: 1, y: 1 });
+    expect(grid.cellToWorldCenter({ x: 3, y: 1 })).toEqual({ x: 63, y: 27 });
+    expect(grid.isBlockedAabb({ left: 54, top: 18, right: 72, bottom: 36 }, 'tank')).toBe(true);
+    expect(grid.isOpenForRadius({ x: 45, y: 27 }, 4, 'enemy')).toBe(true);
+    expect(grid.isOpenForRadius({ x: 45, y: 27 }, 10, 'enemy')).toBe(false);
+
+    const hit = grid.raycast({ x: 0, y: 27 }, { x: 144, y: 27 });
+    expect(hit?.cell).toEqual({ x: 3, y: 1 });
+    expect(hit?.point.x).toBeCloseTo(54);
+  });
+
   it('uses data-defined target blocking and treats world outside as blocked', () => {
     const grid = new TerrainGrid(map);
 

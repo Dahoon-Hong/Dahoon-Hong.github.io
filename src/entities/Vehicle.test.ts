@@ -78,6 +78,60 @@ describe('Vehicle terrain movement', () => {
     expect(vehicle.isTerrainPositionValid({ x: vehicle.x, y: vehicle.y }, grid)).toBe(true);
   });
 
+  it('uses a three-tile terrain footprint without shrinking the visual grid', () => {
+    const grid = new TerrainGrid({
+      world: { cellSize: 18, columns: 7, rows: 5 },
+      terrain: {
+        legend: { '.': 'open', H: 'hill' },
+        rows: [
+          '#######',
+          '##...##',
+          '##...##',
+          '##...##',
+          '#######',
+        ],
+      },
+      terrainTypes: terrain.terrainTypes,
+    });
+    const defaultVehicle = new Vehicle(63, 45, definition, new UpgradeManager(definition.modules));
+    const narrowVehicle = new Vehicle(63, 45, definition, new UpgradeManager(definition.modules), {
+      terrainFootprintScale: 0.45,
+    });
+
+    expect(defaultVehicle.getTerrainFootprint()).toEqual({ halfWidth: 60, halfHeight: 60 });
+    expect(narrowVehicle.getTerrainFootprint()).toEqual({ halfWidth: 24.3, halfHeight: 24.3 });
+    expect(defaultVehicle.isTerrainPositionValid({ x: 63, y: 45 }, grid)).toBe(false);
+    expect(narrowVehicle.isTerrainPositionValid({ x: 63, y: 45 }, grid)).toBe(true);
+    expect(narrowVehicle.gridCols).toBe(3);
+    expect(narrowVehicle.tileSize).toBe(36);
+  });
+
+  it('keeps a three-tile passage open with slight centerline error', () => {
+    const grid = new TerrainGrid({
+      world: { cellSize: 18, columns: 12, rows: 5 },
+      terrain: {
+        legend: { '.': 'open', H: 'hill' },
+        rows: [
+          '############',
+          '##........##',
+          '##........##',
+          '##........##',
+          '############',
+        ],
+      },
+      terrainTypes: terrain.terrainTypes,
+    });
+    const vehicle = new Vehicle(63, 47, definition, new UpgradeManager(definition.modules), {
+      terrainFootprintScale: 0.45,
+    });
+
+    expect(vehicle.isTerrainPositionValid({ x: vehicle.x, y: vehicle.y }, grid)).toBe(true);
+    vehicle.update(0.5, { x: 1, y: 0 }, { width: grid.width, height: grid.height, terrain: grid });
+
+    expect(vehicle.x).toBeGreaterThan(100);
+    expect(vehicle.isTerrainPositionValid({ x: vehicle.x, y: vehicle.y }, grid)).toBe(true);
+  });
+
   it('slides along a wall and remains stable in a blocked corner', () => {
     const vehicle = new Vehicle(90, 90, definition, new UpgradeManager(definition.modules));
     const grid = new TerrainGrid({

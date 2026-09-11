@@ -42,6 +42,48 @@ describe('MapDefinitionLoader', () => {
     expect(loader.getAccessiblePickupCells('test/example', 2)).toEqual([{ x: 1, y: 0 }, { x: 0, y: 0 }]);
   });
 
+  it('loads an 18px tile map without changing its world dimensions', () => {
+    const loader = new MapDefinitionLoader(makeRoot({
+      maps: [{
+        ...makeRoot().maps[0] as Record<string, unknown>,
+        world: { cellSize: 18, columns: 5, rows: 5 },
+        terrain: { legend: { '.': 'open', H: 'hill' }, rows: ['.....', '.....', '.....', '.....', '.....'] },
+        tankStartCell: { x: 1, y: 1 },
+        enemySpawnCells: [{ x: 3, y: 3 }],
+      }],
+    }), noAssets);
+    const map = loader.getById('test/example');
+
+    expect(map?.world).toEqual({ cellSize: 18, columns: 5, rows: 5 });
+    expect(map?.tankCollisionScale).toBe(1);
+    expect(loader.createTerrainGrid('test/example').getWorldBounds()).toEqual({
+      left: 0,
+      top: 0,
+      right: 90,
+      bottom: 90,
+      width: 90,
+      height: 90,
+    });
+  });
+
+  it('rejects unsupported cell sizes', () => {
+    expect(() => new MapDefinitionLoader(makeRoot({
+      maps: [{
+        ...makeRoot().maps[0] as Record<string, unknown>,
+        world: { cellSize: 20, columns: 3, rows: 2 },
+      }],
+    }), noAssets)).toThrow(/must be one of 18 or 36/);
+  });
+
+  it('validates the optional tank collision scale', () => {
+    expect(() => new MapDefinitionLoader(makeRoot({
+      maps: [{
+        ...makeRoot().maps[0] as Record<string, unknown>,
+        tankCollisionScale: 1.1,
+      }],
+    }), noAssets)).toThrow(/must be between 0.1 and 1/);
+  });
+
   it('rejects row shape, unknown symbols, and duplicate map IDs', () => {
     expect(() => new MapDefinitionLoader(makeRoot({
       maps: [{
@@ -127,15 +169,37 @@ describe('MapDefinitionLoader', () => {
   it('loads every production map and the terrain test map at the explicit world size', () => {
     expect(mapDefinitionLoader.getAll()).toHaveLength(5);
     const expectedRegionCounts: Record<string, number> = {
-      'aurelia/landing-zone': 3,
       'aurelia/relay-fields': 4,
       'cinder/ash-basin': 4,
       'cinder/core-ruins': 7,
       'test/terrain-test': 11,
     };
+    const expectedWorlds = {
+      'aurelia/landing-zone': { cellSize: 18, columns: 160, rows: 120 },
+      'aurelia/relay-fields': { cellSize: 36, columns: 80, rows: 60 },
+      'cinder/ash-basin': { cellSize: 36, columns: 80, rows: 60 },
+      'cinder/core-ruins': { cellSize: 36, columns: 80, rows: 60 },
+      'test/terrain-test': { cellSize: 36, columns: 80, rows: 60 },
+    } as const;
     for (const map of mapDefinitionLoader.getAll()) {
-      expect(map.world).toEqual({ cellSize: 36, columns: 80, rows: 60 });
-      expect(map.terrain.regions).toHaveLength(expectedRegionCounts[map.mapId]);
+      expect(map.world).toEqual(expectedWorlds[map.mapId as keyof typeof expectedWorlds]);
+      if (map.mapId === 'aurelia/landing-zone') {
+        expect(map.tankCollisionScale).toBe(0.45);
+        expect(map.terrain.rows).toHaveLength(120);
+        expect(map.terrain.regions).toBeUndefined();
+        expect(map.tankStartCell).toEqual({ x: 73, y: 48 });
+        expect(map.enemySpawnCells).toEqual([
+          { x: 25, y: 67 },
+          { x: 38, y: 32 },
+          { x: 68, y: 72 },
+          { x: 128, y: 18 },
+        ]);
+        expect([map.tankStartCell, ...map.enemySpawnCells].every((cell) =>
+          map.terrain.rows?.[cell.y]?.[cell.x] === '.')).toBe(true);
+      } else {
+        expect(map.tankCollisionScale).toBe(1);
+        expect(map.terrain.regions).toHaveLength(expectedRegionCounts[map.mapId]);
+      }
       expect(map.enemySpawnCells.length).toBeGreaterThanOrEqual(3);
       expect(mapDefinitionLoader.getAccessiblePickupCells(map.mapId, 10)).not.toHaveLength(0);
     }
