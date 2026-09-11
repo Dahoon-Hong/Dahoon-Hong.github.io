@@ -27,6 +27,7 @@ export interface MapDefinition extends TerrainMapData {
   gameplay: { decorativeOnly: boolean; campaign: boolean };
   tankStartCell: TerrainCell;
   enemySpawnCells: TerrainCell[];
+  tankCollisionScale: number;
 }
 
 export interface MapArtworkDefinition {
@@ -288,6 +289,10 @@ export class MapDefinitionLoader {
       if (!SUPPORTED_CELL_SIZES.has(parsedWorld.cellSize)) {
         fail(`${path}.world.cellSize`, 'must be one of 18 or 36');
       }
+      const tankCollisionScale = source.tankCollisionScale === undefined
+        ? 1
+        : number(source.tankCollisionScale, `${path}.tankCollisionScale`, 0.1);
+      if (tankCollisionScale > 1) fail(`${path}.tankCollisionScale`, 'must be between 0.1 and 1');
 
       const terrain = record(source.terrain, `${path}.terrain`);
       const hasRows = Object.prototype.hasOwnProperty.call(terrain, 'rows');
@@ -397,6 +402,7 @@ export class MapDefinitionLoader {
         },
         tankStartCell,
         enemySpawnCells,
+        tankCollisionScale,
       };
     });
     this.validateEnemyReachability();

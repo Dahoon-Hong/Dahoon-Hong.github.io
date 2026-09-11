@@ -13,18 +13,30 @@ export interface VehicleUpdateBounds {
   terrain?: TerrainGrid;
 }
 
+export interface VehicleOptions {
+  terrainFootprintScale?: number;
+}
+
 export class Vehicle {
   public x: number;
   public y: number;
   public readonly tileSize = 36;
   public readonly combatGrid: CombatGrid;
   public readonly systems: VehicleSystems;
+  private readonly terrainFootprintScale: number;
   private facingAngle = -Math.PI / 2;
   private treadOffset = 0;
 
-  constructor(startX: number, startY: number, definition: TankDefinition, upgrades: UpgradeManager) {
+  constructor(
+    startX: number,
+    startY: number,
+    definition: TankDefinition,
+    upgrades: UpgradeManager,
+    options: VehicleOptions = {},
+  ) {
     this.x = startX;
     this.y = startY;
+    this.terrainFootprintScale = options.terrainFootprintScale ?? 1;
     this.systems = new VehicleSystems(definition, upgrades);
     this.combatGrid = new CombatGrid(definition.grid, definition.modules, upgrades);
     this.combatGrid.installInitial(definition.initialCombatModules);
@@ -195,9 +207,17 @@ export class Vehicle {
   }
 
   public getTerrainFootprint(): { halfWidth: number; halfHeight: number } {
+    const visualHalfWidth = this.gridCols * this.tileSize / 2;
+    const visualHalfHeight = this.gridRows * this.tileSize / 2;
+    if (this.terrainFootprintScale < 1) {
+      return {
+        halfWidth: visualHalfWidth * this.terrainFootprintScale,
+        halfHeight: visualHalfHeight * this.terrainFootprintScale,
+      };
+    }
     return {
-      halfWidth: this.gridCols * this.tileSize / 2 + 6,
-      halfHeight: this.gridRows * this.tileSize / 2 + 6,
+      halfWidth: visualHalfWidth + 6,
+      halfHeight: visualHalfHeight + 6,
     };
   }
 

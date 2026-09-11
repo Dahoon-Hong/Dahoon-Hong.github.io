@@ -372,7 +372,9 @@ export class Game {
     const start = map
       ? this.terrainGrid.cellToWorldCenter(map.tankStartCell)
       : { x: this.camera.width / 2, y: this.camera.height / 2 };
-    const vehicle = new Vehicle(start.x, start.y, this.tankDefinition, this.upgradeManager);
+    const vehicle = new Vehicle(start.x, start.y, this.tankDefinition, this.upgradeManager, {
+      terrainFootprintScale: map?.tankCollisionScale,
+    });
     if (map && !vehicle.isTerrainPositionValid(start, this.terrainGrid)) {
       throw new Error(`[Game] map '${map.mapId}' has an invalid tank start footprint`);
     }
