@@ -159,15 +159,33 @@ describe('MapDefinitionLoader', () => {
   it('loads every production map and the terrain test map at the explicit world size', () => {
     expect(mapDefinitionLoader.getAll()).toHaveLength(5);
     const expectedRegionCounts: Record<string, number> = {
-      'aurelia/landing-zone': 3,
       'aurelia/relay-fields': 4,
       'cinder/ash-basin': 4,
       'cinder/core-ruins': 7,
       'test/terrain-test': 11,
     };
+    const expectedWorlds = {
+      'aurelia/landing-zone': { cellSize: 18, columns: 160, rows: 120 },
+      'aurelia/relay-fields': { cellSize: 36, columns: 80, rows: 60 },
+      'cinder/ash-basin': { cellSize: 36, columns: 80, rows: 60 },
+      'cinder/core-ruins': { cellSize: 36, columns: 80, rows: 60 },
+      'test/terrain-test': { cellSize: 36, columns: 80, rows: 60 },
+    } as const;
     for (const map of mapDefinitionLoader.getAll()) {
-      expect(map.world).toEqual({ cellSize: 36, columns: 80, rows: 60 });
-      expect(map.terrain.regions).toHaveLength(expectedRegionCounts[map.mapId]);
+      expect(map.world).toEqual(expectedWorlds[map.mapId as keyof typeof expectedWorlds]);
+      if (map.mapId === 'aurelia/landing-zone') {
+        expect(map.terrain.rows).toHaveLength(120);
+        expect(map.terrain.regions).toBeUndefined();
+        expect(map.tankStartCell).toEqual({ x: 73, y: 48 });
+        expect(map.enemySpawnCells).toEqual([
+          { x: 25, y: 67 },
+          { x: 38, y: 32 },
+          { x: 68, y: 72 },
+          { x: 128, y: 18 },
+        ]);
+      } else {
+        expect(map.terrain.regions).toHaveLength(expectedRegionCounts[map.mapId]);
+      }
       expect(map.enemySpawnCells.length).toBeGreaterThanOrEqual(3);
       expect(mapDefinitionLoader.getAccessiblePickupCells(map.mapId, 10)).not.toHaveLength(0);
     }
