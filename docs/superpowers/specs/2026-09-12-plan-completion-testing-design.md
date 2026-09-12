@@ -103,6 +103,9 @@ vehicleWorldY
 cameraX
 cameraY
 movementInput
+lastKeyCode / lastKeyAt
+movementDistance
+lastMovementInput / lastMovementAt
 lastSpawnBatchSize
 lastSpawnAt
 lastSpawnTypes

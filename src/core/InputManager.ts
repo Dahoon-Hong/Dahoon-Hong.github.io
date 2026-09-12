@@ -2,10 +2,14 @@ export class InputManager {
   private keys: Set<string> = new Set();
   public pauseRequested = false;
   public debugOverlayRequested = false;
+  public lastKeyCode: string | null = null;
+  public lastKeyAt: number | null = null;
 
   constructor() {
     window.addEventListener('keydown', (e) => {
       this.keys.add(e.code);
+      this.lastKeyCode = e.code;
+      this.lastKeyAt = performance.now();
       if (!e.repeat && (e.code === 'Space' || e.code === 'KeyP')) {
         this.pauseRequested = true;
       }
@@ -53,5 +57,7 @@ export class InputManager {
     this.keys.clear();
     this.pauseRequested = false;
     this.debugOverlayRequested = false;
+    this.lastKeyCode = null;
+    this.lastKeyAt = null;
   }
 }

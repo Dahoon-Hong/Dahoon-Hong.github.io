@@ -67,6 +67,9 @@ describe('WaveManager', () => {
       ['standard', 126, 54],
       ['tanker', 18, 18],
     ]);
+    expect(manager.lastSpawnBatchSize).toBe(1);
+    expect(manager.lastSpawnTypes).toEqual(['tanker']);
+    expect(manager.lastSpawnAt).toBeCloseTo(0.3);
   });
 
   it('uses 18px tile centers when spawning enemies on a tile map', () => {

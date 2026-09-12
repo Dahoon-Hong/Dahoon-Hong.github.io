@@ -58,6 +58,9 @@ export class WaveManager {
   public totalWaveEnemies = 0;
   public spawnedEnemiesCount = 0;
   public waveCleared = false;
+  public lastSpawnBatchSize = 0;
+  public lastSpawnTypes: EnemyType[] = [];
+  public lastSpawnAt: number | null = null;
 
   private readonly region: RegionDefinition;
   private readonly enemyDefinitions: Readonly<Record<EnemyType, EnemyDefinition>>;
@@ -67,6 +70,7 @@ export class WaveManager {
   private batchSize = 1;
   private spawnQueue: EnemyType[] = [];
   private readonly spawnContext: WaveSpawnContext;
+  private elapsedTime = 0;
 
   constructor(
     region: RegionDefinition,
@@ -89,6 +93,7 @@ export class WaveManager {
     _canvasHeight: number,
     _vehiclePos: { x: number; y: number }
   ): void {
+    this.elapsedTime += Math.max(0, dt);
     if (this.spawnedEnemiesCount >= this.totalWaveEnemies) {
       if (enemies.length === 0) this.waveCleared = true;
       return;
@@ -97,7 +102,10 @@ export class WaveManager {
     this.spawnTimer += dt;
     if (this.spawnTimer >= this.spawnInterval) {
       this.spawnTimer -= this.spawnInterval;
-      this.spawnBatch(enemies);
+      const spawnedTypes = this.spawnBatch(enemies);
+      this.lastSpawnBatchSize = spawnedTypes.length;
+      this.lastSpawnTypes = spawnedTypes;
+      this.lastSpawnAt = this.elapsedTime;
     }
   }
 
@@ -112,6 +120,10 @@ export class WaveManager {
     this.totalWaveEnemies = wave.standard + wave.tanker;
     this.spawnedEnemiesCount = 0;
     this.spawnTimer = 0;
+    this.elapsedTime = 0;
+    this.lastSpawnBatchSize = 0;
+    this.lastSpawnTypes = [];
+    this.lastSpawnAt = null;
     const scaling = calculateSpawnScaling(this.currentWave, this.region, this.enemySpawnPolicy);
     this.spawnInterval = scaling.spawnInterval;
     this.batchSize = scaling.batchSize;
@@ -122,22 +134,25 @@ export class WaveManager {
     this.waveCleared = false;
   }
 
-  private spawnBatch(enemies: Enemy[]): void {
+  private spawnBatch(enemies: Enemy[]): EnemyType[] {
     const remainingEnemies = this.totalWaveEnemies - this.spawnedEnemiesCount;
     const spawnCount = Math.min(this.batchSize, remainingEnemies);
+    const spawnedTypes: EnemyType[] = [];
     for (let count = 0; count < spawnCount; count++) {
-      this.spawnEnemy(enemies);
+      spawnedTypes.push(this.spawnEnemy(enemies));
       this.spawnedEnemiesCount++;
     }
+    return spawnedTypes;
   }
 
-  private spawnEnemy(enemies: Enemy[]): void {
+  private spawnEnemy(enemies: Enemy[]): EnemyType {
     const type = this.spawnQueue[this.spawnedEnemiesCount] ?? 'standard';
     const spawnCell = this.spawnContext.spawnCells[this.spawnedEnemiesCount % this.spawnContext.spawnCells.length];
     const spawnPoint = this.spawnContext.terrain.cellToWorldCenter(spawnCell);
     const repathOffset = (this.spawnedEnemiesCount % 4) * 0.06;
     if (type === 'tanker') enemies.push(new TankerEnemy(spawnPoint.x, spawnPoint.y, this.enemyDefinitions.tanker, repathOffset));
     else enemies.push(new StandardEnemy(spawnPoint.x, spawnPoint.y, this.enemyDefinitions.standard, repathOffset));
+    return type;
   }
 
 }
