@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TerrainGrid, TerrainMapData } from '../core/TerrainGrid';
-import { TankDefinition } from '../core/TankDefinitionLoader';
+import { TankDefinition, TankDefinitionLoader } from '../core/TankDefinitionLoader';
+import { mapDefinitionLoader } from '../core/MapDefinitionLoader';
 import { UpgradeManager } from '../core/UpgradeManager';
 import { Vehicle } from './Vehicle';
 import type { RenderContext } from '../rendering/RenderContext';
@@ -168,6 +169,23 @@ describe('Vehicle terrain movement', () => {
     expect(circleVehicle.x).toBeGreaterThan(50);
     expect(circleVehicle.y).toBeLessThan(50);
     expect(circleVehicle.isTerrainPositionValid({ x: circleVehicle.x, y: circleVehicle.y }, grid)).toBe(true);
+  });
+
+  it('moves from the terrain test map start through open terrain', () => {
+    const map = mapDefinitionLoader.getById('test/terrain-test');
+    if (!map) throw new Error('terrain test map is missing');
+    const grid = new TerrainGrid(map);
+    const tankDefinition = new TankDefinitionLoader().getDefault();
+    const start = grid.cellToWorldCenter(map.tankStartCell);
+    const vehicle = new Vehicle(start.x, start.y, tankDefinition, new UpgradeManager(tankDefinition.modules), {
+      terrainFootprintScale: map.tankCollisionScale,
+      terrainFootprintShape: map.tankCollisionShape,
+    });
+
+    vehicle.update(0.25, { x: 1, y: 0 }, { width: grid.width, height: grid.height, terrain: grid });
+
+    expect(vehicle.x).toBeGreaterThan(start.x);
+    expect(vehicle.isTerrainPositionValid({ x: vehicle.x, y: vehicle.y }, grid)).toBe(true);
   });
 
   it('slides along a wall and remains stable in a blocked corner', () => {

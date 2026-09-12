@@ -28,6 +28,7 @@ import { CampaignProgress, EMPTY_CAMPAIGN_PROGRESS } from './CampaignProgressSto
 import { LocalStorageCampaignProgressStore } from './LocalStorageCampaignProgressStore';
 import { WorldMapDataLoader } from './WorldMapDataLoader';
 import { WorldMap } from '../ui/WorldMap';
+import { GameTestObserver } from './GameTestObserver';
 
 export enum AppScreen {
   START_MENU = 'START_MENU',
@@ -74,6 +75,7 @@ export class Game {
   private readonly logicalHeight = LOGICAL_CANVAS_HEIGHT;
   private readonly gameplayWidth = LOGICAL_CANVAS_WIDTH - HUDManager.PANEL_WIDTH;
   private readonly camera: Camera;
+  private readonly testObserver: GameTestObserver;
   private readonly startMenu = new StartMenu();
   private readonly settingsScreen = new SettingsScreen();
   private terrainGrid: TerrainGrid;
@@ -99,12 +101,18 @@ export class Game {
   private progressReady = false;
   private pauseMenuVisible = false;
   private pauseMenuSelection = 0;
+  private movementInput = { x: 0, y: 0 };
+  private movementDistance = 0;
+  private lastMovementInput = { x: 0, y: 0 };
+  private lastMovementAt: number | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
+    this.canvas.tabIndex = 0;
     const context = canvas.getContext('2d');
     if (!context) throw new Error('2D canvas context is unavailable');
     this.ctx = context;
+    this.testObserver = new GameTestObserver();
     this.worldMapData = new WorldMapDataLoader(undefined, mapDefinitionLoader, this.progression);
     this.campaignProgressStore = new LocalStorageCampaignProgressStore(this.worldMapData.getCampaignMapIds());
     this.worldMap = new WorldMap(this.worldMapData.getNodes());
@@ -188,7 +196,11 @@ export class Game {
     }, { width: this.logicalWidth, height: this.logicalHeight });
 
     window.addEventListener('keydown', (event) => this.handleScreenKey(event));
-    this.canvas.addEventListener('click', (event) => this.handleCanvasClick(event));
+    this.canvas.addEventListener('click', (event) => {
+      this.canvas.focus({ preventScroll: true });
+      this.handleCanvasClick(event);
+    });
+    this.publishTestSnapshot();
   }
 
   public start(): void {
@@ -207,6 +219,9 @@ export class Game {
     this.waveManager = this.createWaveManager();
     this.resetArtState();
     this.pickups = this.createInitialPickups();
+    this.movementDistance = 0;
+    this.lastMovementInput = { x: 0, y: 0 };
+    this.lastMovementAt = null;
     this.resources.reset();
     this.camera.snapTo(this.vehicle);
     this.state = GameState.PLAYING;
@@ -470,8 +485,10 @@ export class Game {
 
   private update(dt: number): void {
     if (this.screen !== AppScreen.GAMEPLAY) {
+      this.movementInput = { x: 0, y: 0 };
       this.input.consumePauseRequest();
       this.input.consumeDebugOverlayRequest();
+      this.publishTestSnapshot();
       return;
     }
     const currentMap = this.getCurrentMap();
@@ -484,17 +501,31 @@ export class Game {
       else if (this.state === GameState.PAUSED) this.setState(GameState.PLAYING);
     }
 
-    if (this.isTerminalState()) return;
+    if (this.isTerminalState()) {
+      this.movementInput = { x: 0, y: 0 };
+      this.publishTestSnapshot();
+      return;
+    }
     const isPaused = this.state === GameState.PAUSED;
+    const movementInput = this.input.getMovementVector();
+    this.movementInput = isPaused ? { x: 0, y: 0 } : movementInput;
     if (!isPaused) this.recentTerrainHitTimer = Math.max(0, this.recentTerrainHitTimer - dt);
 
     if (!isPaused) {
       this.renderContext.time += dt;
-      this.vehicle.update(dt, this.input.getMovementVector(), {
+      const startX = this.vehicle.x;
+      const startY = this.vehicle.y;
+      this.vehicle.update(dt, movementInput, {
         width: this.camera.width,
         height: this.camera.height,
         terrain: this.terrainGrid,
       });
+      const distance = Math.hypot(this.vehicle.x - startX, this.vehicle.y - startY);
+      if (distance > 0) {
+        this.movementDistance += distance;
+        this.lastMovementInput = { ...movementInput };
+        this.lastMovementAt = performance.now();
+      }
       this.camera.update(dt, this.vehicle);
       this.vehicle.systems.update(dt, { x: this.vehicle.x, y: this.vehicle.y }, this.pickups, this.resources);
 
@@ -522,7 +553,10 @@ export class Game {
       if (this.pickups[i].isEmpty()) this.pickups.splice(i, 1);
     }
 
-    if (isPaused) return;
+    if (isPaused) {
+      this.publishTestSnapshot();
+      return;
+    }
 
     this.waveManager.update(
       dt,
@@ -537,6 +571,7 @@ export class Game {
         this.audio.stopAll();
         this.recordCurrentMapClear();
         this.setState(GameState.REGION_CLEARED);
+        this.publishTestSnapshot();
         return;
       }
       this.waveManager.nextWave();
@@ -595,6 +630,36 @@ export class Game {
       effect.update(dt);
       if (effect.dead) this.effects.splice(i, 1);
     }
+    this.publishTestSnapshot();
+  }
+
+  private publishTestSnapshot(): void {
+    if (!this.testObserver.isEnabled()) return;
+    const liveEnemyCount = this.enemies.reduce((count, enemy) => count + (enemy.isDead() ? 0 : 1), 0);
+    this.testObserver.update({
+      screen: this.screen,
+      gameState: this.state,
+      wave: this.waveManager.currentWave,
+      totalWaveEnemies: this.waveManager.totalWaveEnemies,
+      spawnedEnemies: this.waveManager.spawnedEnemiesCount,
+      liveEnemies: liveEnemyCount,
+      vehicleWorldX: this.vehicle.x,
+      vehicleWorldY: this.vehicle.y,
+      cameraX: this.camera.x,
+      cameraY: this.camera.y,
+      movementInputX: this.movementInput.x,
+      movementInputY: this.movementInput.y,
+      lastKeyCode: this.input.lastKeyCode,
+      lastKeyAt: this.input.lastKeyAt,
+      movementDistance: this.movementDistance,
+      lastMovementInputX: this.lastMovementInput.x,
+      lastMovementInputY: this.lastMovementInput.y,
+      lastMovementAt: this.lastMovementAt,
+      lastSpawnBatchSize: this.waveManager.lastSpawnBatchSize,
+      lastSpawnAt: this.waveManager.lastSpawnAt,
+      lastSpawnTypes: [...this.waveManager.lastSpawnTypes],
+      timestamp: performance.now(),
+    });
   }
 
   private render(): void {

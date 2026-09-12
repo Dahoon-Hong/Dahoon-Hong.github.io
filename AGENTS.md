@@ -36,7 +36,9 @@ plan 문서를 작성하거나 plan 작업을 시작할 때 `brainstorming` 스�
 설계 및 구현 작업을 시작할 때 `ponytail` 스킬을 사용한다. 기본 강도는 `full`로 한다.
 
 - QA 지침
-문서 작업이 아닌 기능 개발(게임플레이, UI, 입력, 런타임 또는 빌드 결과 변경)은 PR을 생성하기 전에 반드시 실제 게임을 로컬에서 실행해 확인한다.
-이 검증은 프로젝트 sub-agent인 `integration-tester`(`.codex/agents/integration-tester.toml`)를 사용한다. 해당 agent는 저장소 루트에서 `npm run dev`를 실행하고 Computer Use로 브라우저에서 실제 게임을 조작해 변경된 기능을 검증한다.
-`integration-tester`의 결과가 PASS가 아니면 PR을 생성하지 않는다. 서버 실행이나 브라우저 검증이 막힌 경우에도 원인을 해결하거나 명확한 BLOCKED 결과를 남긴 뒤 PR 생성을 중단한다.
-문서만 변경한 작업은 이 런타임 QA 대상이 아니며 `git diff --check`와 링크·명령어 확인을 수행한다.
+문서 작업이 아닌 기능 개발(게임플레이, UI, 입력, 런타임 또는 빌드 결과 변경)은 plan 구현 완료 시 해당 plan의 필수 시나리오를 실제 runtime에서 확인한다.
+이 검증은 프로젝트 sub-agent인 `integration-tester`(`.codex/agents/integration-tester.toml`)를 사용한다. 오케스트레이터가 현재 plan worktree에서 runtime을 실행하고 정확한 URL·port·worktree를 전달하며, tester는 별도 서버를 시작하거나 다른 port를 찾지 않는다.
+plan에 테스트 시나리오와 required 여부를 기록한다. 변경 범위와 무관한 검증은 `SKIP-N/A`, 환경상 실행 불가능한 검증은 사유와 영향 범위를 포함한 `SKIP-ENV`로 기록할 수 있다. 테스트 대상인데 관측할 수 없는 경우는 skip으로 숨기지 않고 `BLOCKED`로 기록한다.
+필수 시나리오가 PASS이고 허용된 skip 사유가 기록된 경우 plan 완료·commit을 진행할 수 있다. 필수 시나리오가 FAIL/BLOCKED이면 완료·commit을 보류하고 원인과 재현 조건을 남긴다. PR 생성 전 동일 통합 테스트를 반복하지 않으며, PR에서는 plan 테스트 결과와 일반 CI 결과를 참조한다.
+테스트 agent는 bounded 단일 실행으로 최종 결과만 반환하고 중간 polling·반복 스크린샷을 수행하지 않는다. 일반 production runtime에는 테스트 observer를 노출하지 않는다.
+문서만 변경한 작업은 이 runtime QA 대상이 아니며 `git diff --check`와 링크·명령어 확인을 수행한다.
