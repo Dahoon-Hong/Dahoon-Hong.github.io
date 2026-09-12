@@ -11,6 +11,8 @@ plan구현이 아닌 경우 내용을 commit message는 짧은 설명으로 진�
 branch 생성, commit, push, PR 생성·수정 등 repository 기여 활동을 시작하기 전에 `docs/contribution/README.md`를 읽고 따른다.
 기본 브랜치 `defence`는 보호되어 있으므로 직접 push하지 않고, 문서에 정의된 prefix의 작업 브랜치에서 작업한 뒤 `defence`를 대상으로 PR을 생성한다.
 PR 본문은 `.github/pull_request_template.md`를 사용한다.
+- 신규 작업을 시작하기 전에 반드시 `origin/defence`를 `git pull --ff-only origin defence`로 최신화하고, 동기화가 실패하면 로컬 브랜치나 stale ref를 기준으로 작업을 시작하지 않는다.
+- push 후에는 `git ls-remote origin <branch>`와 현재 HEAD를 비교해 원격 반영을 확인하고, PR 생성 후에는 `gh pr view`로 올바른 base/head와 PR URL·상태를 확인한다. merge 후에는 최신 `origin/defence`에 해당 커밋이 포함됐는지 확인하기 전까지 완료로 보고하지 않는다.
 
 - 구현 지침
   - 구현 전 plan 파일을 plans/implementation에 기존 형식에 맞춰서 생성한다. 요구사항 및 범위를 구체화는 반드시 포함한다.
