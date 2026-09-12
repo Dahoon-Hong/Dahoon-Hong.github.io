@@ -1,6 +1,6 @@
 # 8. 적 스폰 배치·간격 조절
 
-상태: 계획 승인 대기, 구현 전
+상태: 구현 완료
 
 설계 문서: [적 스폰 배치·간격 조절 설계](../../../docs/superpowers/specs/2026-09-11-enemy-spawn-scaling-design.md)
 

@@ -2,6 +2,20 @@ import progressionData from '../data/progression.json';
 import enemyData from '../data/enemies.json';
 import { EnemyDefinition, EnemyType } from '../entities/Enemy';
 
+export interface EnemySpawnPolicy {
+  baseBatchSize: number;
+  batchSizePerThreat: number;
+  maxBatchSize: number;
+  intervalStep: number;
+  minimumInterval: number;
+}
+
+export interface EnemyDataRoot {
+  spawn: EnemySpawnPolicy;
+  standard: EnemyDefinition;
+  tanker: EnemyDefinition;
+}
+
 export interface WaveDefinition {
   standard: number;
   tanker: number;
@@ -31,7 +45,94 @@ export interface ProgressionDefinition {
 export type ProgressionAdvance = 'region' | 'planet' | 'complete';
 
 const DEFINITION: ProgressionDefinition = progressionData;
-const ENEMY_DEFINITIONS: Readonly<Record<EnemyType, EnemyDefinition>> = enemyData;
+const ENEMY_TYPES: readonly EnemyType[] = ['standard', 'tanker'];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function invalidEnemyData(path: string, message: string): never {
+  throw new Error(`[Progression] ${path}: ${message}`);
+}
+
+function record(value: unknown, path: string): Record<string, unknown> {
+  if (!isRecord(value)) invalidEnemyData(path, 'expected an object');
+  return value;
+}
+
+function positiveNumber(value: unknown, path: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    invalidEnemyData(path, 'expected a finite number > 0');
+  }
+  return value;
+}
+
+function nonNegativeNumber(value: unknown, path: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    invalidEnemyData(path, 'expected a finite number >= 0');
+  }
+  return value;
+}
+
+function finiteNumber(value: unknown, path: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    invalidEnemyData(path, 'expected a finite number');
+  }
+  return value;
+}
+
+function nonNegativeInteger(value: unknown, path: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value < 0) {
+    invalidEnemyData(path, 'expected a finite integer >= 0');
+  }
+  return value;
+}
+
+function positiveInteger(value: unknown, path: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value < 1) {
+    invalidEnemyData(path, 'expected a finite integer >= 1');
+  }
+  return value;
+}
+
+function nonEmptyString(value: unknown, path: string): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    invalidEnemyData(path, 'expected a non-empty string');
+  }
+  return value;
+}
+
+function validateEnemyDefinition(value: unknown, type: EnemyType): asserts value is EnemyDefinition {
+  const definition = record(value, `enemyData.${type}`);
+  positiveNumber(definition.hp, `enemyData.${type}.hp`);
+  nonNegativeNumber(definition.speed, `enemyData.${type}.speed`);
+  positiveNumber(definition.radius, `enemyData.${type}.radius`);
+  nonNegativeNumber(definition.reward, `enemyData.${type}.reward`);
+  nonEmptyString(definition.typeName, `enemyData.${type}.typeName`);
+  nonNegativeNumber(definition.contactDamage, `enemyData.${type}.contactDamage`);
+  positiveNumber(definition.contactDamageInterval, `enemyData.${type}.contactDamageInterval`);
+}
+
+export function validateEnemyData(data: unknown): asserts data is EnemyDataRoot {
+  const root = record(data, 'enemyData');
+  const spawn = record(root.spawn, 'enemyData.spawn');
+  const baseBatchSize = positiveInteger(spawn.baseBatchSize, 'enemyData.spawn.baseBatchSize');
+  nonNegativeInteger(spawn.batchSizePerThreat, 'enemyData.spawn.batchSizePerThreat');
+  const maxBatchSize = positiveInteger(spawn.maxBatchSize, 'enemyData.spawn.maxBatchSize');
+  finiteNumber(spawn.intervalStep, 'enemyData.spawn.intervalStep');
+  positiveNumber(spawn.minimumInterval, 'enemyData.spawn.minimumInterval');
+  if (maxBatchSize < baseBatchSize) {
+    invalidEnemyData('enemyData.spawn.maxBatchSize', 'must be >= baseBatchSize');
+  }
+  for (const type of ENEMY_TYPES) validateEnemyDefinition(root[type], type);
+}
+
+validateEnemyData(enemyData);
+const ENEMY_DATA = enemyData;
+const ENEMY_DEFINITIONS: Readonly<Record<EnemyType, EnemyDefinition>> = {
+  standard: ENEMY_DATA.standard,
+  tanker: ENEMY_DATA.tanker,
+};
 
 export class ProgressionManager {
   private readonly definition: ProgressionDefinition;
@@ -53,6 +154,10 @@ export class ProgressionManager {
 
   public get enemyDefinitions(): Readonly<Record<EnemyType, EnemyDefinition>> {
     return ENEMY_DEFINITIONS;
+  }
+
+  public get enemySpawnPolicy(): Readonly<EnemySpawnPolicy> {
+    return ENEMY_DATA.spawn;
   }
 
   public get location(): { planetIndex: number; regionIndex: number; planetName: string; regionName: string } {
@@ -110,13 +215,6 @@ export class ProgressionManager {
 
   private validate(definition: ProgressionDefinition): void {
     if (!definition.planets.length) throw new Error('[Progression] no planets found');
-    for (const [type, enemy] of Object.entries(ENEMY_DEFINITIONS)) {
-      if (!Number.isFinite(enemy.hp) || enemy.hp <= 0 || !Number.isFinite(enemy.speed) || enemy.speed < 0 ||
-          !Number.isFinite(enemy.contactDamage) || enemy.contactDamage < 0 ||
-          !Number.isFinite(enemy.contactDamageInterval) || enemy.contactDamageInterval <= 0) {
-        throw new Error(`[Progression] invalid enemy '${type}'`);
-      }
-    }
     const mapIds = new Set<string>();
     for (const planet of definition.planets) {
       if (!planet.regions.length) throw new Error(`[Progression] planet '${planet.id}' has no regions`);

@@ -388,6 +388,7 @@ export class Game {
     return new WaveManager(
       this.progression.currentRegion,
       this.progression.enemyDefinitions,
+      this.progression.enemySpawnPolicy,
       { terrain: this.terrainGrid, spawnCells: map.enemySpawnCells },
     );
   }

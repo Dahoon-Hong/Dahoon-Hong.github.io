@@ -2,7 +2,7 @@
 
 작성일: 2026-09-11
 
-상태: 설계 문서화 완료, 구현 전
+상태: 설계 문서화 완료, 구현 완료
 
 구현 순서와 단계별 완료 기준: [8번 적 스폰 배치·간격 조절 구현 계획](../../../plans/implementation/8-enemy-spawn-scaling/8-enemy-spawn-scaling.md)
 
