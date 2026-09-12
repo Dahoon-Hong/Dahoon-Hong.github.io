@@ -40,7 +40,10 @@ export function calculateSpawnScaling(
   );
   const spawnInterval = Math.max(
     spawn.minimumInterval,
-    safeAdd(regionInterval, safeMultiply(threatLevel, spawn.intervalStep)),
+    safeMultiply(
+      safeAdd(regionInterval, safeMultiply(threatLevel, spawn.intervalStep)),
+      spawn.intervalMultiplier,
+    ),
   );
   const batchSize = Math.min(
     spawn.maxBatchSize,

@@ -7,6 +7,7 @@ export interface EnemySpawnPolicy {
   batchSizePerThreat: number;
   maxBatchSize: number;
   intervalStep: number;
+  intervalMultiplier: number;
   minimumInterval: number;
 }
 
@@ -120,6 +121,7 @@ export function validateEnemyData(data: unknown): asserts data is EnemyDataRoot 
   nonNegativeInteger(spawn.batchSizePerThreat, 'enemyData.spawn.batchSizePerThreat');
   const maxBatchSize = positiveInteger(spawn.maxBatchSize, 'enemyData.spawn.maxBatchSize');
   finiteNumber(spawn.intervalStep, 'enemyData.spawn.intervalStep');
+  positiveNumber(spawn.intervalMultiplier, 'enemyData.spawn.intervalMultiplier');
   positiveNumber(spawn.minimumInterval, 'enemyData.spawn.minimumInterval');
   if (maxBatchSize < baseBatchSize) {
     invalidEnemyData('enemyData.spawn.maxBatchSize', 'must be >= baseBatchSize');

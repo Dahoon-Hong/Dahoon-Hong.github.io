@@ -16,6 +16,7 @@ const spawn = {
   batchSizePerThreat: 0,
   maxBatchSize: 3,
   intervalStep: 0,
+  intervalMultiplier: 1,
   minimumInterval: 0.25,
 };
 
@@ -26,10 +27,11 @@ describe('enemy data contract', () => {
     const progression = new ProgressionManager();
 
     expect(progression.enemySpawnPolicy).toEqual({
-      baseBatchSize: 1,
+      baseBatchSize: 5,
       batchSizePerThreat: 0,
-      maxBatchSize: 3,
+      maxBatchSize: 5,
       intervalStep: 0,
+      intervalMultiplier: 0.5,
       minimumInterval: 0.25,
     });
     expect(Object.keys(progression.enemyDefinitions)).toEqual(['standard', 'tanker']);
@@ -43,6 +45,7 @@ describe('enemy data contract', () => {
     expect(() => validateEnemyData({ ...validData, spawn: { ...spawn, maxBatchSize: 1 } })).not.toThrow();
     expect(() => validateEnemyData({ ...validData, spawn: { ...spawn, intervalStep: NaN } })).toThrow('intervalStep');
     expect(() => validateEnemyData({ ...validData, spawn: { ...spawn, intervalStep: -0.1 } })).not.toThrow();
+    expect(() => validateEnemyData({ ...validData, spawn: { ...spawn, intervalMultiplier: 0 } })).toThrow('intervalMultiplier');
     expect(() => validateEnemyData({ ...validData, spawn: { ...spawn, minimumInterval: 0 } })).toThrow('minimumInterval');
     expect(() => validateEnemyData({ ...validData, spawn: { ...spawn, baseBatchSize: 2, maxBatchSize: 1 } })).toThrow('maxBatchSize');
   });

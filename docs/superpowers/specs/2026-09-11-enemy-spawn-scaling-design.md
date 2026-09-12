@@ -45,10 +45,11 @@
 ```json
 {
   "spawn": {
-    "baseBatchSize": 1,
+    "baseBatchSize": 5,
     "batchSizePerThreat": 0,
-    "maxBatchSize": 3,
+    "maxBatchSize": 5,
     "intervalStep": 0,
+    "intervalMultiplier": 0.5,
     "minimumInterval": 0.25
   },
   "standard": {
@@ -80,9 +81,10 @@
 | `batchSizePerThreat` | 위협 1단계마다 증가하는 배치 수 | 정수, 0 이상. 현재 초기값은 기존 동작 보존을 위해 0 |
 | `maxBatchSize` | 한 이벤트의 최대 생성 수 | 정수, `baseBatchSize` 이상 |
 | `intervalStep` | 위협 1단계마다 지역 기본 interval에 더하는 초 단위 보정값 | 음수면 빨라지고 양수면 느려짐 |
+| `intervalMultiplier` | 위협 보정 후 지역 interval에 곱하는 공통 배율 | 0보다 큰 수 |
 | `minimumInterval` | 모든 계산 후 적용하는 전역 최소 interval | 양수 |
 
-초기값은 기존 동작을 보존한다. `baseBatchSize: 1`, `batchSizePerThreat: 0`, `intervalStep: 0`으로 시작하며 실제 난이도 수치는 플레이 검증에서 별도로 조정한다. `maxBatchSize`는 향후 상향 조정할 수 있는 안전 상한이고, `minimumInterval`은 과도한 음수 보정으로 무한히 빨라지는 것을 막는다.
+`baseBatchSize: 1`, `batchSizePerThreat: 0`, `intervalStep: 0`, `intervalMultiplier: 1`이면 기존 동작을 보존한다. 현재 `enemies.json`은 사용자 조정값으로 `baseBatchSize`와 `maxBatchSize`를 5, `intervalMultiplier`를 0.5로 사용한다. `maxBatchSize`는 배치 상한이고, `minimumInterval`은 과도한 보정으로 무한히 빨라지는 것을 막는다.
 
 ## 스케줄 계산 규칙
 
@@ -122,11 +124,11 @@ regionInterval = max(
 ```text
 spawnInterval = max(
   spawn.minimumInterval,
-  regionInterval + threatLevel * spawn.intervalStep
+  (regionInterval + threatLevel * spawn.intervalStep) * spawn.intervalMultiplier
 )
 ```
 
-기존 `progression.json` 값의 의미를 바꾸지 않기 위해 지역 설정은 유지한다. `spawn.intervalStep`의 초기값이 0이므로 기존 맵의 interval 결과도 유지된다. 이후 밸런스 조정에서 전역 보정을 사용할 때는 지역 step과 합산되는 것을 명시적으로 고려한다.
+기존 `progression.json` 값의 의미를 바꾸지 않기 위해 지역 설정은 유지한다. `intervalMultiplier: 1`과 `intervalStep: 0`이면 기존 맵의 interval 결과가 유지된다. 이후 밸런스 조정에서 전역 배율과 지역 step을 함께 사용할 때는 최소 interval clamp가 적용되는 것을 고려한다.
 
 ## 런타임 동작
 

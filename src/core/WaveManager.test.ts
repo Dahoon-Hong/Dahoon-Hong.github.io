@@ -18,6 +18,7 @@ const spawnPolicy: EnemySpawnPolicy = {
   batchSizePerThreat: 0,
   maxBatchSize: 3,
   intervalStep: 0,
+  intervalMultiplier: 1,
   minimumInterval: 0.1,
 };
 
@@ -96,6 +97,7 @@ describe('WaveManager', () => {
       batchSizePerThreat: 1,
       maxBatchSize: 3,
       intervalStep: -0.3,
+      intervalMultiplier: 1,
       minimumInterval: 0.25,
     })).toEqual({ threatLevel: 2, batchSize: 3, spawnInterval: 0.25 });
     expect(calculateSpawnScaling(2, {
@@ -103,6 +105,21 @@ describe('WaveManager', () => {
       spawnIntervalStep: -0.2,
       minimumSpawnInterval: 0.8,
     }, spawnPolicy).spawnInterval).toBe(0.8);
+  });
+
+  it('applies the configured five-enemy batch and half interval', () => {
+    expect(calculateSpawnScaling(1, {
+      spawnInterval: 1.2,
+      spawnIntervalStep: -0.1,
+      minimumSpawnInterval: 0.7,
+    }, {
+      baseBatchSize: 5,
+      batchSizePerThreat: 0,
+      maxBatchSize: 5,
+      intervalStep: 0,
+      intervalMultiplier: 0.5,
+      minimumInterval: 0.25,
+    })).toEqual({ threatLevel: 0, batchSize: 5, spawnInterval: 0.6 });
   });
 
   it('clamps negative waves and keeps large results finite', () => {
@@ -115,6 +132,7 @@ describe('WaveManager', () => {
       batchSizePerThreat: 1,
       maxBatchSize: 3,
       intervalStep: 1,
+      intervalMultiplier: 1,
       minimumInterval: 0.25,
     });
     expect(scaling.threatLevel).toBe(Number.MAX_VALUE - 1);

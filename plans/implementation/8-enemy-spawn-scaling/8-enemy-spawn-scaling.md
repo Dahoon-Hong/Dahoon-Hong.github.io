@@ -40,14 +40,15 @@
 
 ## 데이터·계산 기준
 
-`enemies.json`의 초기 정책은 현재 동작을 보존한다.
+`enemies.json`의 spawn 정책은 웨이브 총량과 적 전투 수치를 유지하면서 이벤트 batch와 interval을 조정한다.
 
 ```json
 "spawn": {
-  "baseBatchSize": 1,
+  "baseBatchSize": 5,
   "batchSizePerThreat": 0,
-  "maxBatchSize": 3,
+  "maxBatchSize": 5,
   "intervalStep": 0,
+  "intervalMultiplier": 0.5,
   "minimumInterval": 0.25
 }
 ```
@@ -62,7 +63,7 @@ regionInterval = max(
 )
 spawnInterval = max(
   enemies.spawn.minimumInterval,
-  regionInterval + threatLevel * enemies.spawn.intervalStep
+  (regionInterval + threatLevel * enemies.spawn.intervalStep) * enemies.spawn.intervalMultiplier
 )
 batchSize = clamp(
   enemies.spawn.baseBatchSize + threatLevel * enemies.spawn.batchSizePerThreat,
@@ -71,7 +72,7 @@ batchSize = clamp(
 )
 ```
 
-`batchSizePerThreat`는 정수로 유지한다. 실제 생성 시에는 남은 큐의 길이를 한 번 더 적용한다. 초기 `batchSizePerThreat`와 `intervalStep`이 0이므로 기존 Wave 1 및 지역별 interval 동작은 변하지 않는다. 밸런스 수치의 상향은 자동 테스트가 아니라 실제 플레이 검증 결과를 근거로 별도 조정한다.
+`batchSizePerThreat`는 정수로 유지한다. 실제 생성 시에는 남은 큐의 길이를 한 번 더 적용한다. 현재 정책은 이벤트당 5마리와 interval 0.5배이며, `minimumInterval` 아래로는 내려가지 않는다. 밸런스 수치의 추가 조정은 자동 테스트가 아니라 실제 플레이 검증 결과를 근거로 진행한다.
 
 ## 세부 구현·검증 단계
 
@@ -109,6 +110,7 @@ batchSize = clamp(
 - `baseBatchSize >= 1`, `batchSizePerThreat >= 0`, `maxBatchSize >= baseBatchSize`다.
 - `minimumInterval > 0`이고 유한하다.
 - `intervalStep`은 유한한 수이며 음수를 허용한다.
+- `intervalMultiplier > 0`이고 유한하다.
 - `standard`, `tanker`의 기존 필수 전투 필드는 그대로 검증한다.
 - `spawn`이 누락되거나 enemy type처럼 해석되면 명확한 로딩 오류를 낸다.
 
@@ -203,23 +205,32 @@ batchSize = clamp(
 - 타입 검사와 production build가 통과한다.
 - 전체 테스트에서 기존 map/tank/terrain 회귀가 없다.
 
-### 8.7 실제 게임 및 integration-tester 검증
+### 8.7 plan 완료 실제 runtime 검증
 
-이미 실행 중인 dev 서버가 있으면 재사용하고, 없으면 `npm run dev`로 실행한다. 저장소의 `integration-tester` sub-agent를 사용해 실제 브라우저에서 검증한다.
+plan 구현이 끝나면 현재 worktree에서 실행한 dev runtime을 사용해 이 plan의 변경 범위에 해당하는 시나리오만 한 번 검증한다. PR 직전에 동일한 통합 테스트를 반복하지 않는다.
 
-시나리오:
+필수 시나리오:
 
-1. 1번 맵을 시작하고 Wave 1에서 적이 한 interval에 1마리씩 생성되는지 확인한다.
-2. 테스트용 spawn 정책 또는 실제 조정값으로 후속 wave의 batch 수가 증가하는지 확인한다.
-3. interval이 설정된 최소값 아래로 내려가지 않는지 확인한다.
-4. 마지막 batch가 총량을 넘겨 생성하지 않는지 확인한다.
-5. standard/tanker 구성, HUD 생성 수, wave clear 조건을 확인한다.
-6. 기존 맵 지형·탱크 이동·적 경로가 영향을 받지 않는지 최소 smoke test한다.
+1. `enemies.json`의 공통 spawn 정책이 실제 runtime에 로드되는지 확인한다.
+2. `test/terrain-test`의 Wave 1에서 batch 5와 적 HUD 변화를 확인한다.
+3. Wave 2 진입과 HUD 카운트가 유지되는지 확인한다.
+4. 마지막 batch가 웨이브 총량을 넘지 않는지는 자동 테스트로 확인한다.
+5. 콘솔 오류·런타임 예외가 없는지 확인한다.
+
+변경 범위 외 시나리오:
+
+- 차량 이동·카메라 추적·terrain collision은 이 plan에서 수정하지 않으므로 plan 완료 테스트에서는 `SKIP-N/A`로 기록한다. 이동 검증은 해당 기능을 변경하는 plan의 시나리오에서 수행한다.
+
+2026-09-12 plan 테스트 결과:
+
+- `integration-tester`가 `http://localhost:5177/`의 test map에서 공통 `batchSize=5`, `intervalMultiplier=0.5`, Wave 1·2 진입, 실제 적 생성과 HUD 변화를 확인했다.
+- 콘솔 오류·경고는 없었다. 마지막 batch 초과 방지와 1.2초 지역 interval의 0.6초 계산은 자동 테스트로 확인했다.
+- 차량 이동은 위 변경 범위 외 규칙에 따라 `SKIP-N/A`로 기록한다.
 
 완료 조건:
 
-- `integration-tester` 결과가 PASS다.
-- BLOCKED 또는 FAIL이면 PR/완료 커밋 단계로 진행하지 않고 원인과 재현을 기록한다.
+- 필수 시나리오가 PASS이고 변경 범위 외 시나리오는 `SKIP-N/A`로 기록된다.
+- 필수 시나리오가 `BLOCKED` 또는 `FAIL`이면 완료·commit 단계로 진행하지 않고 원인과 재현을 기록한다.
 
 ### 8.8 문서·진행 기록·커밋
 
@@ -250,5 +261,5 @@ batchSize = clamp(
 - interval 보정이 지역 cadence와 전역 minimum을 함께 지킨다.
 - 기존 Wave 1 동작, 스폰 셀 순환, 적 종류 순서, wave clear 조건이 회귀하지 않는다.
 - `npm test`, `npm run qa:art`, `npm run build`, `git diff --check`가 통과한다.
-- dev 브라우저에서 1번 맵의 스폰·카운트·웨이브 진행이 확인되고 integration-tester가 PASS다.
+- plan 완료 runtime에서 변경 범위의 스폰·카운트·웨이브 진행이 확인되고, 범위 외 시나리오는 명시적으로 skip된다.
 - 처치 수·경과 시간 기반 `ThreatMeter`는 구현하지 않고 다음 backlog로 명시되어 있다.

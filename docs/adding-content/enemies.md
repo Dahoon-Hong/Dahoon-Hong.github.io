@@ -85,10 +85,11 @@
 ```json
 {
   "spawn": {
-    "baseBatchSize": 1,
+    "baseBatchSize": 5,
     "batchSizePerThreat": 0,
-    "maxBatchSize": 3,
+    "maxBatchSize": 5,
     "intervalStep": 0,
+    "intervalMultiplier": 0.5,
     "minimumInterval": 0.25
   },
   "standard": { "...": "enemy definition" },
@@ -100,9 +101,10 @@
 - `batchSizePerThreat`: 위협 단계마다 증가하는 배치 수, 0 이상의 정수
 - `maxBatchSize`: 한 스폰 이벤트의 최대 생성 수, `baseBatchSize` 이상인 정수
 - `intervalStep`: 위협 단계마다 지역 기본 interval에 더하는 초 단위 보정값. 음수면 빨라진다.
+- `intervalMultiplier`: 위협 보정 후 지역 interval에 곱하는 공통 배율, 0보다 큰 수
 - `minimumInterval`: 지역 보정 후에도 지키는 전역 최소 interval, 0보다 큰 수
 
-현재 위협 단계는 `currentWave - 1`이며 Wave 1은 0이다. 실제 생성 수는 남은 웨이브 큐를 넘지 않는다. 이 정책은 적별 설정이 아니며, 처치 수·경과 시간 기반 `ThreatMeter`나 `maxAlive`를 정의하지 않는다.
+현재 위협 단계는 `currentWave - 1`이며 Wave 1은 0이다. 실제 생성 수는 남은 웨이브 큐를 넘지 않는다. 현재 기본값은 이벤트당 5마리와 interval 0.5배이며, 이 정책은 적별 설정이 아니다. 처치 수·경과 시간 기반 `ThreatMeter`나 `maxAlive`는 정의하지 않는다.
 
 반지름은 이미지 크기만의 값이 아니다. 큰 적은 더 넓은 길이 필요하며 `MapDefinitionLoader`가 모든 스폰 경로를 이 반지름으로 검증해야 한다.
 

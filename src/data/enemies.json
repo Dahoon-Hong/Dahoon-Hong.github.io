@@ -1,9 +1,10 @@
 {
   "spawn": {
-    "baseBatchSize": 1,
+    "baseBatchSize": 5,
     "batchSizePerThreat": 0,
-    "maxBatchSize": 3,
+    "maxBatchSize": 5,
     "intervalStep": 0,
+    "intervalMultiplier": 0.5,
     "minimumInterval": 0.25
   },
   "standard": {
