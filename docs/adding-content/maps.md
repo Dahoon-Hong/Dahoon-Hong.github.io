@@ -68,6 +68,8 @@ mapId = <planetId>/<regionId>
   "planetId": "planet",
   "regionId": "region",
   "world": { "cellSize": 36, "columns": 80, "rows": 60 },
+  "tankCollisionScale": 1,
+  "tankCollisionShape": "rect",
   "tankStartCell": { "x": 40, "y": 30 },
   "enemySpawnCells": [
     { "x": 3, "y": 8 },
@@ -114,6 +116,8 @@ mapId = <planetId>/<regionId>
 - 오목하거나 복잡한 형상은 여러 볼록 polygon으로 나눈다.
 - terrain type은 루트 `terrainTypes`에 존재해야 한다.
 - `open` terrain type은 반드시 존재한다.
+- `tankCollisionScale`은 선택적 terrain footprint 배율이며 기본값은 `1`이다.
+- `tankCollisionShape`은 선택적 `rect` 또는 `circle`이며 기본값은 `rect`다. 시각 차체와 전투 격자 크기는 이 설정으로 바꾸지 않는다.
 - tank 시작 셀과 enemy 스폰 셀은 대응 대상에게 막히지 않아야 한다.
 - 로더는 스폰 셀 하나 이상을 허용하지만 현재 생산 맵 테스트와 프로젝트 정책은 맵마다 세 개 이상을 요구한다.
 - `artwork.worldSize`는 `columns × cellSize`, `rows × cellSize`와 같아야 한다.

@@ -24,6 +24,7 @@
         "rows": 120
       },
       "tankCollisionScale": 0.45,
+      "tankCollisionShape": "circle",
       "tankStartCell": {
         "x": 73,
         "y": 48

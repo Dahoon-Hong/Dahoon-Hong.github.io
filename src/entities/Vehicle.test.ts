@@ -132,6 +132,44 @@ describe('Vehicle terrain movement', () => {
     expect(vehicle.isTerrainPositionValid({ x: vehicle.x, y: vehicle.y }, grid)).toBe(true);
   });
 
+  it('uses a circular map footprint to clear rotated terrain corners', () => {
+    const grid = new TerrainGrid({
+      world: { cellSize: 18, columns: 8, rows: 8 },
+      terrain: {
+        legend: { '.': 'open', H: 'hill' },
+        rows: [
+          '........',
+          '........',
+          '........',
+          '........',
+          '....H...',
+          '........',
+          '........',
+          '........',
+        ],
+      },
+      terrainTypes: terrain.terrainTypes,
+    });
+    const rectVehicle = new Vehicle(50, 50, definition, new UpgradeManager(definition.modules), {
+      terrainFootprintScale: 0.45,
+    });
+    const circleVehicle = new Vehicle(50, 50, definition, new UpgradeManager(definition.modules), {
+      terrainFootprintScale: 0.45,
+      terrainFootprintShape: 'circle',
+    });
+
+    expect(rectVehicle.isTerrainPositionValid({ x: 50, y: 50 }, grid)).toBe(false);
+    expect(circleVehicle.isTerrainPositionValid({ x: 50, y: 50 }, grid, Math.PI / 4)).toBe(true);
+    expect(circleVehicle.getTerrainFootprintRadius()).toBeCloseTo(24.3);
+    expect(circleVehicle.getTerrainFootprintShape()).toBe('circle');
+
+    circleVehicle.update(0.25, { x: 1, y: -1 }, { width: grid.width, height: grid.height, terrain: grid });
+
+    expect(circleVehicle.x).toBeGreaterThan(50);
+    expect(circleVehicle.y).toBeLessThan(50);
+    expect(circleVehicle.isTerrainPositionValid({ x: circleVehicle.x, y: circleVehicle.y }, grid)).toBe(true);
+  });
+
   it('slides along a wall and remains stable in a blocked corner', () => {
     const vehicle = new Vehicle(90, 90, definition, new UpgradeManager(definition.modules));
     const grid = new TerrainGrid({

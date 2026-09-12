@@ -4,7 +4,7 @@ import { VehicleSystems } from '../core/VehicleSystems';
 import { CombatGrid } from './CombatGrid';
 import { CombatModule } from './Module';
 import type { RenderContext } from '../rendering/RenderContext';
-import type { TerrainGrid } from '../core/TerrainGrid';
+import type { TerrainFootprintShape, TerrainGrid } from '../core/TerrainGrid';
 import motion from '../data/vehicle-motion.json';
 
 export interface VehicleUpdateBounds {
@@ -15,6 +15,7 @@ export interface VehicleUpdateBounds {
 
 export interface VehicleOptions {
   terrainFootprintScale?: number;
+  terrainFootprintShape?: TerrainFootprintShape;
 }
 
 export class Vehicle {
@@ -24,6 +25,7 @@ export class Vehicle {
   public readonly combatGrid: CombatGrid;
   public readonly systems: VehicleSystems;
   private readonly terrainFootprintScale: number;
+  private readonly terrainFootprintShape: TerrainFootprintShape;
   private facingAngle = -Math.PI / 2;
   private treadOffset = 0;
 
@@ -37,6 +39,7 @@ export class Vehicle {
     this.x = startX;
     this.y = startY;
     this.terrainFootprintScale = options.terrainFootprintScale ?? 1;
+    this.terrainFootprintShape = options.terrainFootprintShape ?? 'rect';
     this.systems = new VehicleSystems(definition, upgrades);
     this.combatGrid = new CombatGrid(definition.grid, definition.modules, upgrades);
     this.combatGrid.installInitial(definition.initialCombatModules);
@@ -221,6 +224,15 @@ export class Vehicle {
     };
   }
 
+  public getTerrainFootprintShape(): TerrainFootprintShape {
+    return this.terrainFootprintShape;
+  }
+
+  public getTerrainFootprintRadius(): number {
+    const footprint = this.getTerrainFootprint();
+    return Math.min(footprint.halfWidth, footprint.halfHeight);
+  }
+
   public getTerrainFootprintPolygon(
     position: { x: number; y: number } = { x: this.x, y: this.y },
     angle = this.getFacingRotation(),
@@ -245,6 +257,9 @@ export class Vehicle {
     angle = this.getFacingRotation(),
   ): boolean {
     const footprint = this.getTerrainFootprint();
+    if (this.terrainFootprintShape === 'circle') {
+      return !terrain.isBlockedCircle(position, this.getTerrainFootprintRadius(), 'tank');
+    }
     return !terrain.isBlockedOrientedRect(
       position,
       footprint.halfWidth,
@@ -295,14 +310,14 @@ export class Vehicle {
       const footprint = this.getTerrainFootprint();
       const startAngle = this.getFacingRotation();
       const requestedAngle = requestedFacingAngle + Math.PI / 2;
-      const rotationProgress = terrain.getSafeOrientedRectProgress(
+      const rotationProgress = this.getSafeTerrainProgress(
         { x: this.x, y: this.y },
         { x: this.x, y: this.y },
         footprint.halfWidth,
         footprint.halfHeight,
         startAngle,
         requestedAngle,
-        'tank',
+        terrain,
       );
       const movementAngle = rotationProgress >= 1 - 1e-9 ? requestedAngle : startAngle;
       const resolved = this.resolveTerrainMovement(
@@ -345,28 +360,28 @@ export class Vehicle {
     for (let iteration = 0; iteration < maxIterations; iteration++) {
       const remainingDistance = Math.hypot(remaining.x, remaining.y);
       if (remainingDistance <= contactEpsilon) {
-        const rotationProgress = terrain.getSafeOrientedRectProgress(
+        const rotationProgress = this.getSafeTerrainProgress(
           position,
           position,
           footprint.halfWidth,
           footprint.halfHeight,
           angle,
           endAngle,
-          'tank',
+          terrain,
         );
         angle = interpolateAngle(angle, endAngle, rotationProgress);
         break;
       }
 
       const target = { x: position.x + remaining.x, y: position.y + remaining.y };
-      const progress = terrain.getSafeOrientedRectProgress(
+      const progress = this.getSafeTerrainProgress(
         position,
         target,
         footprint.halfWidth,
         footprint.halfHeight,
         angle,
         endAngle,
-        'tank',
+        terrain,
       );
       if (progress >= 1 - 1e-9) {
         position = target;
@@ -388,14 +403,14 @@ export class Vehicle {
       for (const candidate of candidates) {
         const candidateDistance = Math.hypot(candidate.x, candidate.y);
         if (candidateDistance <= contactEpsilon) continue;
-        const candidateProgress = terrain.getSafeOrientedRectProgress(
+        const candidateProgress = this.getSafeTerrainProgress(
           position,
           { x: position.x + candidate.x, y: position.y + candidate.y },
           footprint.halfWidth,
           footprint.halfHeight,
           angle,
           endAngle,
-          'tank',
+          terrain,
         );
         const resolvedDistance = Math.min(travelRemaining, candidateDistance * candidateProgress);
         if (!best || resolvedDistance > best.distance) {
@@ -415,6 +430,29 @@ export class Vehicle {
     }
 
     return { position, angle };
+  }
+
+  private getSafeTerrainProgress(
+    start: { x: number; y: number },
+    end: { x: number; y: number },
+    halfWidth: number,
+    halfHeight: number,
+    startAngle: number,
+    endAngle: number,
+    terrain: TerrainGrid,
+  ): number {
+    if (this.terrainFootprintShape === 'circle') {
+      return terrain.getSafeRadiusProgress(start, end, Math.min(halfWidth, halfHeight), 'tank');
+    }
+    return terrain.getSafeOrientedRectProgress(
+      start,
+      end,
+      halfWidth,
+      halfHeight,
+      startAngle,
+      endAngle,
+      'tank',
+    );
   }
 
   private getSlideCandidates(remaining: { x: number; y: number }): Array<{ x: number; y: number }> {

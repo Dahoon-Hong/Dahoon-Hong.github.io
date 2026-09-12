@@ -56,6 +56,7 @@ describe('MapDefinitionLoader', () => {
 
     expect(map?.world).toEqual({ cellSize: 18, columns: 5, rows: 5 });
     expect(map?.tankCollisionScale).toBe(1);
+    expect(map?.tankCollisionShape).toBe('rect');
     expect(loader.createTerrainGrid('test/example').getWorldBounds()).toEqual({
       left: 0,
       top: 0,
@@ -82,6 +83,15 @@ describe('MapDefinitionLoader', () => {
         tankCollisionScale: 1.1,
       }],
     }), noAssets)).toThrow(/must be between 0.1 and 1/);
+  });
+
+  it('validates the optional tank collision shape', () => {
+    expect(() => new MapDefinitionLoader(makeRoot({
+      maps: [{
+        ...makeRoot().maps[0] as Record<string, unknown>,
+        tankCollisionShape: 'capsule',
+      }],
+    }), noAssets)).toThrow(/must be 'rect' or 'circle'/);
   });
 
   it('rejects row shape, unknown symbols, and duplicate map IDs', () => {
@@ -185,6 +195,7 @@ describe('MapDefinitionLoader', () => {
       expect(map.world).toEqual(expectedWorlds[map.mapId as keyof typeof expectedWorlds]);
       if (map.mapId === 'aurelia/landing-zone') {
         expect(map.tankCollisionScale).toBe(0.45);
+        expect(map.tankCollisionShape).toBe('circle');
         expect(map.terrain.rows).toHaveLength(120);
         expect(map.terrain.regions).toBeUndefined();
         expect(map.tankStartCell).toEqual({ x: 73, y: 48 });
@@ -198,6 +209,7 @@ describe('MapDefinitionLoader', () => {
           map.terrain.rows?.[cell.y]?.[cell.x] === '.')).toBe(true);
       } else {
         expect(map.tankCollisionScale).toBe(1);
+        expect(map.tankCollisionShape).toBe('rect');
         expect(map.terrain.regions).toHaveLength(expectedRegionCounts[map.mapId]);
       }
       expect(map.enemySpawnCells.length).toBeGreaterThanOrEqual(3);

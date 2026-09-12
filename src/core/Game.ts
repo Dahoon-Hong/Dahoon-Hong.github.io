@@ -374,6 +374,7 @@ export class Game {
       : { x: this.camera.width / 2, y: this.camera.height / 2 };
     const vehicle = new Vehicle(start.x, start.y, this.tankDefinition, this.upgradeManager, {
       terrainFootprintScale: map?.tankCollisionScale,
+      terrainFootprintShape: map?.tankCollisionShape,
     });
     if (map && !vehicle.isTerrainPositionValid(start, this.terrainGrid)) {
       throw new Error(`[Game] map '${map.mapId}' has an invalid tank start footprint`);
@@ -887,14 +888,26 @@ export class Game {
       ctx.stroke();
     }
 
-    const footprint = this.vehicle.getTerrainFootprintPolygon();
     ctx.strokeStyle = '#ffd54f';
     ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(footprint[0].x, footprint[0].y);
-    for (const point of footprint.slice(1)) ctx.lineTo(point.x, point.y);
-    ctx.closePath();
-    ctx.stroke();
+    if (this.vehicle.getTerrainFootprintShape() === 'circle') {
+      ctx.beginPath();
+      ctx.arc(
+        this.vehicle.x,
+        this.vehicle.y,
+        this.vehicle.getTerrainFootprintRadius(),
+        0,
+        Math.PI * 2,
+      );
+      ctx.stroke();
+    } else {
+      const footprint = this.vehicle.getTerrainFootprintPolygon();
+      ctx.beginPath();
+      ctx.moveTo(footprint[0].x, footprint[0].y);
+      for (const point of footprint.slice(1)) ctx.lineTo(point.x, point.y);
+      ctx.closePath();
+      ctx.stroke();
+    }
 
     for (const enemy of this.enemies) {
       const path = enemy.getPath();

@@ -1,4 +1,5 @@
 export type TerrainCollisionTarget = 'tank' | 'enemy' | 'projectile';
+export type TerrainFootprintShape = 'rect' | 'circle';
 
 export interface TerrainCell {
   x: number;

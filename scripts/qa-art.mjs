@@ -178,6 +178,9 @@ if (!map1) {
   if (map1.tankCollisionScale !== 0.45) {
     fail(`${map1.mapId}.tankCollisionScale must be 0.45 for the lenient three-tile tank footprint`);
   }
+  if (map1.tankCollisionShape !== 'circle') {
+    fail(`${map1.mapId}.tankCollisionShape must be circle for corner clearance`);
+  }
   if (Array.isArray(map1.terrain?.regions)) {
     fail(`${map1.mapId}.terrain.regions must be absent for tile terrain`);
   }
