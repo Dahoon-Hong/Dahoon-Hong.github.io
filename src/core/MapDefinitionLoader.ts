@@ -10,6 +10,7 @@ import {
   TerrainRegion,
   TerrainTypeDefinition,
 } from './TerrainGrid';
+import type { TerrainFootprintShape } from './TerrainGrid';
 import { TerrainPathfinder } from './TerrainPathfinder';
 
 export interface MapDefinition extends TerrainMapData {
@@ -28,6 +29,7 @@ export interface MapDefinition extends TerrainMapData {
   tankStartCell: TerrainCell;
   enemySpawnCells: TerrainCell[];
   tankCollisionScale: number;
+  tankCollisionShape: TerrainFootprintShape;
 }
 
 export interface MapArtworkDefinition {
@@ -82,6 +84,12 @@ function integer(value: unknown, path: string, minimum = 0): number {
 function boolean(value: unknown, path: string): boolean {
   if (typeof value !== 'boolean') fail(path, 'expected a boolean');
   return value;
+}
+
+function footprintShape(value: unknown, path: string): TerrainFootprintShape {
+  const parsed = value === undefined ? 'rect' : string(value, path);
+  if (parsed !== 'rect' && parsed !== 'circle') fail(path, "must be 'rect' or 'circle'");
+  return parsed;
 }
 
 function cell(value: unknown, path: string): TerrainCell {
@@ -293,6 +301,7 @@ export class MapDefinitionLoader {
         ? 1
         : number(source.tankCollisionScale, `${path}.tankCollisionScale`, 0.1);
       if (tankCollisionScale > 1) fail(`${path}.tankCollisionScale`, 'must be between 0.1 and 1');
+      const tankCollisionShape = footprintShape(source.tankCollisionShape, `${path}.tankCollisionShape`);
 
       const terrain = record(source.terrain, `${path}.terrain`);
       const hasRows = Object.prototype.hasOwnProperty.call(terrain, 'rows');
@@ -403,6 +412,7 @@ export class MapDefinitionLoader {
         tankStartCell,
         enemySpawnCells,
         tankCollisionScale,
+        tankCollisionShape,
       };
     });
     this.validateEnemyReachability();
