@@ -169,6 +169,13 @@ export class Game {
       }
     });
     this.input = new InputManager();
+    this.input.setupTouchJoystick(this.canvas, {
+      width: this.logicalWidth,
+      height: this.logicalHeight,
+      gameplayWidth: this.gameplayWidth,
+      top: VisualTheme.spacing.topBarHeight,
+      isActive: () => this.screen === AppScreen.GAMEPLAY && this.state === GameState.PLAYING && !this.pauseMenuVisible,
+    });
     this.hud = new HUDManager();
     this.tankDefinition = new TankDefinitionLoader().getDefault();
     this.upgradeManager = new UpgradeManager(this.tankDefinition.modules);
@@ -418,6 +425,7 @@ export class Game {
       return;
     }
     this.state = nextState;
+    if (nextState !== GameState.PLAYING) this.input.reset();
     if (nextState === GameState.PAUSED) {
       this.audio.setMusicDucked(true);
     } else if (nextState === GameState.PLAYING) {
@@ -722,9 +730,34 @@ export class Game {
       this.state === GameState.PAUSED,
       this.camera,
     );
+    this.renderTouchJoystick();
 
     if (this.pauseMenuVisible) this.renderPauseMenuOverlay();
     else if (this.isTerminalState()) this.renderResultOverlay();
+  }
+
+  private renderTouchJoystick(): void {
+    const joystick = this.input.getTouchJoystick();
+    if (!joystick) return;
+
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.rect(0, VisualTheme.spacing.topBarHeight, this.gameplayWidth, this.logicalHeight - VisualTheme.spacing.topBarHeight);
+    this.ctx.clip();
+    this.ctx.globalAlpha = 0.72;
+    this.ctx.fillStyle = VisualTheme.color.surfaceTopbar;
+    this.ctx.strokeStyle = VisualTheme.color.accent;
+    this.ctx.lineWidth = 3;
+    this.ctx.beginPath();
+    this.ctx.arc(joystick.base.x, joystick.base.y, joystick.radius, 0, Math.PI * 2);
+    this.ctx.fill();
+    this.ctx.stroke();
+    this.ctx.globalAlpha = 0.92;
+    this.ctx.fillStyle = VisualTheme.color.accent;
+    this.ctx.beginPath();
+    this.ctx.arc(joystick.knob.x, joystick.knob.y, joystick.radius * 0.42, 0, Math.PI * 2);
+    this.ctx.fill();
+    this.ctx.restore();
   }
 
   private handlePauseMenuAction(action: typeof PAUSE_MENU_OPTIONS[number]): void {
