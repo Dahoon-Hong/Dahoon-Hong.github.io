@@ -1,3 +1,19 @@
+export interface GameTestResourceSnapshot {
+  amount: number;
+  capacity: number;
+}
+
+export interface GameTestProductionSnapshot {
+  moduleId: string;
+  input: string | null;
+  output: string;
+  progress: number;
+  interval: number;
+  bufferedOutput: number;
+  outputCapacity: number;
+  status: string;
+}
+
 export interface GameTestSnapshot {
   screen: string;
   gameState: string;
@@ -21,7 +37,13 @@ export interface GameTestSnapshot {
   lastSpawnAt: number | null;
   lastSpawnTypes: readonly string[];
   timestamp: number;
+  scenario: string | null;
+  resources: Record<string, GameTestResourceSnapshot>;
+  production: readonly GameTestProductionSnapshot[];
+  armoryStock: Record<string, number>;
 }
+
+type LegacyGameTestSnapshot = Omit<GameTestSnapshot, 'scenario' | 'resources' | 'production' | 'armoryStock'>;
 
 export function isGameTestRuntime(): boolean {
   return typeof window !== 'undefined'
@@ -62,7 +84,7 @@ export class GameTestObserver {
     return this.element !== null;
   }
 
-  public update(snapshot: GameTestSnapshot): void {
+  public update(snapshot: GameTestSnapshot | LegacyGameTestSnapshot): void {
     if (!this.element) return;
     this.element.textContent = JSON.stringify(snapshot, null, 2);
   }

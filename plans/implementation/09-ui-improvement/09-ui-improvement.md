@@ -1,6 +1,6 @@
 # 09. HUD·업그레이드 UI 개선
 
-상태: 구현 완료 · runtime QA BLOCKED (필수 UI-09-4 미관측)
+상태: 구현 완료 · runtime QA PASS (허용된 SKIP-ENV/SKIP-N/A 포함)
 
 ## 목적
 
@@ -165,11 +165,24 @@ interface ProductionSnapshot {
 - tooltip 위치 clamp, line wrap, pointer 대상 변경/이탈 처리를 추가한다.
 - tooltip이 click, drag, rotation, install, upgrade 입력을 막지 않는지 확인한다.
 
+### 09.4.1 재현 가능한 runtime fixture
+
+- 필수 상태를 자연 플레이 시간이나 자원 운에 의존하지 않고 `?test=1&scenario=...` URL로 결정한다.
+- `production-wait-input`: 생산 입력 자원을 0으로 시작해 `WAIT INPUT`을 즉시 관측한다.
+- `production-buffer-full`: 출력 저장소를 가득 채우고 생산 buffer를 capacity로 시작해 `BUFFER FULL`을 즉시 관측한다.
+- `production-storage-full`: resource 저장소를 capacity로 시작해 `STORAGE FULL`을 관측한다.
+- `armory-install`: test-only matter와 direct-weapon stock을 준비해 purchase/install/drag/rotation 입력을 검증한다.
+- `terminal-game-over`: Core HP를 0으로 시작해 `GAME_OVER` overlay를 검증한다.
+- `terminal-region`: 마지막 wave가 clear된 상태로 시작해 실제 `REGION_CLEARED` 전환을 검증한다.
+- 모든 fixture는 development test runtime에서만 활성화하고 일반 production runtime에는 노출하지 않는다.
+- 현재 `Game`에는 `VICTORY`로 이어지는 실제 전환 경로가 없으므로, Plan 09에서는 도달 가능한 `GAME_OVER`와 `REGION_CLEARED`를 필수 terminal 검증으로 삼고 campaign victory 전환은 별도 범위로 기록한다.
+
 ### 09.5 회귀·runtime 검증
 
-- 기존 unit/build/QA를 실행한다.
+- 사용자 요청에 따라 자동 unit/build/QA는 실행하지 않고 Plan 통합 테스트만 실행한다.
 - 현재 plan worktree에서 orchestrator가 실행한 정확한 dev-server URL/port를 `integration-tester`에 전달한다.
 - tester는 별도 서버나 임의 port를 시작하지 않고 bounded 단일 실행으로 최종 결과만 반환한다.
+- fixture URL과 precondition을 prompt에 함께 전달해 필수 상태가 재현되는지 검증한다.
 - 필수 시나리오가 PASS이고 허용된 skip만 남을 때 plan을 완료한다.
 
 ### 09.6 진행 기록과 전달
@@ -199,19 +212,22 @@ interface ProductionSnapshot {
 | UI-09-1 | 전투 시작 화면에서 탱크 위 Core HP bar 확인 | bar와 수치가 Core HP와 일치하고 tank 이동 시 함께 이동 |
 | UI-09-2 | 정상 전투 중 4개 생산 cycle bar 확인 | 네 bar가 실제 timer에 따라 진행하고 출력 label이 맞음 |
 | UI-09-3 | pause/resume | pause 중 생산 bar·자동 생산·자원 수집이 정지하고 resume 후 재개 |
-| UI-09-4 | 입력 부족·buffer/storage full 상태 | bar가 상태 marker와 문구로 원인을 구분 |
+| UI-09-4 | `production-wait-input`, `production-buffer-full`, `production-storage-full` fixture 순서로 실행 | bar가 `WAIT INPUT`, `BUFFER FULL`, `STORAGE FULL` marker와 tooltip 문구로 원인을 구분 |
 | UI-09-5 | 시스템·전투 모듈 card 선택 | 확대된 card가 읽히고 기존 선택/hitbox이 동작 |
 | UI-09-6 | upgrade node 선택·구매/연구 | compact map의 모든 node가 보이고 기존 상태·비용·입력이 유지 |
 | UI-09-7 | system/node/production/HP hover | 올바른 tooltip, clipping 없음, 대상 변경·pointer 이탈 시 정상 교체/닫힘 |
-| UI-09-8 | install·drag·R 회전·upgrade 입력 | tooltip이 기존 click/drag/rotation을 방해하지 않음 |
+| UI-09-8 | `armory-install` fixture에서 install·drag·R 회전·upgrade 입력 | 준비된 stock/cost로 실제 입력이 성공하고 tooltip이 click/drag/rotation을 방해하지 않음 |
 | UI-09-9 | 1280x720 및 축소 viewport | HUD 겹침·잘림·pointer offset·콘솔 critical error 없음 |
-| UI-09-10 | wave 진행 및 game over/victory | 새 HUD가 wave, pause, terminal 전환을 가리지 않음 |
+| UI-09-10 | `terminal-game-over` 및 `terminal-region` fixture에서 terminal 전환 | 새 HUD가 wave, pause, GAME_OVER/REGION_CLEARED overlay를 가리지 않음; VICTORY는 별도 campaign 전환 범위 |
 
 필수 시나리오가 `FAIL` 또는 `BLOCKED`이면 plan 완료·commit을 보류하고 재현 조건과 원인을 기록한다. 변경 범위 밖의 검증은 `SKIP-N/A`, 환경상 실행 불가능한 경우에만 사유를 포함한 `SKIP-ENV`로 기록한다. 관측할 수 없는 필수 상태를 skip으로 숨기지 않는다.
 
 ## 예상 변경 파일
 
 - `src/core/VehicleSystems.ts`
+- `src/core/GameTestScenario.ts`
+- `src/core/GameTestObserver.ts`
+- `src/core/Game.ts`
 - `src/core/VehicleSystems.test.ts` 또는 기존 관련 core test 파일
 - `src/ui/HUDManager.ts`
 - 필요 시 tooltip/layout 계산을 검증하는 순수 helper 및 test 파일
@@ -227,7 +243,7 @@ interface ProductionSnapshot {
 - 시스템·전투 모듈 card는 커지고 upgrade map은 compact해졌지만 모든 기존 node, 연결, 비용, click 흐름이 유지된다.
 - hover tooltip이 필요한 정보를 제공하고 Canvas 밖으로 잘리지 않는다.
 - install, drag, rotation, research, purchase, pause, wave, terminal 흐름에 회귀가 없다.
-- 자동 검증과 필수 runtime integration QA가 PASS이며, 허용된 skip만 명시되어 있다.
+- 필수 runtime integration QA가 PASS이며, 자동 검증은 사용자 요청에 따른 미실행과 허용된 skip이 명시되어 있다.
 - progress 기록, `git diff --check`, `plan 09` 커밋 메시지 규칙을 지킨다.
 
 ## 구현 결과
@@ -235,20 +251,32 @@ interface ProductionSnapshot {
 - Subtask 1: `c757d51 feat(plan 09): expose production snapshots` — `VehicleSystems`에 4개 생산 시스템의 읽기 전용 snapshot API 추가
 - Subtask 2: `772cf7d feat(plan 09): rebalance HUD layout` — 탱크 상단 Core HP, production cycle bar, 확대 시스템 card, compact upgrade map 추가
 - Subtask 3: `99e89b1 feat(plan 09): add HUD hover tooltips` — HP/production/system/node hover tooltip과 Canvas 경계 보정 추가
+- Subtask 4: `GameTestScenario.ts`, `GameTestObserver.ts` — URL별 deterministic fixture와 production/resource/armory observer snapshot 추가
+- Subtask 5: `Game.ts`, `VehicleSystems.ts` — test runtime에서만 입력 부족, buffer/storage full, armory stock, terminal 상태를 주입
 - 문서·진행 기록: `dbe4bcf docs(plan 09): record UI implementation QA`, `f4487bf docs(plan 09): correct integration QA record`
 
 ## 실제 runtime 검증 기록
 
 ```text
-runtimeId: 92844
-URL: http://127.0.0.1:5178/?test=1
+baseline runtimeId: 35142
+baseline URL: http://127.0.0.1:5179/?test=1
+fixture runtimeId: 49537
+fixture URLs: http://127.0.0.1:5181/?test=1&scenario=production-wait-input,
+              http://127.0.0.1:5181/?test=1&scenario=production-buffer-full,
+              http://127.0.0.1:5181/?test=1&scenario=production-storage-full,
+              http://127.0.0.1:5181/?test=1&scenario=armory-install,
+              http://127.0.0.1:5181/?test=1&scenario=terminal-game-over,
+              http://127.0.0.1:5181/?test=1&scenario=terminal-region
 worktree: C:\Users\slaye\ws\local_game
-결과: BLOCKED
-PASS: UI-09-1 HP bar/value/movement, UI-09-2 production bars, UI-09-3 pause/resume,
-      UI-09-5 cards, UI-09-6 upgrade map, UI-09-7 tooltips, UI-09-8 input 회귀,
-      UI-09-10 wave/terminal
-BLOCKED: UI-09-4 BUFFER FULL은 확인했으나 input/storage-full 상태는 자연 발생하지 않아 필수 상태 전체를 판정할 수 없음
-SKIP-ENV: UI-09-9 1280x720은 확인했으나 축소 viewport 제어 API 미지원
+branch: feature/plan-09-ui-improvement
+결과: PASS (허용된 SKIP-ENV/SKIP-N/A 포함)
+PASS: UI-09-1 Core HP bar/value, UI-09-2 production bars/labels/timer,
+      UI-09-3 pause/resume, UI-09-5 system/card 선택, UI-09-6 compact upgrade map,
+      UI-09-7 HP/system/production/node tooltip과 닫힘, UI-09-9 1280x720 layout
+      UI-09-4 fixture 3종(WAIT INPUT/BUFFER FULL/STORAGE FULL),
+      UI-09-8 armory install/drag/R 회전, UI-09-10 GAME_OVER/REGION_CLEARED terminal
+SKIP-ENV: UI-09-1 이동 hold API 부재, UI-09-9 축소 viewport API 부재
+SKIP-N/A: VICTORY는 현재 production transition이 없어 별도 campaign 범위
 콘솔: errors 0, warnings 0
-자동 검증: 사용자 요청에 따라 npm test/build/qa:release 미실행
+자동 검증: 사용자 요청에 따라 npm test/build/qa:release 미실행. QA 중 파일 변경 없음
 ```

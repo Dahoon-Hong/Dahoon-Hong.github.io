@@ -137,6 +137,12 @@ export class VehicleSystems {
     return this.outputs.get(moduleId) ?? 0;
   }
 
+  public setProductionBufferForTest(moduleId: string, amount?: number): void {
+    if (!import.meta.env.DEV || !this.outputs.has(moduleId)) return;
+    const capacity = Math.max(0, this.getStat(moduleId, 'outputCapacity', 20));
+    this.outputs.set(moduleId, Math.max(0, Math.min(capacity, amount ?? capacity)));
+  }
+
   public getProductionSnapshots(storage: ResourceStorage): ProductionSnapshot[] {
     return PRODUCTION_MODULE_IDS
       .filter((moduleId) => this.definition.builtinModuleIds.includes(moduleId))
