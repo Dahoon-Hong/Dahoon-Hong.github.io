@@ -7,7 +7,7 @@ import { ResourcePickup } from '../entities/ResourcePickup';
 import { Vehicle } from '../entities/Vehicle';
 import { InputManager } from './InputManager';
 import { ProgressionManager } from './ProgressionManager';
-import { ResourceStorage } from './ResourceStorage';
+import { RESOURCE_TYPES, ResourceStorage, ResourceType } from './ResourceStorage';
 import { TankDefinitionLoader, TankDefinition } from './TankDefinitionLoader';
 import { UpgradeManager } from './UpgradeManager';
 import { WaveManager } from './WaveManager';
@@ -29,6 +29,7 @@ import { LocalStorageCampaignProgressStore } from './LocalStorageCampaignProgres
 import { WorldMapDataLoader } from './WorldMapDataLoader';
 import { WorldMap } from '../ui/WorldMap';
 import { GameTestObserver } from './GameTestObserver';
+import { getGameTestScenario } from './GameTestScenario';
 
 export enum AppScreen {
   START_MENU = 'START_MENU',
@@ -76,6 +77,7 @@ export class Game {
   private readonly gameplayWidth = LOGICAL_CANVAS_WIDTH - HUDManager.PANEL_WIDTH;
   private readonly camera: Camera;
   private readonly testObserver: GameTestObserver;
+  private readonly testScenario = getGameTestScenario();
   private readonly startMenu = new StartMenu();
   private readonly settingsScreen = new SettingsScreen();
   private terrainGrid: TerrainGrid;
@@ -202,6 +204,7 @@ export class Game {
       installPurchasedModule: (moduleId, anchor, orientation) => this.installPurchasedModule(moduleId, anchor, orientation),
     }, { width: this.logicalWidth, height: this.logicalHeight });
 
+    this.applyTestScenario();
     window.addEventListener('keydown', (event) => this.handleScreenKey(event));
     this.canvas.addEventListener('click', (event) => {
       this.canvas.focus({ preventScroll: true });
@@ -417,6 +420,46 @@ export class Game {
 
   private createArmory(): ArmoryManager {
     return new ArmoryManager(this.tankDefinition, this.upgradeManager);
+  }
+
+  private applyTestScenario(): void {
+    if (!this.testScenario || !this.testObserver.isEnabled()) return;
+
+    this.beginFreshRun();
+    switch (this.testScenario) {
+      case 'production-wait-input':
+        this.setTestResource('resource', 0);
+        this.setTestResource('matter', 0);
+        break;
+      case 'production-buffer-full':
+        this.setTestResource('resource', this.resources.getCapacity('resource'));
+        this.setTestResource('matter', this.resources.getCapacity('matter'));
+        this.vehicle.systems.setProductionBufferForTest('recycler');
+        break;
+      case 'production-storage-full':
+        this.setTestResource('resource', this.resources.getCapacity('resource'));
+        break;
+      case 'armory-install':
+        this.setTestResource('matter', this.resources.getCapacity('matter'));
+        this.armory.purchase('direct-weapon', (cost) => this.resources.spendCost(cost));
+        this.setTestResource('matter', this.resources.getCapacity('matter'));
+        this.setState(GameState.PAUSED);
+        break;
+      case 'terminal-game-over':
+        this.vehicle.takeDamage(9999, 0, { x: 0, y: 0 });
+        this.setState(GameState.GAME_OVER);
+        break;
+      case 'terminal-region':
+        this.waveManager.currentWave = this.waveManager.totalWaves;
+        this.waveManager.spawnedEnemiesCount = this.waveManager.totalWaveEnemies;
+        this.waveManager.waveCleared = true;
+        break;
+    }
+  }
+
+  private setTestResource(type: ResourceType, amount: number): void {
+    this.resources.spend(type, this.resources.get(type));
+    this.resources.add(type, amount);
   }
 
   private setState(nextState: GameState): void {
@@ -645,6 +688,7 @@ export class Game {
     if (!this.testObserver.isEnabled()) return;
     const liveEnemyCount = this.enemies.reduce((count, enemy) => count + (enemy.isDead() ? 0 : 1), 0);
     this.testObserver.update({
+      scenario: this.testScenario,
       screen: this.screen,
       gameState: this.state,
       wave: this.waveManager.currentWave,
@@ -666,6 +710,15 @@ export class Game {
       lastSpawnBatchSize: this.waveManager.lastSpawnBatchSize,
       lastSpawnAt: this.waveManager.lastSpawnAt,
       lastSpawnTypes: [...this.waveManager.lastSpawnTypes],
+      resources: Object.fromEntries(RESOURCE_TYPES.map((type) => [type, {
+        amount: this.resources.get(type),
+        capacity: this.resources.getCapacity(type),
+      }])),
+      production: this.vehicle.systems.getProductionSnapshots(this.resources),
+      armoryStock: Object.fromEntries(this.vehicle.getCombatModuleDefinitions().map((definition) => [
+        definition.id,
+        this.armory.getStock(definition.id),
+      ])),
       timestamp: performance.now(),
     });
   }
