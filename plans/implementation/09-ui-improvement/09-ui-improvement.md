@@ -1,6 +1,6 @@
 # 09. HUD·업그레이드 UI 개선
 
-상태: 구현 완료 · Pages 배포 게이트 진행 중
+상태: 구현 완료 · Pages 배포 게이트 PASS
 
 ## 목적
 
@@ -286,4 +286,6 @@ SKIP-N/A: VICTORY는 현재 production transition이 없어 별도 campaign 범�
 
 - 성공 기준: `https://dahoon-hong.github.io`에서 production cycle bar와 탱크 위 Core HP bar가 실제로 보인다.
 - PR #14 merge 직후 Pages build가 `HUDManager.ts`의 TS6133 오류(`tooltipTarget`, `vehicle`)로 실패해 이전 HUD가 배포된 상태를 확인했다.
-- `fix/plan-09-pages-build`에서 두 unused reference 오류를 수정하고, Pages 재배포 후 live UI를 다시 확인한다.
+- PR #15 `fix/plan-09-pages-build`에서 두 unused reference 오류를 수정하고 merge했다.
+- Pages run `34747820331`이 성공했고, 기본 URL에서 4개 production cycle bar와 탱크 위 `HP 100/100` bar를 실제 화면으로 확인했다.
+- 사용자 범위에 따라 모바일 화면 검증은 실행하지 않았다.
