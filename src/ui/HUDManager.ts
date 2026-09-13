@@ -1115,8 +1115,8 @@ export class HUDManager {
     storage: ResourceStorage,
     isPaused: boolean,
   ): void {
-    const target = this.getTooltipTarget(vehicle);
-    this.tooltipTarget = target;
+    this.tooltipTarget = this.getTooltipTarget();
+    const target = this.tooltipTarget;
     if (!target || !this.pointer) return;
 
     const ctx = render.ctx;
@@ -1148,7 +1148,7 @@ export class HUDManager {
     });
   }
 
-  private getTooltipTarget(vehicle: Vehicle): TooltipTarget | null {
+  private getTooltipTarget(): TooltipTarget | null {
     if (!this.pointer) return null;
     const point = this.pointer;
     const node = this.nodeHitboxes.find((hitbox) => this.contains(hitbox, point.x, point.y));
