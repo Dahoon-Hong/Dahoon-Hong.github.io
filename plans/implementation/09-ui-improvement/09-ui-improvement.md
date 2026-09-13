@@ -227,3 +227,26 @@ interface ProductionSnapshot {
 - install, drag, rotation, research, purchase, pause, wave, terminal 흐름에 회귀가 없다.
 - 자동 검증과 필수 runtime integration QA가 PASS이며, 허용된 skip만 명시되어 있다.
 - progress 기록, `git diff --check`, `plan 09` 커밋 메시지 규칙을 지킨다.
+
+## 구현 결과
+
+- Subtask 1: `c757d51 feat(plan 09): expose production snapshots` — `VehicleSystems`에 4개 생산 시스템의 읽기 전용 snapshot API 추가
+- Subtask 2: `772cf7d feat(plan 09): rebalance HUD layout` — 탱크 상단 Core HP, production cycle bar, 확대 시스템 card, compact upgrade map 추가
+- Subtask 3: `99e89b1 feat(plan 09): add HUD hover tooltips` — HP/production/system/node hover tooltip과 Canvas 경계 보정 추가
+- 문서·진행 기록: `dbe4bcf docs(plan 09): record UI implementation QA`
+
+## 실제 runtime 검증 기록
+
+```text
+runtimeId: 32820
+URL: http://127.0.0.1:5173/?test=1
+worktree: C:\Users\slaye\ws\local_game
+결과: PASS with documented skips
+PASS: UI-09-1 HP bar/value, UI-09-2 production bars, UI-09-3 pause/resume,
+      UI-09-5 cards, UI-09-6 upgrade map, UI-09-7 tooltips, UI-09-8 input,
+      UI-09-10 wave/pause/terminal
+SKIP-N/A: UI-09-4 blocked-input/buffer/storage-full 변형은 자연 발생 조건 미도달
+SKIP-ENV: UI-09-1 이동 hold는 단발 keypress API 제한, UI-09-9 축소 viewport는 제어 API 미제공
+콘솔: errors 0, warnings 0
+자동 검증: 사용자 요청에 따라 npm test/build/qa:release 미실행
+```
