@@ -1,6 +1,6 @@
 # 09. HUD·업그레이드 UI 개선
 
-상태: 구현 완료 · runtime QA BLOCKED (integration-tester 무응답)
+상태: 구현 완료 · runtime QA PASS (documented skips)
 
 ## 목적
 
@@ -185,6 +185,8 @@ interface ProductionSnapshot {
 
 ### 자동 검증
 
+이번 실행에서는 사용자의 요청에 따라 Plan 통합 테스트만 수행하고 아래 자동 스위트는 실행하지 않는다.
+
 - `npm test`
 - `npm run qa:release`
 - `npm run build`
@@ -238,12 +240,15 @@ interface ProductionSnapshot {
 ## 실제 runtime 검증 기록
 
 ```text
-runtimeId: 16230
-URL: http://127.0.0.1:5174/?test=1
+runtimeId: 92844
+URL: http://127.0.0.1:5178/?test=1
 worktree: C:\Users\slaye\ws\local_game
-결과: BLOCKED
-사유: 지정 runtime을 사용한 integration-tester thread가 최종 결과를 반환하지 않아 필수 시나리오 완료 여부를 판정할 수 없음
-수동 보조 확인: 전투 화면에서 탱크 상단 `HP 100/100`, 4개 production bar, 확대 system card, compact upgrade map, pause overlay를 확인했고 브라우저 console errors/warnings는 0건
-미완료: UI-09-4 상태 변형, UI-09-8 입력 회귀, UI-09-9 축소 viewport, UI-09-10 terminal 전환은 공식 integration 결과 없음
+결과: PASS with documented skips
+PASS: UI-09-1 HP bar/value/movement, UI-09-2 production bars, UI-09-3 pause/resume,
+      UI-09-5 cards, UI-09-6 upgrade map, UI-09-7 tooltips, UI-09-8 input 회귀,
+      UI-09-10 wave/terminal
+SKIP-N/A: UI-09-4 BUFFER FULL은 확인했으나 input/storage-full 상태는 자연 발생하지 않음
+SKIP-ENV: UI-09-9 1280x720은 확인했으나 축소 viewport 제어 API 미지원
+콘솔: errors 0, warnings 0
 자동 검증: 사용자 요청에 따라 npm test/build/qa:release 미실행
 ```
