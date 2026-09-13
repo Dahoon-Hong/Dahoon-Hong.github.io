@@ -1,26 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { StandardEnemy, TankerEnemy } from '../entities/Enemy';
 import { TerrainGrid, TerrainMapData } from './TerrainGrid';
-import { EnemySpawnPolicy, ProgressionManager, RegionDefinition } from './ProgressionManager';
-import { calculateSpawnScaling, WaveManager } from './WaveManager';
+import { ProgressionManager, RegionDefinition } from './ProgressionManager';
+import { calculateEnemySpawnCount, WaveManager } from './WaveManager';
 
 const enemyDefinitions = {
   standard: {
+    spawnWeight: 1,
+    spawnInterval: 0.1,
+    spawnBatchSize: 2,
     hp: 10, speed: 20, radius: 6, reward: 1, typeName: 'Standard', contactDamage: 1, contactDamageInterval: 0.2,
   },
   tanker: {
+    spawnWeight: 0.5,
+    spawnInterval: 0.1,
+    spawnBatchSize: 1,
     hp: 20, speed: 10, radius: 8, reward: 2, typeName: 'Tanker', contactDamage: 2, contactDamageInterval: 0.2,
   },
 } as const;
-
-const spawnPolicy: EnemySpawnPolicy = {
-  baseBatchSize: 1,
-  batchSizePerThreat: 0,
-  maxBatchSize: 3,
-  intervalStep: 0,
-  intervalMultiplier: 1,
-  minimumInterval: 0.1,
-};
 
 const terrain = new TerrainGrid({
   world: { cellSize: 36, columns: 4, rows: 2 },
@@ -43,23 +40,26 @@ const region: RegionDefinition = {
   mapId: 'test/test-wave',
   campaign: false,
   name: 'Test Wave',
-  spawnInterval: 0.1,
-  spawnIntervalStep: 0,
-  minimumSpawnInterval: 0.1,
-  waves: [{ standard: 2, tanker: 1 }],
+  waves: [{ targetKills: 10 }, { targetKills: 12 }],
 };
 
+describe('calculateEnemySpawnCount', () => {
+  it('multiplies the base spawn by the enemy weight and respects batch size', () => {
+    expect(calculateEnemySpawnCount(5, { spawnWeight: 0.4, spawnBatchSize: 3 })).toBe(2);
+    expect(calculateEnemySpawnCount(5, { spawnWeight: 2, spawnBatchSize: 3 })).toBe(3);
+    expect(calculateEnemySpawnCount(5, { spawnWeight: 0, spawnBatchSize: 3 })).toBe(0);
+  });
+});
+
 describe('WaveManager', () => {
-  it('uses map-defined spawn cells in a stable cycle', () => {
-    const manager = new WaveManager(region, enemyDefinitions, spawnPolicy, {
+  it('spawns each enemy type continuously on its own interval and batch', () => {
+    const manager = new WaveManager(region, enemyDefinitions, 2, {
       terrain,
       spawnCells: [{ x: 0, y: 0 }, { x: 3, y: 1 }],
     });
     const enemies: Array<StandardEnemy | TankerEnemy> = [];
 
-    manager.update(0.1, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
-    manager.update(0.1, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
-    manager.update(0.1, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
+    manager.update(0.11, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
 
     expect(enemies).toHaveLength(3);
     expect(enemies.map((enemy) => [enemy.enemyType, enemy.x, enemy.y])).toEqual([
@@ -67,21 +67,22 @@ describe('WaveManager', () => {
       ['standard', 126, 54],
       ['tanker', 18, 18],
     ]);
-    expect(manager.lastSpawnBatchSize).toBe(1);
-    expect(manager.lastSpawnTypes).toEqual(['tanker']);
-    expect(manager.lastSpawnAt).toBeCloseTo(0.3);
+    expect(manager.targetKills).toBe(10);
+    expect(manager.killedEnemiesCount).toBe(0);
+    expect(manager.spawnedEnemiesCount).toBe(3);
+    expect(manager.lastSpawnBatchSize).toBe(3);
+    expect(manager.lastSpawnTypes).toEqual(['standard', 'standard', 'tanker']);
+    expect(manager.lastSpawnAt).toBeCloseTo(0.11);
   });
 
   it('uses 18px tile centers when spawning enemies on a tile map', () => {
-    const manager = new WaveManager(region, enemyDefinitions, spawnPolicy, {
+    const manager = new WaveManager(region, enemyDefinitions, 2, {
       terrain: tileTerrain,
       spawnCells: [{ x: 1, y: 1 }, { x: 3, y: 2 }],
     });
     const enemies: Array<StandardEnemy | TankerEnemy> = [];
 
-    manager.update(0.1, enemies, tileTerrain.width, tileTerrain.height, { x: 0, y: 0 });
-    manager.update(0.1, enemies, tileTerrain.width, tileTerrain.height, { x: 0, y: 0 });
-    manager.update(0.1, enemies, tileTerrain.width, tileTerrain.height, { x: 0, y: 0 });
+    manager.update(0.11, enemies, tileTerrain.width, tileTerrain.height, { x: 0, y: 0 });
 
     expect(enemies.map((enemy) => [enemy.enemyType, enemy.x, enemy.y])).toEqual([
       ['standard', 27, 27],
@@ -90,87 +91,80 @@ describe('WaveManager', () => {
     ]);
   });
 
-  it('calculates threat scaling with region and global interval floors', () => {
-    expect(calculateSpawnScaling(3, {
-      spawnInterval: 1,
-      spawnIntervalStep: -0.1,
-      minimumSpawnInterval: 0.4,
-    }, {
-      baseBatchSize: 1,
-      batchSizePerThreat: 1,
-      maxBatchSize: 3,
-      intervalStep: -0.3,
-      intervalMultiplier: 1,
-      minimumInterval: 0.25,
-    })).toEqual({ threatLevel: 2, batchSize: 3, spawnInterval: 0.25 });
-    expect(calculateSpawnScaling(2, {
-      spawnInterval: 0.1,
-      spawnIntervalStep: -0.2,
-      minimumSpawnInterval: 0.8,
-    }, spawnPolicy).spawnInterval).toBe(0.8);
-  });
-
-  it('applies the configured five-enemy batch and half interval', () => {
-    expect(calculateSpawnScaling(1, {
-      spawnInterval: 1.2,
-      spawnIntervalStep: -0.1,
-      minimumSpawnInterval: 0.7,
-    }, {
-      baseBatchSize: 5,
-      batchSizePerThreat: 0,
-      maxBatchSize: 5,
-      intervalStep: 0,
-      intervalMultiplier: 0.5,
-      minimumInterval: 0.25,
-    })).toEqual({ threatLevel: 0, batchSize: 5, spawnInterval: 0.6 });
-  });
-
-  it('clamps negative waves and keeps large results finite', () => {
-    const scaling = calculateSpawnScaling(Number.MAX_VALUE, {
-      spawnInterval: 1,
-      spawnIntervalStep: 1,
-      minimumSpawnInterval: 0.1,
-    }, {
-      baseBatchSize: 1,
-      batchSizePerThreat: 1,
-      maxBatchSize: 3,
-      intervalStep: 1,
-      intervalMultiplier: 1,
-      minimumInterval: 0.25,
-    });
-    expect(scaling.threatLevel).toBe(Number.MAX_VALUE - 1);
-    expect(scaling.batchSize).toBe(3);
-    expect(Number.isFinite(scaling.spawnInterval)).toBe(true);
-    expect(calculateSpawnScaling(-2, region, spawnPolicy).threatLevel).toBe(0);
-  });
-
-  it('spawns a policy batch without changing queue order or over-spawning', () => {
-    const batchRegion: RegionDefinition = {
-      ...region,
-      waves: [{ standard: 1, tanker: 0 }, { standard: 2, tanker: 1 }],
-    };
-    const batchPolicy: EnemySpawnPolicy = { ...spawnPolicy, batchSizePerThreat: 1 };
-    const manager = new WaveManager(batchRegion, enemyDefinitions, batchPolicy, {
+  it('does not stop spawning when the target is larger than the first batch', () => {
+    const manager = new WaveManager(region, enemyDefinitions, 2, {
       terrain,
-      spawnCells: [{ x: 0, y: 0 }, { x: 3, y: 1 }],
+      spawnCells: [{ x: 0, y: 0 }],
     });
     const enemies: Array<StandardEnemy | TankerEnemy> = [];
 
-    manager.update(0.1, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
-    expect(enemies).toHaveLength(1);
-    manager.nextWave();
-    manager.update(0.1, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
-    expect(enemies).toHaveLength(3);
-    manager.update(0.1, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
+    manager.update(0.11, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
+    manager.update(0.11, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
 
+    expect(enemies).toHaveLength(6);
+    expect(manager.spawnedEnemiesCount).toBe(6);
+    expect(manager.waveCleared).toBe(false);
+  });
+
+  it('keeps spawn intervals independent between enemy types', () => {
+    const definitions = {
+      ...enemyDefinitions,
+      tanker: { ...enemyDefinitions.tanker, spawnInterval: 0.3 },
+    } as const;
+    const manager = new WaveManager(region, definitions, 2, {
+      terrain,
+      spawnCells: [{ x: 0, y: 0 }],
+    });
+    const enemies: Array<StandardEnemy | TankerEnemy> = [];
+
+    manager.update(0.11, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
+    expect(enemies).toHaveLength(2);
+    manager.update(0.11, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
     expect(enemies).toHaveLength(4);
-    expect(enemies.map((enemy) => [enemy.enemyType, enemy.x, enemy.y])).toEqual([
-      ['standard', 18, 18],
-      ['standard', 18, 18],
-      ['standard', 126, 54],
-      ['tanker', 18, 18],
-    ]);
+    manager.update(0.11, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
+
+    expect(enemies).toHaveLength(7);
+    expect(manager.lastSpawnTypes).toEqual(['standard', 'standard', 'tanker']);
+  });
+
+  it('clears a wave after the target number of tracked enemies is killed', () => {
+    const targetRegion: RegionDefinition = {
+      ...region,
+      waves: [{ targetKills: 2 }],
+    };
+    const manager = new WaveManager(targetRegion, enemyDefinitions, 2, {
+      terrain,
+      spawnCells: [{ x: 0, y: 0 }],
+    });
+    const enemies: Array<StandardEnemy | TankerEnemy> = [];
+
+    manager.update(0.11, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
+    enemies.slice(0, 2).forEach((enemy) => enemy.takeDamage(999));
+    manager.update(0, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
+
+    expect(manager.killedEnemiesCount).toBe(2);
+    expect(manager.targetKills).toBe(2);
+    expect(manager.waveCleared).toBe(true);
     expect(manager.spawnedEnemiesCount).toBe(3);
+  });
+
+  it('resets the kill target and counters when advancing to the next wave', () => {
+    const manager = new WaveManager(region, enemyDefinitions, 2, {
+      terrain,
+      spawnCells: [{ x: 0, y: 0 }],
+    });
+    const enemies: Array<StandardEnemy | TankerEnemy> = [];
+
+    manager.update(0.11, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
+    enemies.slice(0, 2).forEach((enemy) => enemy.takeDamage(999));
+    manager.update(0, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
+    manager.nextWave();
+
+    expect(manager.currentWave).toBe(2);
+    expect(manager.targetKills).toBe(12);
+    expect(manager.killedEnemiesCount).toBe(0);
+    expect(manager.spawnedEnemiesCount).toBe(0);
+    expect(manager.waveCleared).toBe(false);
   });
 
   it('excludes non-campaign regions from sequential progression', () => {

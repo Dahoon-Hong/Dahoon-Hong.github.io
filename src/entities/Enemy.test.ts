@@ -4,6 +4,9 @@ import { TerrainPathfinder } from '../core/TerrainPathfinder';
 import { EnemyDefinition, StandardEnemy, TankerEnemy } from './Enemy';
 
 const definition: EnemyDefinition = {
+  spawnWeight: 1,
+  spawnInterval: 0.6,
+  spawnBatchSize: 5,
   hp: 45,
   speed: 95,
   radius: 12,

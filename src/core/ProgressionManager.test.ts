@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { ProgressionManager, validateEnemyData } from './ProgressionManager';
 
 const definition = {
+  spawnWeight: 1,
+  spawnInterval: 0.6,
+  spawnBatchSize: 2,
   hp: 10,
   speed: 20,
   radius: 6,
@@ -11,42 +14,42 @@ const definition = {
   contactDamageInterval: 0.2,
 };
 
-const spawn = {
-  baseBatchSize: 1,
-  batchSizePerThreat: 0,
-  maxBatchSize: 3,
-  intervalStep: 0,
-  intervalMultiplier: 1,
-  minimumInterval: 0.25,
-};
-
-const validData = { spawn, standard: definition, tanker: definition };
+const validData = { spawn: 5, standard: definition, tanker: definition };
 
 describe('enemy data contract', () => {
-  it('exposes spawn policy separately from enemy definitions', () => {
+  it('exposes the base spawn and per-enemy spawn settings', () => {
     const progression = new ProgressionManager();
 
-    expect(progression.enemySpawnPolicy).toEqual({
-      baseBatchSize: 5,
-      batchSizePerThreat: 0,
-      maxBatchSize: 5,
-      intervalStep: 0,
-      intervalMultiplier: 0.5,
-      minimumInterval: 0.25,
-    });
+    expect(progression.baseEnemySpawn).toBe(5);
+    expect(progression.enemyDefinitions.standard.spawnWeight).toBe(1);
+    expect(progression.enemyDefinitions.standard.spawnInterval).toBe(0.6);
+    expect(progression.enemyDefinitions.standard.spawnBatchSize).toBe(5);
     expect(Object.keys(progression.enemyDefinitions)).toEqual(['standard', 'tanker']);
   });
 
-  it('rejects malformed or out-of-range spawn policy fields', () => {
+  it('rejects a missing or invalid base spawn', () => {
     expect(() => validateEnemyData({ standard: definition, tanker: definition })).toThrow('enemyData.spawn');
-    expect(() => validateEnemyData({ ...validData, spawn: { ...spawn, baseBatchSize: 1.5 } })).toThrow('baseBatchSize');
-    expect(() => validateEnemyData({ ...validData, spawn: { ...spawn, batchSizePerThreat: -1 } })).toThrow('batchSizePerThreat');
-    expect(() => validateEnemyData({ ...validData, spawn: { ...spawn, maxBatchSize: 0 } })).toThrow('maxBatchSize');
-    expect(() => validateEnemyData({ ...validData, spawn: { ...spawn, maxBatchSize: 1 } })).not.toThrow();
-    expect(() => validateEnemyData({ ...validData, spawn: { ...spawn, intervalStep: NaN } })).toThrow('intervalStep');
-    expect(() => validateEnemyData({ ...validData, spawn: { ...spawn, intervalStep: -0.1 } })).not.toThrow();
-    expect(() => validateEnemyData({ ...validData, spawn: { ...spawn, intervalMultiplier: 0 } })).toThrow('intervalMultiplier');
-    expect(() => validateEnemyData({ ...validData, spawn: { ...spawn, minimumInterval: 0 } })).toThrow('minimumInterval');
-    expect(() => validateEnemyData({ ...validData, spawn: { ...spawn, baseBatchSize: 2, maxBatchSize: 1 } })).toThrow('maxBatchSize');
+    expect(() => validateEnemyData({ ...validData, spawn: 1.5 })).toThrow('enemyData.spawn');
+    expect(() => validateEnemyData({ ...validData, spawn: 0 })).toThrow('enemyData.spawn');
+  });
+
+  it('accepts zero weight to disable one enemy type', () => {
+    expect(() => validateEnemyData({
+      ...validData,
+      standard: { ...definition, spawnWeight: 0 },
+    })).not.toThrow();
+  });
+
+  it('rejects invalid per-enemy spawn settings', () => {
+    expect(() => validateEnemyData({ ...validData, standard: { ...definition, spawnWeight: -1 } })).toThrow('spawnWeight');
+    expect(() => validateEnemyData({ ...validData, standard: { ...definition, spawnWeight: NaN } })).toThrow('spawnWeight');
+    expect(() => validateEnemyData({ ...validData, standard: { ...definition, spawnInterval: 0 } })).toThrow('spawnInterval');
+    expect(() => validateEnemyData({ ...validData, standard: { ...definition, spawnBatchSize: 0 } })).toThrow('spawnBatchSize');
+    expect(() => validateEnemyData({ ...validData, standard: { ...definition, spawnBatchSize: 1.5 } })).toThrow('spawnBatchSize');
+    expect(() => validateEnemyData({
+      ...validData,
+      standard: { ...definition, spawnWeight: 0 },
+      tanker: { ...definition, spawnWeight: 0 },
+    })).toThrow('at least one spawnWeight');
   });
 });

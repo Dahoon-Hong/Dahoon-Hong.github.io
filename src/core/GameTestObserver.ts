@@ -18,7 +18,8 @@ export interface GameTestSnapshot {
   screen: string;
   gameState: string;
   wave: number;
-  totalWaveEnemies: number;
+  targetKills: number;
+  killedEnemies: number;
   spawnedEnemies: number;
   liveEnemies: number;
   vehicleWorldX: number;

@@ -2,24 +2,14 @@ import progressionData from '../data/progression.json';
 import enemyData from '../data/enemies.json';
 import { EnemyDefinition, EnemyType } from '../entities/Enemy';
 
-export interface EnemySpawnPolicy {
-  baseBatchSize: number;
-  batchSizePerThreat: number;
-  maxBatchSize: number;
-  intervalStep: number;
-  intervalMultiplier: number;
-  minimumInterval: number;
-}
-
 export interface EnemyDataRoot {
-  spawn: EnemySpawnPolicy;
+  spawn: number;
   standard: EnemyDefinition;
   tanker: EnemyDefinition;
 }
 
 export interface WaveDefinition {
-  standard: number;
-  tanker: number;
+  targetKills: number;
 }
 
 export interface RegionDefinition {
@@ -27,9 +17,6 @@ export interface RegionDefinition {
   mapId: string;
   campaign?: boolean;
   name: string;
-  spawnInterval: number;
-  spawnIntervalStep: number;
-  minimumSpawnInterval: number;
   waves: WaveDefinition[];
 }
 
@@ -75,20 +62,6 @@ function nonNegativeNumber(value: unknown, path: string): number {
   return value;
 }
 
-function finiteNumber(value: unknown, path: string): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    invalidEnemyData(path, 'expected a finite number');
-  }
-  return value;
-}
-
-function nonNegativeInteger(value: unknown, path: string): number {
-  if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value < 0) {
-    invalidEnemyData(path, 'expected a finite integer >= 0');
-  }
-  return value;
-}
-
 function positiveInteger(value: unknown, path: string): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value < 1) {
     invalidEnemyData(path, 'expected a finite integer >= 1');
@@ -105,6 +78,9 @@ function nonEmptyString(value: unknown, path: string): string {
 
 function validateEnemyDefinition(value: unknown, type: EnemyType): asserts value is EnemyDefinition {
   const definition = record(value, `enemyData.${type}`);
+  nonNegativeNumber(definition.spawnWeight, `enemyData.${type}.spawnWeight`);
+  positiveNumber(definition.spawnInterval, `enemyData.${type}.spawnInterval`);
+  positiveInteger(definition.spawnBatchSize, `enemyData.${type}.spawnBatchSize`);
   positiveNumber(definition.hp, `enemyData.${type}.hp`);
   nonNegativeNumber(definition.speed, `enemyData.${type}.speed`);
   positiveNumber(definition.radius, `enemyData.${type}.radius`);
@@ -116,17 +92,15 @@ function validateEnemyDefinition(value: unknown, type: EnemyType): asserts value
 
 export function validateEnemyData(data: unknown): asserts data is EnemyDataRoot {
   const root = record(data, 'enemyData');
-  const spawn = record(root.spawn, 'enemyData.spawn');
-  const baseBatchSize = positiveInteger(spawn.baseBatchSize, 'enemyData.spawn.baseBatchSize');
-  nonNegativeInteger(spawn.batchSizePerThreat, 'enemyData.spawn.batchSizePerThreat');
-  const maxBatchSize = positiveInteger(spawn.maxBatchSize, 'enemyData.spawn.maxBatchSize');
-  finiteNumber(spawn.intervalStep, 'enemyData.spawn.intervalStep');
-  positiveNumber(spawn.intervalMultiplier, 'enemyData.spawn.intervalMultiplier');
-  positiveNumber(spawn.minimumInterval, 'enemyData.spawn.minimumInterval');
-  if (maxBatchSize < baseBatchSize) {
-    invalidEnemyData('enemyData.spawn.maxBatchSize', 'must be >= baseBatchSize');
+  positiveInteger(root.spawn, 'enemyData.spawn');
+  const spawnWeights = ENEMY_TYPES.map((type) => {
+    const definition = root[type];
+    validateEnemyDefinition(definition, type);
+    return (definition as EnemyDefinition).spawnWeight;
+  });
+  if (spawnWeights.every((weight) => weight === 0)) {
+    invalidEnemyData('enemyData', 'at least one spawnWeight must be > 0');
   }
-  for (const type of ENEMY_TYPES) validateEnemyDefinition(root[type], type);
 }
 
 validateEnemyData(enemyData);
@@ -158,7 +132,7 @@ export class ProgressionManager {
     return ENEMY_DEFINITIONS;
   }
 
-  public get enemySpawnPolicy(): Readonly<EnemySpawnPolicy> {
+  public get baseEnemySpawn(): number {
     return ENEMY_DATA.spawn;
   }
 
@@ -223,17 +197,11 @@ export class ProgressionManager {
       for (const region of planet.regions) {
         if (mapIds.has(region.mapId)) throw new Error(`[Progression] duplicate map '${region.mapId}'`);
         mapIds.add(region.mapId);
-        if (!Number.isFinite(region.spawnInterval) || region.spawnInterval <= 0 ||
-            !Number.isFinite(region.spawnIntervalStep) ||
-            !Number.isFinite(region.minimumSpawnInterval) || region.minimumSpawnInterval <= 0) {
-          throw new Error(`[Progression] invalid spawn settings in region '${region.id}'`);
-        }
         if (!region.waves.length) throw new Error(`[Progression] region '${region.id}' has no waves`);
         for (const wave of region.waves) {
-          if (!Number.isInteger(wave.standard) || wave.standard < 0 || !Number.isInteger(wave.tanker) || wave.tanker < 0) {
+          if (!Number.isInteger(wave.targetKills) || wave.targetKills <= 0) {
             throw new Error(`[Progression] invalid wave in region '${region.id}'`);
           }
-          if (wave.standard + wave.tanker === 0) throw new Error(`[Progression] empty wave in region '${region.id}'`);
         }
       }
     }

@@ -9,13 +9,10 @@
           "mapId": "aurelia/landing-zone",
           "campaign": true,
           "name": "Landing Zone",
-          "spawnInterval": 1.2,
-          "spawnIntervalStep": -0.1,
-          "minimumSpawnInterval": 0.7,
           "waves": [
-            { "standard": 12, "tanker": 0 },
-            { "standard": 10, "tanker": 2 },
-            { "standard": 8, "tanker": 4 }
+            { "targetKills": 12 },
+            { "targetKills": 12 },
+            { "targetKills": 12 }
           ]
         },
         {
@@ -23,14 +20,11 @@
           "mapId": "aurelia/relay-fields",
           "campaign": true,
           "name": "Relay Fields",
-          "spawnInterval": 1.1,
-          "spawnIntervalStep": -0.08,
-          "minimumSpawnInterval": 0.6,
           "waves": [
-            { "standard": 14, "tanker": 0 },
-            { "standard": 12, "tanker": 2 },
-            { "standard": 10, "tanker": 4 },
-            { "standard": 8, "tanker": 6 }
+            { "targetKills": 14 },
+            { "targetKills": 14 },
+            { "targetKills": 14 },
+            { "targetKills": 14 }
           ]
         }
       ]
@@ -44,13 +38,10 @@
           "mapId": "cinder/ash-basin",
           "campaign": true,
           "name": "Ash Basin",
-          "spawnInterval": 1,
-          "spawnIntervalStep": -0.08,
-          "minimumSpawnInterval": 0.55,
           "waves": [
-            { "standard": 16, "tanker": 2 },
-            { "standard": 12, "tanker": 6 },
-            { "standard": 10, "tanker": 8 }
+            { "targetKills": 18 },
+            { "targetKills": 18 },
+            { "targetKills": 18 }
           ]
         },
         {
@@ -58,14 +49,11 @@
           "mapId": "cinder/core-ruins",
           "campaign": true,
           "name": "Core Ruins",
-          "spawnInterval": 0.9,
-          "spawnIntervalStep": -0.07,
-          "minimumSpawnInterval": 0.45,
           "waves": [
-            { "standard": 18, "tanker": 4 },
-            { "standard": 14, "tanker": 8 },
-            { "standard": 12, "tanker": 10 },
-            { "standard": 10, "tanker": 12 }
+            { "targetKills": 22 },
+            { "targetKills": 22 },
+            { "targetKills": 22 },
+            { "targetKills": 22 }
           ]
         }
       ]
@@ -79,13 +67,10 @@
           "mapId": "test/terrain-test",
           "campaign": false,
           "name": "Terrain Test",
-          "spawnInterval": 0.35,
-          "spawnIntervalStep": 0,
-          "minimumSpawnInterval": 0.35,
           "waves": [
-            { "standard": 6, "tanker": 0 },
-            { "standard": 8, "tanker": 2 },
-            { "standard": 10, "tanker": 4 }
+            { "targetKills": 6 },
+            { "targetKills": 10 },
+            { "targetKills": 14 }
           ]
         }
       ]

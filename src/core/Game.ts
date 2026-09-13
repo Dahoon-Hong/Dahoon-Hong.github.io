@@ -413,7 +413,7 @@ export class Game {
     return new WaveManager(
       this.progression.currentRegion,
       this.progression.enemyDefinitions,
-      this.progression.enemySpawnPolicy,
+      this.progression.baseEnemySpawn,
       { terrain: this.terrainGrid, spawnCells: map.enemySpawnCells },
     );
   }
@@ -451,7 +451,7 @@ export class Game {
         break;
       case 'terminal-region':
         this.waveManager.currentWave = this.waveManager.totalWaves;
-        this.waveManager.spawnedEnemiesCount = this.waveManager.totalWaveEnemies;
+        this.waveManager.killedEnemiesCount = this.waveManager.targetKills;
         this.waveManager.waveCleared = true;
         break;
     }
@@ -692,7 +692,8 @@ export class Game {
       screen: this.screen,
       gameState: this.state,
       wave: this.waveManager.currentWave,
-      totalWaveEnemies: this.waveManager.totalWaveEnemies,
+      targetKills: this.waveManager.targetKills,
+      killedEnemies: this.waveManager.killedEnemiesCount,
       spawnedEnemies: this.waveManager.spawnedEnemiesCount,
       liveEnemies: liveEnemyCount,
       vehicleWorldX: this.vehicle.x,
@@ -767,11 +768,7 @@ export class Game {
     if (this.terrainDebugVisible) this.renderTerrainDebugOverlay();
     this.ctx.restore();
 
-    const liveEnemyCount = this.enemies.reduce((count, enemy) => count + (enemy.isDead() ? 0 : 1), 0);
-    const enemiesRemaining = Math.max(
-      0,
-      this.waveManager.totalWaveEnemies - this.waveManager.spawnedEnemiesCount + liveEnemyCount
-    );
+    const killsRemaining = Math.max(0, this.waveManager.targetKills - this.waveManager.killedEnemiesCount);
     this.hud.render(
       this.renderContext,
       this.logicalWidth,
@@ -779,7 +776,7 @@ export class Game {
       this.vehicle,
       this.resources,
       this.waveManager.currentWave,
-      enemiesRemaining,
+      killsRemaining,
       this.state === GameState.PAUSED,
       this.camera,
     );
