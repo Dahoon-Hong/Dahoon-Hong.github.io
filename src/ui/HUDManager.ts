@@ -42,6 +42,12 @@ interface Subject {
   combatModule: CombatModule | null;
 }
 
+type TooltipTarget =
+  | { kind: 'core'; rect: Rect }
+  | { kind: 'production'; rect: Rect; snapshot: ProductionSnapshot }
+  | { kind: 'subject'; rect: Rect; instanceId: string }
+  | { kind: 'node'; rect: Rect; instanceId: string; nodeId: string };
+
 interface NodeHitbox extends Rect {
   instanceId: string;
   nodeId: string;
@@ -85,6 +91,7 @@ export class HUDManager {
   private subjectHitboxes: Array<Rect & { instanceId: string }> = [];
   private productionHitboxes: Array<Rect & { snapshot: ProductionSnapshot }> = [];
   private coreHealthHitbox: Rect | null = null;
+  private tooltipTarget: TooltipTarget | null = null;
   private getUpgradeManager: (() => UpgradeManager) | null = null;
   private getArmory: (() => ArmoryManager) | null = null;
   private getMusicVolume: (() => number) | null = null;
@@ -195,6 +202,7 @@ export class HUDManager {
     this.subjectHitboxes = [];
     this.productionHitboxes = [];
     this.coreHealthHitbox = null;
+    this.tooltipTarget = null;
   }
 
   public render(
@@ -219,6 +227,7 @@ export class HUDManager {
     this.renderTankHealth(render, vehicle, camera);
 
     this.renderPanel(render, canvasWidth, canvasHeight, vehicle, storage);
+    this.renderTooltip(render, canvasWidth, canvasHeight, vehicle, storage, isPaused);
     ctx.restore();
   }
 
@@ -1096,6 +1105,114 @@ export class HUDManager {
       this.nodeHitboxes.push({ ...rect, instanceId, nodeId: state.definition.id });
     }
     ctx.restore();
+  }
+
+  private renderTooltip(
+    render: RenderContext,
+    canvasWidth: number,
+    canvasHeight: number,
+    vehicle: Vehicle,
+    storage: ResourceStorage,
+    isPaused: boolean,
+  ): void {
+    const target = this.getTooltipTarget(vehicle);
+    this.tooltipTarget = target;
+    if (!target || !this.pointer) return;
+
+    const ctx = render.ctx;
+    const theme = VisualTheme.color;
+    const lines = this.getTooltipLines(target, vehicle, storage, isPaused);
+    if (lines.length === 0) return;
+    const maxTextWidth = 220;
+    ctx.font = '10px sans-serif';
+    const wrappedLines = lines.flatMap((line) => this.wrapText(ctx, line, maxTextWidth, 2));
+    const width = Math.max(150, Math.min(240, Math.max(...wrappedLines.map((line) => ctx.measureText(line).width)) + 16));
+    const height = wrappedLines.length * 13 + 16;
+    let x = this.pointer.x + 12;
+    let y = this.pointer.y + 12;
+    if (x + width > canvasWidth) x = this.pointer.x - width - 12;
+    if (y + height > canvasHeight) y = this.pointer.y - height - 12;
+    x = Math.max(4, Math.min(canvasWidth - width - 4, x));
+    y = Math.max(4, Math.min(canvasHeight - height - 4, y));
+
+    ctx.fillStyle = theme.surfaceElevated;
+    ctx.fillRect(x, y, width, height);
+    ctx.strokeStyle = theme.accent;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, width, height);
+    ctx.textAlign = 'left';
+    wrappedLines.forEach((line, index) => {
+      ctx.font = index === 0 ? 'bold 11px monospace' : '10px sans-serif';
+      ctx.fillStyle = index === 0 ? theme.textPrimary : theme.textSecondary;
+      ctx.fillText(line, x + 8, y + 18 + index * 13);
+    });
+  }
+
+  private getTooltipTarget(vehicle: Vehicle): TooltipTarget | null {
+    if (!this.pointer) return null;
+    const point = this.pointer;
+    const node = this.nodeHitboxes.find((hitbox) => this.contains(hitbox, point.x, point.y));
+    if (node) return { kind: 'node', rect: node, instanceId: node.instanceId, nodeId: node.nodeId };
+    const subject = this.subjectHitboxes.find((hitbox) => this.contains(hitbox, point.x, point.y));
+    if (subject) return { kind: 'subject', rect: subject, instanceId: subject.instanceId };
+    const production = this.productionHitboxes.find((hitbox) => this.contains(hitbox, point.x, point.y));
+    if (production) return { kind: 'production', rect: production, snapshot: production.snapshot };
+    if (this.coreHealthHitbox && this.contains(this.coreHealthHitbox, point.x, point.y)) {
+      return { kind: 'core', rect: this.coreHealthHitbox };
+    }
+    return null;
+  }
+
+  private getTooltipLines(
+    target: TooltipTarget,
+    vehicle: Vehicle,
+    storage: ResourceStorage,
+    isPaused: boolean,
+  ): string[] {
+    if (target.kind === 'core') {
+      const hp = vehicle.getCoreHp();
+      const maxHp = vehicle.getCoreMaxHp();
+      return ['CORE', `HP ${Math.ceil(hp)} / ${Math.ceil(maxHp)}`, hp > 0 ? 'STATUS ACTIVE' : 'STATUS DESTROYED'];
+    }
+
+    if (target.kind === 'production') {
+      const snapshot = target.snapshot;
+      const status = isPaused ? 'PAUSED' : this.productionStatusLabel(snapshot.status);
+      return [
+        this.productionLabel(snapshot.moduleId),
+        `${snapshot.input?.toUpperCase() ?? 'START'} > ${snapshot.output.toUpperCase()}`,
+        `CYCLE ${Math.round(snapshot.progress * 100)}% · ${snapshot.interval.toFixed(1)}s`,
+        `STORAGE ${Math.floor(storage.get(snapshot.output))}/${storage.getCapacity(snapshot.output)}`,
+        `STATUS ${status}`,
+      ];
+    }
+
+    if (target.kind === 'node') {
+      const state = this.lastUpgradeStates(target.instanceId).find((candidate) => candidate.definition.id === target.nodeId);
+      if (!state) return [];
+      const lines = [
+        state.definition.id,
+        `STATUS ${state.status.toUpperCase()}`,
+        `COST ${this.formatCost(state.definition.cost)}`,
+        this.formatEffects(state.definition),
+      ];
+      if (state.definition.parentId) lines.push(`REQUIRES ${state.definition.parentId}`);
+      return lines;
+    }
+
+    const subject = this.getSubject(target.instanceId, vehicle);
+    if (!subject) return [];
+    const lines = [
+      subject.definition.name,
+      subject.combatModule ? `COMBAT MODULE · LV.${subject.combatModule.level}` : 'BUILT-IN · ACTIVE',
+    ];
+    if (subject.combatModule) {
+      lines.push(`HP ${Math.ceil(subject.combatModule.currentHp)} / ${Math.ceil(subject.combatModule.maxHp)}`);
+    }
+    Object.entries(subject.definition.baseStats).slice(0, 2).forEach(([stat, value]) => {
+      lines.push(`${stat} ${Number.isInteger(value) ? value : value.toFixed(1)}`);
+    });
+    return lines;
   }
 
   private drawIcon(render: RenderContext, id: string, x: number, y: number, scale = 1): void {
