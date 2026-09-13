@@ -1,4 +1,5 @@
 import { ResourceStorage } from '../core/ResourceStorage';
+import type { ProductionSnapshot } from '../core/VehicleSystems';
 import { GridCell, ModuleOrientation, ResourceCost, TankModuleDefinition, UpgradeNodeDefinition } from '../core/TankDefinitionLoader';
 import { UpgradeManager, UpgradeNodeState } from '../core/UpgradeManager';
 import { CombatModule } from '../entities/Module';
@@ -82,6 +83,8 @@ export class HUDManager {
   private installHitboxes: InstallHitbox[] = [];
   private purchaseHitboxes: PurchaseHitbox[] = [];
   private subjectHitboxes: Array<Rect & { instanceId: string }> = [];
+  private productionHitboxes: Array<Rect & { snapshot: ProductionSnapshot }> = [];
+  private coreHealthHitbox: Rect | null = null;
   private getUpgradeManager: (() => UpgradeManager) | null = null;
   private getArmory: (() => ArmoryManager) | null = null;
   private getMusicVolume: (() => number) | null = null;
@@ -190,6 +193,8 @@ export class HUDManager {
     this.installHitboxes = [];
     this.purchaseHitboxes = [];
     this.subjectHitboxes = [];
+    this.productionHitboxes = [];
+    this.coreHealthHitbox = null;
   }
 
   public render(
@@ -211,6 +216,7 @@ export class HUDManager {
     this.renderTopBar(render, canvasWidth, vehicle, storage, wave, enemiesRemaining, isPaused, gameplayWidth);
     this.renderSelection(ctx, vehicle, camera);
     this.renderModulePreviews(render, vehicle, camera, gameplayWidth, canvasHeight);
+    this.renderTankHealth(render, vehicle, camera);
 
     this.renderPanel(render, canvasWidth, canvasHeight, vehicle, storage);
     ctx.restore();
@@ -393,39 +399,13 @@ export class HUDManager {
     ctx.fillStyle = theme.surfaceTopbar;
     ctx.fillRect(0, 0, canvasWidth, VisualTheme.spacing.topBarHeight);
 
-    const coreHp = vehicle.getCoreHp();
-    const coreMaxHp = vehicle.getCoreMaxHp();
-    this.drawIcon(render, 'ui.icon.core', 22, 25, 0.8);
-    ctx.fillStyle = theme.textPrimary;
-    ctx.font = 'bold 11px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('CORE', 38, 15);
-    ctx.fillStyle = theme.surfaceElevated;
-    ctx.fillRect(38, 22, 150, 10);
-    ctx.fillStyle = coreHp > coreMaxHp * 0.4 ? theme.success : theme.danger;
-    ctx.fillRect(38, 22, Math.max(0, Math.min(150, (coreHp / Math.max(1, coreMaxHp)) * 150)), 10);
-    ctx.fillStyle = theme.textSecondary;
-    ctx.font = '10px monospace';
-    ctx.fillText(`${Math.ceil(coreHp)} / ${Math.ceil(coreMaxHp)}`, 38, 42);
-
-    const resourceItems = [
-      { label: 'RES', icon: 'ui.icon.resource', type: 'resource' as const },
-      { label: 'MAT', icon: 'resource.icon.matter', type: 'matter' as const },
-      { label: 'AMM', icon: 'resource.icon.ammo', type: 'ammo' as const },
-      { label: 'NAN', icon: 'resource.icon.nano', type: 'nano' as const },
-    ];
-    resourceItems.forEach((item, index) => {
-      const x = 210 + index * 106;
-      this.drawIcon(render, item.icon, x + 10, 25, 0.72);
-      ctx.fillStyle = theme.textSecondary;
-      ctx.font = 'bold 10px monospace';
-      ctx.fillText(item.label, x + 23, 19);
-      ctx.fillStyle = theme.resource;
-      ctx.font = '10px monospace';
-      ctx.fillText(`${Math.floor(storage.get(item.type))}/${storage.getCapacity(item.type)}`, x + 23, 35);
+    this.productionHitboxes = [];
+    this.coreHealthHitbox = null;
+    vehicle.systems.getProductionSnapshots(storage).forEach((snapshot, index) => {
+      this.renderProductionBar(render, snapshot, storage, 8 + index * 114, 5, 108, isPaused);
     });
 
-    const waveX = Math.max(650, gameplayWidth - 280);
+    const waveX = Math.max(470, gameplayWidth - 280);
     this.drawDiamond(ctx, waveX + 8, 22, 6, theme.accent, false);
     ctx.fillStyle = theme.accent;
     ctx.font = 'bold 11px monospace';
@@ -461,6 +441,86 @@ export class HUDManager {
     ctx.font = '10px sans-serif';
     ctx.fillText('WASD MOVE', controlsX, 29);
     ctx.fillText(`SPACE ${isPaused ? 'RESUME' : 'PAUSE'}`, controlsX, 42);
+  }
+
+  private renderProductionBar(
+    render: RenderContext,
+    snapshot: ProductionSnapshot,
+    storage: ResourceStorage,
+    x: number,
+    y: number,
+    width: number,
+    isPaused: boolean,
+  ): void {
+    const ctx = render.ctx;
+    const theme = VisualTheme.color;
+    const status = isPaused ? 'paused' : snapshot.status;
+    const statusColor = isPaused
+      ? theme.warning
+      : snapshot.status === 'running'
+        ? theme.success
+        : theme.warning;
+    const progress = Math.max(0, Math.min(1, snapshot.progress));
+
+    ctx.fillStyle = theme.surfaceElevated;
+    ctx.fillRect(x, y, width, 38);
+    ctx.strokeStyle = status === 'running' ? theme.border : statusColor;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, width, 38);
+    this.drawIcon(render, this.resourceIcon(snapshot.output), x + 9, y + 9, 0.58);
+    ctx.fillStyle = theme.textPrimary;
+    ctx.font = 'bold 8px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(this.productionLabel(snapshot.moduleId), x + 18, y + 11);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = theme.textSecondary;
+    ctx.fillText(`${Math.floor(storage.get(snapshot.output))}/${storage.getCapacity(snapshot.output)}`, x + width - 4, y + 11);
+
+    const barX = x + 5;
+    const barY = y + 15;
+    const barWidth = width - 10;
+    ctx.fillStyle = theme.surfaceDisabled;
+    ctx.fillRect(barX, barY, barWidth, 8);
+    ctx.fillStyle = statusColor;
+    ctx.fillRect(barX, barY, barWidth * progress, 8);
+    ctx.strokeStyle = theme.borderMuted;
+    ctx.strokeRect(barX, barY, barWidth, 8);
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = statusColor;
+    ctx.font = '8px sans-serif';
+    ctx.fillText(isPaused ? 'PAUSED' : this.productionStatusLabel(snapshot.status), x + 5, y + 34);
+    this.productionHitboxes.push({ x, y, width, height: 38, snapshot });
+  }
+
+  private renderTankHealth(render: RenderContext, vehicle: Vehicle, camera: Camera): void {
+    const bounds = vehicle.getGridBounds();
+    const left = camera.worldToScreen({ x: bounds.left, y: bounds.top });
+    const right = camera.worldToScreen({ x: bounds.right, y: bounds.top });
+    const anchor = camera.worldToScreen({ x: (bounds.left + bounds.right) / 2, y: bounds.top });
+    const width = Math.max(84, Math.min(132, Math.abs(right.x - left.x) * 0.88));
+    const barHeight = 8;
+    const x = anchor.x - width / 2;
+    const y = anchor.y - 19;
+    const hp = vehicle.getCoreHp();
+    const maxHp = Math.max(1, vehicle.getCoreMaxHp());
+    const ratio = Math.max(0, Math.min(1, hp / maxHp));
+    const color = ratio > 0.4 ? VisualTheme.color.success : ratio > 0.2 ? VisualTheme.color.warning : VisualTheme.color.danger;
+    const ctx = render.ctx;
+
+    ctx.fillStyle = VisualTheme.color.surfaceDisabled;
+    ctx.fillRect(x, y, width, barHeight);
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, width * ratio, barHeight);
+    ctx.strokeStyle = VisualTheme.color.border;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, width, barHeight);
+    ctx.fillStyle = VisualTheme.color.textPrimary;
+    ctx.font = 'bold 9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`HP ${Math.ceil(hp)}/${Math.ceil(maxHp)}`, anchor.x, y - 3);
+    ctx.textAlign = 'left';
+    this.coreHealthHitbox = { x, y: y - 12, width, height: barHeight + 12 };
   }
 
   private renderSelection(ctx: CanvasRenderingContext2D, vehicle: Vehicle, camera: Camera): void {
@@ -667,6 +727,9 @@ export class HUDManager {
   private renderSubjectList(render: RenderContext, panelX: number, vehicle: Vehicle): void {
     const ctx = render.ctx;
     const theme = VisualTheme.color;
+    const cardWidth = 158;
+    const cardHeight = 32;
+    const rowGap = 4;
     this.subjectHitboxes = [];
     ctx.fillStyle = theme.textPrimary;
     ctx.font = 'bold 11px sans-serif';
@@ -678,7 +741,7 @@ export class HUDManager {
       const column = Math.floor(index / builtinRows);
       const row = index % builtinRows;
       const instanceId = vehicle.systems.getInstanceId(builtinIds[index]);
-      this.renderSubjectButton(render, panelX + 8 + column * 164, 114 + row * 20, 158, instanceId, vehicle);
+      this.renderSubjectButton(render, panelX + 8 + column * (cardWidth + 6), 114 + row * (cardHeight + rowGap), cardWidth, cardHeight, instanceId, vehicle);
     }
 
     const combatModules = vehicle.getCombatModules();
@@ -687,7 +750,7 @@ export class HUDManager {
     ctx.font = 'bold 11px sans-serif';
     ctx.fillText('COMBAT MODULES', panelX + 12, combatY);
     for (let index = 0; index < combatModules.length; index++) {
-      this.renderSubjectButton(render, panelX + 8 + (index % 2) * 164, combatY + 6 + Math.floor(index / 2) * 20, 158, combatModules[index].instanceId, vehicle);
+      this.renderSubjectButton(render, panelX + 8 + (index % 2) * (cardWidth + 6), combatY + 6 + Math.floor(index / 2) * (cardHeight + rowGap), cardWidth, cardHeight, combatModules[index].instanceId, vehicle);
     }
   }
 
@@ -696,6 +759,7 @@ export class HUDManager {
     x: number,
     y: number,
     width: number,
+    height: number,
     instanceId: string,
     vehicle: Vehicle
   ): void {
@@ -704,22 +768,22 @@ export class HUDManager {
     const subject = this.getSubject(instanceId, vehicle);
     if (!subject) return;
     const selected = this.selectedInstanceId === instanceId && !this.selectedCell;
-    const hovered = this.isHovered({ x, y, width, height: 18 });
+    const hovered = this.isHovered({ x, y, width, height });
     ctx.fillStyle = selected ? theme.surfaceSelected : hovered ? theme.surfaceNode : theme.surfaceElevated;
-    ctx.fillRect(x, y, width, 18);
+    ctx.fillRect(x, y, width, height);
     ctx.strokeStyle = selected || hovered ? theme.accent : theme.border;
     ctx.lineWidth = selected ? 2 : 1;
-    ctx.strokeRect(x, y, width, 18);
-    this.drawIcon(render, this.moduleIcon(subject.moduleId), x + 12, y + 9, 0.72);
-    if (selected) this.drawStatusMarker(ctx, x + width - 10, y + 9, 'selected', 5);
+    ctx.strokeRect(x, y, width, height);
+    this.drawIcon(render, this.moduleIcon(subject.moduleId), x + 15, y + height / 2, 0.88);
+    if (selected) this.drawStatusMarker(ctx, x + width - 10, y + 10, 'selected', 5);
     ctx.fillStyle = selected ? theme.white : theme.textPrimary;
-    ctx.font = '11px sans-serif';
+    ctx.font = 'bold 10px sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(this.truncate(subject.definition.name, 17), x + 24, y + 13);
+    ctx.fillText(this.truncate(subject.definition.name, 16), x + 30, y + 13);
     ctx.fillStyle = theme.success;
-    ctx.textAlign = 'right';
-    ctx.fillText(subject.combatModule ? `Lv.${subject.combatModule.level}` : 'WEB', x + width - 5, y + 13);
-    this.subjectHitboxes.push({ x, y, width, height: 18, instanceId });
+    ctx.font = '9px monospace';
+    ctx.fillText(subject.combatModule ? `LV.${subject.combatModule.level}` : 'ACTIVE', x + 30, y + 26);
+    this.subjectHitboxes.push({ x, y, width, height, instanceId });
   }
 
   private renderUpgradePanel(
@@ -830,11 +894,11 @@ export class HUDManager {
       render,
       panelX,
       top + 34,
-      Math.min(canvasHeight - 190, top + 190),
+      Math.min(canvasHeight - 166, top + 156),
       vehicle.systems.getInstanceId('armory'),
       storage,
     );
-    this.renderArmoryModuleCards(render, panelX, top + 210, storage);
+    this.renderArmoryModuleCards(render, panelX, top + 174, storage);
   }
 
   private renderArmoryModuleCards(
@@ -922,12 +986,12 @@ export class HUDManager {
 
   private getCombatSectionY(vehicle: Vehicle): number {
     const builtinRows = Math.ceil(vehicle.getBuiltInModuleIds().length / 2);
-    return 114 + builtinRows * 20 + 8;
+    return 114 + builtinRows * 36 + 8;
   }
 
   private getPanelContentTop(vehicle: Vehicle): number {
     const combatRows = Math.max(1, Math.ceil(vehicle.getCombatModules().length / 2));
-    return this.getCombatSectionY(vehicle) + 6 + combatRows * 20 + 18;
+    return this.getCombatSectionY(vehicle) + 6 + combatRows * 36 + 18;
   }
 
   private renderUpgradeWeb(
@@ -943,8 +1007,8 @@ export class HUDManager {
     const states = this.lastUpgradeStates(instanceId);
     const graphX = panelX + 10;
     const graphWidth = HUDManager.PANEL_WIDTH - 20;
-    const nodeWidth = 98;
-    const nodeHeight = 72;
+    const nodeWidth = 82;
+    const nodeHeight = 56;
     const positions = new Map<string, Rect>();
     const depths = new Map<string, number>();
     const getDepth = (state: UpgradeNodeState): number => {
@@ -960,7 +1024,7 @@ export class HUDManager {
     };
 
     const maxDepth = states.reduce((max, state) => Math.max(max, getDepth(state)), 0);
-    const levelGap = maxDepth > 0 ? Math.max(62, (bottom - top - nodeHeight) / maxDepth) : 0;
+    const levelGap = maxDepth > 0 ? Math.max(50, (bottom - top - nodeHeight) / maxDepth) : 0;
     for (let depth = 0; depth <= maxDepth; depth++) {
       const level = states.filter((state) => depths.get(state.definition.id) === depth);
       const spacing = graphWidth / (level.length + 1);
@@ -1014,20 +1078,20 @@ export class HUDManager {
       ctx.lineWidth = state.status === 'selected' || hovered || affordable ? 2 : 1;
       ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
       const marker: MarkerKind = state.status === 'available' && !affordable ? 'insufficient' : state.status;
-      this.drawStatusMarker(ctx, rect.x + 10, rect.y + 10, marker, 6);
+      this.drawStatusMarker(ctx, rect.x + 8, rect.y + 8, marker, 5);
       ctx.fillStyle = state.status === 'locked' || state.status === 'disabled' || !affordable ? theme.textDisabled : theme.textPrimary;
-      ctx.font = 'bold 10px sans-serif';
+      ctx.font = 'bold 9px sans-serif';
       ctx.textAlign = 'center';
       const textX = rect.x + rect.width / 2 + 4;
-      const textWidth = rect.width - 18;
+      const textWidth = rect.width - 14;
       this.wrapText(ctx, state.definition.id, textWidth, 2).forEach((line, index) => {
-        ctx.fillText(line, textX, rect.y + 15 + index * 11);
+        ctx.fillText(line, textX, rect.y + 14 + index * 9);
       });
-      ctx.font = '10px sans-serif';
-      ctx.fillText(state.status === 'selected' ? 'SELECTED' : this.formatCost(state.definition.cost), textX, rect.y + 40);
+      ctx.font = '8px sans-serif';
+      ctx.fillText(state.status === 'selected' ? 'SELECTED' : this.formatCost(state.definition.cost), textX, rect.y + 32);
       ctx.fillStyle = theme.textSecondary;
-      this.wrapText(ctx, this.formatEffects(state.definition), textWidth, 2).forEach((line, index) => {
-        ctx.fillText(line, textX, rect.y + 54 + index * 11);
+      this.wrapText(ctx, this.formatEffects(state.definition), textWidth, 1).forEach((line, index) => {
+        ctx.fillText(line, textX, rect.y + 45 + index * 9);
       });
       this.nodeHitboxes.push({ ...rect, instanceId, nodeId: state.definition.id });
     }
@@ -1040,6 +1104,28 @@ export class HUDManager {
 
   private moduleIcon(moduleId: string): string {
     return `ui.icon.${moduleId}`;
+  }
+
+  private resourceIcon(resource: ProductionSnapshot['output']): string {
+    return resource === 'resource' ? 'ui.icon.resource' : `resource.icon.${resource}`;
+  }
+
+  private productionLabel(moduleId: string): string {
+    return {
+      'resource-generator': 'GEN > RES',
+      recycler: 'REC > MAT',
+      arsenal: 'ARS > AMM',
+      composer: 'CMP > NAN',
+    }[moduleId] ?? moduleId.toUpperCase();
+  }
+
+  private productionStatusLabel(status: ProductionSnapshot['status']): string {
+    return {
+      running: 'NEXT CYCLE',
+      'waiting-input': 'WAIT INPUT',
+      'buffer-full': 'BUFFER FULL',
+      'storage-full': 'STORAGE FULL',
+    }[status];
   }
 
   private drawStatusMarker(ctx: CanvasRenderingContext2D, x: number, y: number, status: MarkerKind, size: number): void {
