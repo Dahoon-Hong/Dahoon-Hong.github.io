@@ -1,6 +1,6 @@
 # 09. HUD·업그레이드 UI 개선
 
-상태: 구현 완료 · runtime QA PASS (허용된 SKIP-ENV/SKIP-N/A 포함)
+상태: 구현 완료 · Pages 배포 게이트 진행 중
 
 ## 목적
 
@@ -244,6 +244,7 @@ interface ProductionSnapshot {
 - hover tooltip이 필요한 정보를 제공하고 Canvas 밖으로 잘리지 않는다.
 - install, drag, rotation, research, purchase, pause, wave, terminal 흐름에 회귀가 없다.
 - 필수 runtime integration QA가 PASS이며, 자동 검증은 사용자 요청에 따른 미실행과 허용된 skip이 명시되어 있다.
+- Pages 배포가 성공하고 live URL에서 production cycle bar와 탱크 위 Core HP bar를 확인한다.
 - progress 기록, `git diff --check`, `plan 09` 커밋 메시지 규칙을 지킨다.
 
 ## 구현 결과
@@ -280,3 +281,9 @@ SKIP-N/A: VICTORY는 현재 production transition이 없어 별도 campaign 범�
 콘솔: errors 0, warnings 0
 자동 검증: 사용자 요청에 따라 npm test/build/qa:release 미실행. QA 중 파일 변경 없음
 ```
+
+## Pages 배포 게이트
+
+- 성공 기준: `https://dahoon-hong.github.io`에서 production cycle bar와 탱크 위 Core HP bar가 실제로 보인다.
+- PR #14 merge 직후 Pages build가 `HUDManager.ts`의 TS6133 오류(`tooltipTarget`, `vehicle`)로 실패해 이전 HUD가 배포된 상태를 확인했다.
+- `fix/plan-09-pages-build`에서 두 unused reference 오류를 수정하고, Pages 재배포 후 live UI를 다시 확인한다.
