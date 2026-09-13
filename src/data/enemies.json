@@ -1,7 +1,7 @@
 {
-  "spawn": 5,
+  "spawn": 20,
   "standard": {
-    "spawnWeight": 1,
+    "spawnWeight": 2,
     "spawnInterval": 0.6,
     "spawnBatchSize": 5,
     "hp": 45,
@@ -13,7 +13,7 @@
     "contactDamageInterval": 0.2
   },
   "tanker": {
-    "spawnWeight": 1,
+    "spawnWeight": 3,
     "spawnInterval": 0.6,
     "spawnBatchSize": 5,
     "hp": 160,
