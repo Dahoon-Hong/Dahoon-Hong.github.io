@@ -1,6 +1,6 @@
 # 09. HUD·업그레이드 UI 개선
 
-상태: 구현 완료 · runtime QA 완료
+상태: 구현 완료 · runtime QA BLOCKED (integration-tester 무응답)
 
 ## 목적
 
@@ -233,20 +233,17 @@ interface ProductionSnapshot {
 - Subtask 1: `c757d51 feat(plan 09): expose production snapshots` — `VehicleSystems`에 4개 생산 시스템의 읽기 전용 snapshot API 추가
 - Subtask 2: `772cf7d feat(plan 09): rebalance HUD layout` — 탱크 상단 Core HP, production cycle bar, 확대 시스템 card, compact upgrade map 추가
 - Subtask 3: `99e89b1 feat(plan 09): add HUD hover tooltips` — HP/production/system/node hover tooltip과 Canvas 경계 보정 추가
-- 문서·진행 기록: `dbe4bcf docs(plan 09): record UI implementation QA`
+- 문서·진행 기록: `dbe4bcf docs(plan 09): record UI implementation QA`, `f4487bf docs(plan 09): correct integration QA record`
 
 ## 실제 runtime 검증 기록
 
 ```text
-runtimeId: 32820
-URL: http://127.0.0.1:5173/?test=1
+runtimeId: 16230
+URL: http://127.0.0.1:5174/?test=1
 worktree: C:\Users\slaye\ws\local_game
-결과: PASS with documented skips
-PASS: UI-09-1 HP bar/value, UI-09-2 production bars, UI-09-3 pause/resume,
-      UI-09-5 cards, UI-09-6 upgrade map, UI-09-7 tooltips, UI-09-8 input,
-      UI-09-10 wave/pause/terminal
-SKIP-N/A: UI-09-4 blocked-input/buffer/storage-full 변형은 자연 발생 조건 미도달
-SKIP-ENV: UI-09-1 이동 hold는 단발 keypress API 제한, UI-09-9 축소 viewport는 제어 API 미제공
-콘솔: errors 0, warnings 0
+결과: BLOCKED
+사유: 지정 runtime을 사용한 integration-tester thread가 최종 결과를 반환하지 않아 필수 시나리오 완료 여부를 판정할 수 없음
+수동 보조 확인: 전투 화면에서 탱크 상단 `HP 100/100`, 4개 production bar, 확대 system card, compact upgrade map, pause overlay를 확인했고 브라우저 console errors/warnings는 0건
+미완료: UI-09-4 상태 변형, UI-09-8 입력 회귀, UI-09-9 축소 viewport, UI-09-10 terminal 전환은 공식 integration 결과 없음
 자동 검증: 사용자 요청에 따라 npm test/build/qa:release 미실행
 ```
