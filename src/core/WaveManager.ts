@@ -65,6 +65,7 @@ export class WaveManager {
   private readonly region: RegionDefinition;
   private readonly enemyDefinitions: Readonly<Record<EnemyType, EnemyDefinition>>;
   private readonly enemySpawnPolicy: Readonly<EnemySpawnPolicy>;
+  private readonly random: () => number;
   private spawnTimer = 0;
   private spawnInterval = 1.2;
   private batchSize = 1;
@@ -77,11 +78,13 @@ export class WaveManager {
     enemyDefinitions: Readonly<Record<EnemyType, EnemyDefinition>>,
     enemySpawnPolicy: Readonly<EnemySpawnPolicy>,
     spawnContext: WaveSpawnContext,
+    random: () => number = Math.random,
   ) {
     this.region = region;
     this.enemyDefinitions = enemyDefinitions;
     this.enemySpawnPolicy = enemySpawnPolicy;
     this.spawnContext = spawnContext;
+    this.random = random;
     this.totalWaves = region.waves.length;
     this.prepareWave();
   }
@@ -146,13 +149,33 @@ export class WaveManager {
   }
 
   private spawnEnemy(enemies: Enemy[]): EnemyType {
-    const type = this.spawnQueue[this.spawnedEnemiesCount] ?? 'standard';
+    const queueIndex = this.selectWeightedQueueIndex();
+    const type = this.spawnQueue.splice(queueIndex, 1)[0] ?? 'standard';
     const spawnCell = this.spawnContext.spawnCells[this.spawnedEnemiesCount % this.spawnContext.spawnCells.length];
     const spawnPoint = this.spawnContext.terrain.cellToWorldCenter(spawnCell);
     const repathOffset = (this.spawnedEnemiesCount % 4) * 0.06;
     if (type === 'tanker') enemies.push(new TankerEnemy(spawnPoint.x, spawnPoint.y, this.enemyDefinitions.tanker, repathOffset));
     else enemies.push(new StandardEnemy(spawnPoint.x, spawnPoint.y, this.enemyDefinitions.standard, repathOffset));
     return type;
+  }
+
+  private selectWeightedQueueIndex(): number {
+    if (this.spawnQueue.length === 0) return 0;
+
+    const totalWeight = this.spawnQueue.reduce(
+      (total, type) => total + this.enemyDefinitions[type].spawnWeight,
+      0,
+    );
+    const randomValue = this.random();
+    const roll = Number.isFinite(randomValue) ? Math.min(1, Math.max(0, randomValue)) : 0;
+    let threshold = roll * totalWeight;
+
+    for (let index = 0; index < this.spawnQueue.length; index++) {
+      threshold -= this.enemyDefinitions[this.spawnQueue[index]].spawnWeight;
+      if (threshold < 0) return index;
+    }
+
+    return this.spawnQueue.length - 1;
   }
 
 }

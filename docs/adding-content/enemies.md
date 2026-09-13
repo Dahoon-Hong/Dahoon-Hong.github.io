@@ -57,6 +57,7 @@
 ```json
 {
   "example": {
+    "spawnWeight": 1,
     "hp": 80,
     "speed": 70,
     "radius": 14,
@@ -70,6 +71,7 @@
 
 필드 의미:
 
+- `spawnWeight`: 남은 웨이브 quota에서 이 적 타입을 선택할 가중치. 유한한 양수여야 하며, 웨이브의 최종 타입별 수량은 바꾸지 않음
 - `hp`: 최대 체력, 0보다 커야 함
 - `speed`: 초당 이동 거리, 0 이상
 - `radius`: 충돌, 지형 경로와 체력 바 크기에 사용하는 반지름
@@ -92,8 +94,8 @@
     "intervalMultiplier": 0.5,
     "minimumInterval": 0.25
   },
-  "standard": { "...": "enemy definition" },
-  "tanker": { "...": "enemy definition" }
+  "standard": { "spawnWeight": 1, "...": "enemy definition" },
+  "tanker": { "spawnWeight": 1, "...": "enemy definition" }
 }
 ```
 
@@ -104,7 +106,7 @@
 - `intervalMultiplier`: 위협 보정 후 지역 interval에 곱하는 공통 배율, 0보다 큰 수
 - `minimumInterval`: 지역 보정 후에도 지키는 전역 최소 interval, 0보다 큰 수
 
-현재 위협 단계는 `currentWave - 1`이며 Wave 1은 0이다. 실제 생성 수는 남은 웨이브 큐를 넘지 않는다. 현재 기본값은 이벤트당 5마리와 interval 0.5배이며, 이 정책은 적별 설정이 아니다. 처치 수·경과 시간 기반 `ThreatMeter`나 `maxAlive`는 정의하지 않는다.
+현재 위협 단계는 `currentWave - 1`이며 Wave 1은 0이다. 실제 생성 수는 남은 웨이브 큐를 넘지 않는다. 현재 기본값은 이벤트당 5마리와 interval 0.5배이며, batch·interval은 공통 정책이고 타입 선택 순서는 각 적의 `spawnWeight`를 사용한다. 처치 수·경과 시간 기반 `ThreatMeter`나 `maxAlive`는 정의하지 않는다.
 
 반지름은 이미지 크기만의 값이 아니다. 큰 적은 더 넓은 길이 필요하며 `MapDefinitionLoader`가 모든 스폰 경로를 이 반지름으로 검증해야 한다.
 

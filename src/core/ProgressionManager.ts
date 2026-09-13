@@ -105,6 +105,7 @@ function nonEmptyString(value: unknown, path: string): string {
 
 function validateEnemyDefinition(value: unknown, type: EnemyType): asserts value is EnemyDefinition {
   const definition = record(value, `enemyData.${type}`);
+  positiveNumber(definition.spawnWeight, `enemyData.${type}.spawnWeight`);
   positiveNumber(definition.hp, `enemyData.${type}.hp`);
   nonNegativeNumber(definition.speed, `enemyData.${type}.speed`);
   positiveNumber(definition.radius, `enemyData.${type}.radius`);

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ProgressionManager, validateEnemyData } from './ProgressionManager';
 
 const definition = {
+  spawnWeight: 1,
   hp: 10,
   speed: 20,
   radius: 6,
@@ -48,5 +49,11 @@ describe('enemy data contract', () => {
     expect(() => validateEnemyData({ ...validData, spawn: { ...spawn, intervalMultiplier: 0 } })).toThrow('intervalMultiplier');
     expect(() => validateEnemyData({ ...validData, spawn: { ...spawn, minimumInterval: 0 } })).toThrow('minimumInterval');
     expect(() => validateEnemyData({ ...validData, spawn: { ...spawn, baseBatchSize: 2, maxBatchSize: 1 } })).toThrow('maxBatchSize');
+  });
+
+  it('rejects non-positive or non-finite enemy spawn weights', () => {
+    expect(() => validateEnemyData({ ...validData, standard: { ...definition, spawnWeight: 0 } })).toThrow('spawnWeight');
+    expect(() => validateEnemyData({ ...validData, standard: { ...definition, spawnWeight: -1 } })).toThrow('spawnWeight');
+    expect(() => validateEnemyData({ ...validData, standard: { ...definition, spawnWeight: NaN } })).toThrow('spawnWeight');
   });
 });

@@ -6,9 +6,11 @@ import { calculateSpawnScaling, WaveManager } from './WaveManager';
 
 const enemyDefinitions = {
   standard: {
+    spawnWeight: 1,
     hp: 10, speed: 20, radius: 6, reward: 1, typeName: 'Standard', contactDamage: 1, contactDamageInterval: 0.2,
   },
   tanker: {
+    spawnWeight: 1,
     hp: 20, speed: 10, radius: 8, reward: 2, typeName: 'Tanker', contactDamage: 2, contactDamageInterval: 0.2,
   },
 } as const;
@@ -54,7 +56,7 @@ describe('WaveManager', () => {
     const manager = new WaveManager(region, enemyDefinitions, spawnPolicy, {
       terrain,
       spawnCells: [{ x: 0, y: 0 }, { x: 3, y: 1 }],
-    });
+    }, () => 0);
     const enemies: Array<StandardEnemy | TankerEnemy> = [];
 
     manager.update(0.1, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
@@ -76,7 +78,7 @@ describe('WaveManager', () => {
     const manager = new WaveManager(region, enemyDefinitions, spawnPolicy, {
       terrain: tileTerrain,
       spawnCells: [{ x: 1, y: 1 }, { x: 3, y: 2 }],
-    });
+    }, () => 0);
     const enemies: Array<StandardEnemy | TankerEnemy> = [];
 
     manager.update(0.1, enemies, tileTerrain.width, tileTerrain.height, { x: 0, y: 0 });
@@ -153,7 +155,7 @@ describe('WaveManager', () => {
     const manager = new WaveManager(batchRegion, enemyDefinitions, batchPolicy, {
       terrain,
       spawnCells: [{ x: 0, y: 0 }, { x: 3, y: 1 }],
-    });
+    }, () => 0);
     const enemies: Array<StandardEnemy | TankerEnemy> = [];
 
     manager.update(0.1, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
@@ -170,6 +172,26 @@ describe('WaveManager', () => {
       ['standard', 126, 54],
       ['tanker', 18, 18],
     ]);
+    expect(manager.spawnedEnemiesCount).toBe(3);
+  });
+
+  it('uses enemy spawn weights while preserving each wave quota', () => {
+    const weightedDefinitions = {
+      standard: { ...enemyDefinitions.standard, spawnWeight: 1 },
+      tanker: { ...enemyDefinitions.tanker, spawnWeight: 9 },
+    } as const;
+    const manager = new WaveManager(region, weightedDefinitions, spawnPolicy, {
+      terrain,
+      spawnCells: [{ x: 0, y: 0 }],
+    }, () => 0.5);
+    const enemies: Array<StandardEnemy | TankerEnemy> = [];
+
+    manager.update(0.1, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
+    manager.update(0.1, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
+    manager.update(0.1, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
+
+    expect(enemies.map((enemy) => enemy.enemyType)).toEqual(['tanker', 'standard', 'standard']);
+    expect(manager.totalWaveEnemies).toBe(3);
     expect(manager.spawnedEnemiesCount).toBe(3);
   });
 

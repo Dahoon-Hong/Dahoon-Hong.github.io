@@ -8,6 +8,7 @@
     "minimumInterval": 0.25
   },
   "standard": {
+    "spawnWeight": 1,
     "hp": 45,
     "speed": 95,
     "radius": 12,
@@ -17,6 +18,7 @@
     "contactDamageInterval": 0.2
   },
   "tanker": {
+    "spawnWeight": 1,
     "hp": 160,
     "speed": 45,
     "radius": 18,

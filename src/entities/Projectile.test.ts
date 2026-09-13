@@ -13,6 +13,7 @@ const terrain = new TerrainGrid({
 });
 
 const enemyDefinition: EnemyDefinition = {
+  spawnWeight: 1,
   hp: 45,
   speed: 95,
   radius: 12,
