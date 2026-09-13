@@ -7,6 +7,8 @@ type EnemyVisualState = 'idle' | 'hit' | 'dead';
 
 export interface EnemyDefinition {
   spawnWeight: number;
+  spawnInterval: number;
+  spawnBatchSize: number;
   hp: number;
   speed: number;
   radius: number;

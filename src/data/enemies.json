@@ -1,14 +1,9 @@
 {
-  "spawn": {
-    "baseBatchSize": 5,
-    "batchSizePerThreat": 0,
-    "maxBatchSize": 5,
-    "intervalStep": 0,
-    "intervalMultiplier": 0.5,
-    "minimumInterval": 0.25
-  },
+  "spawn": 5,
   "standard": {
     "spawnWeight": 1,
+    "spawnInterval": 0.6,
+    "spawnBatchSize": 5,
     "hp": 45,
     "speed": 95,
     "radius": 12,
@@ -19,6 +14,8 @@
   },
   "tanker": {
     "spawnWeight": 1,
+    "spawnInterval": 0.6,
+    "spawnBatchSize": 5,
     "hp": 160,
     "speed": 45,
     "radius": 18,

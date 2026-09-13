@@ -15,9 +15,11 @@
 - 타입 ID, 표시 이름, 전투 역할
 - HP, 이동 속도, 충돌 반지름, 처치 보상
 - 접촉 피해와 피해 간격
+- 기본 생성량에 곱할 타입별 spawn 가중치
+- 타입별 생성 간격과 한 번에 생성할 batch 수
 - 기존 추적·접촉 AI를 재사용할지 여부
 - 특수 이동, 원거리 공격, 분열 등 신규 행동
-- 어느 지역과 웨이브에 몇 마리가 나오는지
+- 어느 맵과 웨이브에서 몇 마리를 처치해야 하는지
 - idle, hit, dead 실루엣과 그림자
 - 기존 사운드와 공통 피격 효과를 재사용할지 여부
 
@@ -44,8 +46,8 @@
 | 기본 수치 | `src/data/enemies.json` |
 | 타입, 공통 행동, 타입별 렌더링 | `src/entities/Enemy.ts` |
 | 웨이브 데이터 타입과 검증 | `src/core/ProgressionManager.ts` |
-| 웨이브 큐와 적 생성 | `src/core/WaveManager.ts` |
-| 지역별 웨이브 수량 | `src/data/progression.json` |
+| 웨이브 처치 목표와 적 생성 | `src/core/WaveManager.ts` |
+| 맵·웨이브별 처치 목표 | `src/data/progression.json` |
 | 경로 도달성 반지름 검사 | `src/core/MapDefinitionLoader.ts` |
 | 이미지 | `public/assets/game/enemies/` |
 | 이미지 등록 | `src/data/assets.json` |
@@ -58,6 +60,8 @@
 {
   "example": {
     "spawnWeight": 1,
+    "spawnInterval": 0.6,
+    "spawnBatchSize": 5,
     "hp": 80,
     "speed": 70,
     "radius": 14,
@@ -71,7 +75,9 @@
 
 필드 의미:
 
-- `spawnWeight`: 남은 웨이브 quota에서 이 적 타입을 선택할 가중치. 유한한 양수여야 하며, 웨이브의 최종 타입별 수량은 바꾸지 않음
+- `spawnWeight`: 루트 `spawn`에 곱하는 타입별 생성 가중치. 유한한 0 이상이어야 하며, 0이면 해당 타입을 생성하지 않음
+- `spawnInterval`: 해당 타입의 생성 이벤트 사이 간격(초). 0보다 큰 유한한 수
+- `spawnBatchSize`: 해당 타입의 한 생성 이벤트에서 동시에 만들 수 있는 최대 수. 1 이상의 정수
 - `hp`: 최대 체력, 0보다 커야 함
 - `speed`: 초당 이동 거리, 0 이상
 - `radius`: 충돌, 지형 경로와 체력 바 크기에 사용하는 반지름
@@ -80,33 +86,50 @@
 - `contactDamage`: 접촉 공격 한 번의 피해
 - `contactDamageInterval`: 접촉 피해 사이의 초, 0보다 커야 함
 
-## 공통 스폰 정책
+## 생성량과 웨이브 목표
 
-`enemies.json` 루트에는 적 전투 정의와 별도로 모든 웨이브에 적용되는 `spawn` 정책을 둔다.
+`enemies.json` 루트의 `spawn`은 모든 적 타입에 적용되는 기본 생성량이다. 각
+적의 `spawnWeight`를 곱해 타입별 생성량을 계산하고, `spawnBatchSize`를 넘지
+않게 한 번의 생성 이벤트로 만든다.
 
 ```json
 {
-  "spawn": {
-    "baseBatchSize": 5,
-    "batchSizePerThreat": 0,
-    "maxBatchSize": 5,
-    "intervalStep": 0,
-    "intervalMultiplier": 0.5,
-    "minimumInterval": 0.25
+  "spawn": 5,
+  "standard": {
+    "spawnWeight": 1,
+    "spawnInterval": 0.6,
+    "spawnBatchSize": 5,
+    "...": "enemy definition"
   },
-  "standard": { "spawnWeight": 1, "...": "enemy definition" },
-  "tanker": { "spawnWeight": 1, "...": "enemy definition" }
+  "tanker": {
+    "spawnWeight": 1,
+    "spawnInterval": 0.6,
+    "spawnBatchSize": 5,
+    "...": "enemy definition"
+  }
 }
 ```
 
-- `baseBatchSize`: 위협 0에서 한 스폰 이벤트가 생성하는 수, 1 이상의 정수
-- `batchSizePerThreat`: 위협 단계마다 증가하는 배치 수, 0 이상의 정수
-- `maxBatchSize`: 한 스폰 이벤트의 최대 생성 수, `baseBatchSize` 이상인 정수
-- `intervalStep`: 위협 단계마다 지역 기본 interval에 더하는 초 단위 보정값. 음수면 빨라진다.
-- `intervalMultiplier`: 위협 보정 후 지역 interval에 곱하는 공통 배율, 0보다 큰 수
-- `minimumInterval`: 지역 보정 후에도 지키는 전역 최소 interval, 0보다 큰 수
+한 타입의 생성 이벤트에서 만드는 실제 수는 다음과 같다.
 
-현재 위협 단계는 `currentWave - 1`이며 Wave 1은 0이다. 실제 생성 수는 남은 웨이브 큐를 넘지 않는다. 현재 기본값은 이벤트당 5마리와 interval 0.5배이며, batch·interval은 공통 정책이고 타입 선택 순서는 각 적의 `spawnWeight`를 사용한다. 처치 수·경과 시간 기반 `ThreatMeter`나 `maxAlive`는 정의하지 않는다.
+```text
+eventCount = min(round(spawn * spawnWeight), spawnBatchSize)
+```
+
+양수 가중치의 계산 결과가 0이 되면 1로 올리고, 가중치가 0이면 0으로
+처리한다. 각 타입은 자기 `spawnInterval`마다 독립적으로 계속 생성된다. 웨이브는
+고정된 타입별 수량을 소진하는 방식이 아니라, `progression.json`의
+`targetKills`만큼 해당 웨이브에서 생성된 적을 처치하면 성공한다. 따라서 목표
+처치 수에 도달하기 전에는 생성량이 목표보다 많아질 수 있다.
+
+맵·웨이브 데이터는 다음처럼 처치 목표만 둔다.
+
+```json
+{
+  "mapId": "aurelia/landing-zone",
+  "waves": [{ "targetKills": 12 }, { "targetKills": 12 }]
+}
+```
 
 반지름은 이미지 크기만의 값이 아니다. 큰 적은 더 넓은 길이 필요하며 `MapDefinitionLoader`가 모든 스폰 경로를 이 반지름으로 검증해야 한다.
 
@@ -117,14 +140,17 @@
 1. `Enemy.ts`의 `EnemyType` union
 2. 기본 행동을 재사용하거나 확장하는 새 `Enemy` 하위 클래스
 3. 하위 클래스의 body와 shadow asset ID
-4. `ProgressionManager.ts`의 `WaveDefinition` 수량 필드와 검증
-5. `WaveManager.ts`의 총 적 수, spawn queue와 생성 분기
-6. `progression.json`의 모든 wave에 새 타입 수량
+4. `ProgressionManager.ts`의 `WaveDefinition.targetKills`와 검증
+5. `WaveManager.ts`의 타입별 interval·batch 생성과 처치 목표 추적
+6. `progression.json`의 각 wave `targetKills`
 7. `MapDefinitionLoader.ts`의 경로 검증 대상 반지름
 8. `scripts/qa-art.mjs`의 적 타입 목록
 9. `Game.ts`의 타입별 디버그 또는 사망 표현 분기
 
-새 타입을 추가할 때 모든 기존 wave에 `0`을 반복해서 넣는 방식과, 선택형 타입별 수량 구조로 일반화하는 방식 중 하나를 선택해야 할 수 있다. 후자는 데이터 계약 변경이므로 새 적 하나의 범위를 넘어서는지 먼저 판단하고 사용자 승인 없이 확장하지 않는다.
+새 타입을 추가하면 `EnemyType`, 생성 클래스, asset 계약과 데이터 검증을 함께
+갱신한다. 웨이브에는 타입별 수량을 추가하지 않고 `targetKills`만 유지하며,
+새 타입의 출현 비율은 `spawnWeight`, 생성 주기는 `spawnInterval`, 한 이벤트의
+동시 생성량은 `spawnBatchSize`로 조절한다.
 
 ## 아트 계약
 
@@ -156,7 +182,7 @@ body 이미지는 중심 pivot을 유지하고 게임의 `radius`와 시각적 �
 - 지형을 막힘 또는 시야로 취급하는 방식
 - 재사용 대기시간과 피해 처리
 - 사망 및 보상 시점
-- 웨이브 수량 계산 방식
+- 웨이브 처치 목표와 생성 주기
 - 필요한 투사체, 효과와 사운드
 
 공통 `Enemy` 동작을 깨지 않고 하위 클래스에 최소한의 차이만 둔다. 무기와 투사체는 일반 `Enemy[]`를 대상으로 하므로 새 적 타입만을 이유로 수정하지 않는다.
@@ -164,8 +190,8 @@ body 이미지는 중심 pivot을 유지하고 게임의 `radius`와 시각적 �
 ## 검증과 완료 조건
 
 - 새 타입 데이터가 유효하고 모든 필드를 실제 코드가 사용한다.
-- 의도한 지역과 웨이브에서 정확한 수량으로 생성된다.
-- 총 적 수와 wave 완료 조건이 새 타입을 포함한다.
+- 타입별 가중치, interval, batch 설정대로 계속 생성된다.
+- 맵·웨이브의 처치 목표와 wave 완료 조건이 동작한다.
 - 모든 생산 맵의 스폰에서 새 반지름으로 경로가 존재한다.
 - 이동 중 벽을 통과하거나 경로가 없을 때 순간 이동하지 않는다.
 - 접촉 피해량과 간격, 처치 보상이 정확하다.
