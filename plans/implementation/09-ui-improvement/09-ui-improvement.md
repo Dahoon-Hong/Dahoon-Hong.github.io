@@ -1,6 +1,6 @@
 # 09. HUD·업그레이드 UI 개선
 
-상태: 구현 완료 · runtime QA PASS (documented skips)
+상태: 구현 완료 · runtime QA BLOCKED (필수 UI-09-4 미관측)
 
 ## 목적
 
@@ -243,11 +243,11 @@ interface ProductionSnapshot {
 runtimeId: 92844
 URL: http://127.0.0.1:5178/?test=1
 worktree: C:\Users\slaye\ws\local_game
-결과: PASS with documented skips
+결과: BLOCKED
 PASS: UI-09-1 HP bar/value/movement, UI-09-2 production bars, UI-09-3 pause/resume,
       UI-09-5 cards, UI-09-6 upgrade map, UI-09-7 tooltips, UI-09-8 input 회귀,
       UI-09-10 wave/terminal
-SKIP-N/A: UI-09-4 BUFFER FULL은 확인했으나 input/storage-full 상태는 자연 발생하지 않음
+BLOCKED: UI-09-4 BUFFER FULL은 확인했으나 input/storage-full 상태는 자연 발생하지 않아 필수 상태 전체를 판정할 수 없음
 SKIP-ENV: UI-09-9 1280x720은 확인했으나 축소 viewport 제어 API 미지원
 콘솔: errors 0, warnings 0
 자동 검증: 사용자 요청에 따라 npm test/build/qa:release 미실행
