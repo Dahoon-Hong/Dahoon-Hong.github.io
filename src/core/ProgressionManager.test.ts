@@ -20,8 +20,8 @@ describe('enemy data contract', () => {
   it('exposes the base spawn and per-enemy spawn settings', () => {
     const progression = new ProgressionManager();
 
-    expect(progression.baseEnemySpawn).toBe(5);
-    expect(progression.enemyDefinitions.standard.spawnWeight).toBe(1);
+    expect(progression.baseEnemySpawn).toBe(20);
+    expect(progression.enemyDefinitions.standard.spawnWeight).toBe(2);
     expect(progression.enemyDefinitions.standard.spawnInterval).toBe(0.6);
     expect(progression.enemyDefinitions.standard.spawnBatchSize).toBe(5);
     expect(Object.keys(progression.enemyDefinitions)).toEqual(['standard', 'tanker']);

@@ -1,6 +1,5 @@
 import type { RenderContext } from '../rendering/RenderContext';
 import type { TerrainCell, TerrainGrid } from '../core/TerrainGrid';
-import type { TerrainPathfinder } from '../core/TerrainPathfinder';
 
 export type EnemyType = 'standard' | 'tanker';
 type EnemyVisualState = 'idle' | 'hit' | 'dead';
@@ -20,7 +19,6 @@ export interface EnemyDefinition {
 
 export interface EnemyNavigationContext {
   terrain: TerrainGrid;
-  pathfinder: TerrainPathfinder;
   targetCell?: TerrainCell | null;
 }
 
@@ -42,8 +40,6 @@ export abstract class Enemy {
   private path: TerrainCell[] = [];
   private waypointIndex = 0;
   private lastTargetCell: TerrainCell | null = null;
-  private repathTimer: number;
-  private readonly repathInterval = 0.25;
 
   constructor(
     x: number,
@@ -56,7 +52,6 @@ export abstract class Enemy {
     enemyType: EnemyType,
     contactDamage = 10,
     contactDamageInterval = 0.2,
-    repathOffset = 0,
   ) {
     this.x = x;
     this.y = y;
@@ -69,7 +64,6 @@ export abstract class Enemy {
     this.enemyType = enemyType;
     this.contactDamage = contactDamage;
     this.contactDamageInterval = contactDamageInterval;
-    this.repathTimer = Math.max(0, repathOffset);
   }
 
   public isDead(): boolean {
@@ -85,6 +79,18 @@ export abstract class Enemy {
       this.hp = 0;
       this.dead = true;
     }
+  }
+
+  public applyNavigationPath(path: readonly TerrainCell[], targetCell: TerrainCell | null): void {
+    this.path = path.map((cell) => ({ ...cell }));
+    this.waypointIndex = 0;
+    this.lastTargetCell = targetCell ? { ...targetCell } : null;
+  }
+
+  public clearNavigationPath(): void {
+    this.path = [];
+    this.waypointIndex = 0;
+    this.lastTargetCell = null;
   }
 
   public getPath(): readonly TerrainCell[] {
@@ -110,26 +116,11 @@ export abstract class Enemy {
   }
 
   private updateWithTerrain(dt: number, targetPos: { x: number; y: number }, navigation: EnemyNavigationContext): void {
-    this.repathTimer = Math.max(0, this.repathTimer - dt);
     const targetCell = navigation.targetCell ?? navigation.terrain.worldToCell(targetPos);
     const enemyCell = navigation.terrain.worldToCell({ x: this.x, y: this.y });
-    const remainingPath = this.path.slice(this.waypointIndex);
-    const pathValid = enemyCell !== null && navigation.pathfinder.isPathValid(enemyCell, remainingPath, this.radius);
-    const targetChanged = !this.sameCell(this.lastTargetCell, targetCell);
-    const needsPath = targetCell !== null && (targetChanged || !pathValid || remainingPath.length === 0);
-
-    if (this.repathTimer <= 0 && needsPath) {
-      this.lastTargetCell = targetCell ? { ...targetCell } : null;
-      this.path = enemyCell && targetCell
-        ? navigation.pathfinder.findPath(enemyCell, targetCell, { radius: this.radius }) ?? []
-        : [];
-      this.waypointIndex = 0;
-      this.repathTimer = this.repathInterval;
-    }
-
     if (targetCell === null || !enemyCell) return;
     const currentPath = this.path.slice(this.waypointIndex);
-    if (currentPath.length > 0 && (targetChanged ? pathValid : true)) {
+    if (currentPath.length > 0) {
       const waypoint = navigation.terrain.cellToWorldCenter(currentPath[0]);
       if (this.moveToward(waypoint, dt, navigation.terrain)) this.waypointIndex++;
       return;
@@ -197,7 +188,7 @@ export abstract class Enemy {
 }
 
 export class StandardEnemy extends Enemy {
-  constructor(x: number, y: number, definition: EnemyDefinition, repathOffset = 0) {
+  constructor(x: number, y: number, definition: EnemyDefinition) {
     super(
       x,
       y,
@@ -209,7 +200,6 @@ export class StandardEnemy extends Enemy {
       'standard',
       definition.contactDamage,
       definition.contactDamageInterval,
-      repathOffset,
     );
   }
 
@@ -221,7 +211,7 @@ export class StandardEnemy extends Enemy {
 }
 
 export class TankerEnemy extends Enemy {
-  constructor(x: number, y: number, definition: EnemyDefinition, repathOffset = 0) {
+  constructor(x: number, y: number, definition: EnemyDefinition) {
     super(
       x,
       y,
@@ -233,7 +223,6 @@ export class TankerEnemy extends Enemy {
       'tanker',
       definition.contactDamage,
       definition.contactDamageInterval,
-      repathOffset,
     );
   }
 

@@ -131,10 +131,9 @@ export class WaveManager {
   private spawnEnemy(type: EnemyType, enemies: Enemy[]): void {
     const spawnCell = this.spawnContext.spawnCells[this.spawnedEnemiesCount % this.spawnContext.spawnCells.length];
     const spawnPoint = this.spawnContext.terrain.cellToWorldCenter(spawnCell);
-    const repathOffset = (this.spawnedEnemiesCount % 4) * 0.06;
     const enemy = type === 'tanker'
-      ? new TankerEnemy(spawnPoint.x, spawnPoint.y, this.enemyDefinitions.tanker, repathOffset)
-      : new StandardEnemy(spawnPoint.x, spawnPoint.y, this.enemyDefinitions.standard, repathOffset);
+      ? new TankerEnemy(spawnPoint.x, spawnPoint.y, this.enemyDefinitions.tanker)
+      : new StandardEnemy(spawnPoint.x, spawnPoint.y, this.enemyDefinitions.standard);
     enemies.push(enemy);
     this.activeWaveEnemies.add(enemy);
   }

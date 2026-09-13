@@ -133,6 +133,34 @@ eventCount = min(round(spawn * spawnWeight), spawnBatchSize)
 
 반지름은 이미지 크기만의 값이 아니다. 큰 적은 더 넓은 길이 필요하며 `MapDefinitionLoader`가 모든 스폰 경로를 이 반지름으로 검증해야 한다.
 
+## 공통 경로 탐색 정책
+
+적의 경로 탐색 cadence와 프레임 예산은 `src/data/enemy-navigation.json`에서
+관리한다. `EnemyNavigationCoordinator`가 모든 생존 적의 요청을 모아 동일한
+시작 cell·목표 cell·반지름 요청을 한 번만 계산하고, 결과를 bounded cache에서
+재사용한다.
+
+```json
+{
+  "repathInterval": 0.25,
+  "pathValidationInterval": 0.25,
+  "maxPathSearchesPerFrame": 1,
+  "maxPathValidationsPerFrame": 4,
+  "pathCacheSize": 256
+}
+```
+
+- `repathInterval`: 목표 cell 변화나 현재 경로 소진 뒤 새 경로를 요청하는 최소 간격(초)
+- `pathValidationInterval`: 현재 경로를 지형에 대해 재검사하는 최소 간격(초)
+- `maxPathSearchesPerFrame`: 한 프레임에서 실행할 실제 A* 검색의 최대 수
+- `maxPathValidationsPerFrame`: 한 프레임에서 실행할 경로 유효성 검사의 최대 수
+- `pathCacheSize`: map/run별 경로 cache의 최대 항목 수
+
+목표 cell이 바뀌어도 즉시 모든 적이 재탐색하지 않는다. 적은 기존 안전 경로를
+계속 사용하고 coordinator가 주기와 검색 budget에 따라 최신 요청을 처리한다.
+맵 전환이나 새 run에서는 이전 경로 cache를 폐기한다. 적 타입별 `radius`가
+다르므로 작은 적의 경로를 큰 적에게 재사용하지 않는다.
+
 ## 타입과 생성 연결
 
 현재 구조에 새 타입을 추가할 때 확인할 지점은 다음과 같다.
