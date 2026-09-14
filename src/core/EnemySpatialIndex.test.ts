@@ -32,12 +32,14 @@ describe('EnemySpatialIndex', () => {
     const center = new StandardEnemy(72, 72, definition);
     const first = new StandardEnemy(84, 72, definition);
     const second = new StandardEnemy(96, 72, definition);
+    const third = new StandardEnemy(108, 72, definition);
     const dead = new StandardEnemy(80, 72, definition);
     dead.takeDamage(dead.maxHp);
 
-    index.build([center, first, second, dead]);
+    index.build([center, first, second, third, dead]);
 
     expect(index.query(center, 1)).toEqual([first]);
+    expect(index.query(center, 2)).toEqual([first, second]);
     expect(index.query(center, 8)).not.toContain(dead);
   });
 

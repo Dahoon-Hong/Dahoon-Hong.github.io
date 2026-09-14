@@ -6,6 +6,8 @@ export const GAME_TEST_SCENARIOS = [
   'enemy-navigation',
   'enemy-navigation-fixtures',
   'enemy-navigation-worker',
+  'enemy-collision-stress',
+  'enemy-collision-spawn',
   'terminal-game-over',
   'terminal-region',
 ] as const;
@@ -21,6 +23,13 @@ export function getGameTestScenario(): GameTestScenario | null {
   const scenario = params.get('scenario');
   return isGameTestScenario(scenario) ? scenario : null;
 }
+export function getGameTestEnemyCount(defaultCount = 160): number {
+  if (typeof window === 'undefined' || !import.meta.env.DEV) return defaultCount;
+  const rawCount = Number.parseInt(new URLSearchParams(window.location.search).get('count') ?? '', 10);
+  if (!Number.isFinite(rawCount)) return defaultCount;
+  return Math.min(640, Math.max(1, rawCount));
+}
+
 
 export function getGameTestWorkerEnabled(): boolean {
   if (typeof window === 'undefined' || !import.meta.env.DEV) return true;

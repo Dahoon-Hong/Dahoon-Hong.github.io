@@ -1,23 +1,192 @@
-import { Enemy } from '../entities/Enemy';
-import { EnemySpatialIndex } from './EnemySpatialIndex';
+import type { Enemy } from '../entities/Enemy';
 import type { TerrainAabb, TerrainGrid, TerrainPoint } from './TerrainGrid';
+import { EnemySpatialIndex } from './EnemySpatialIndex';
 
 const COLLISION_EPSILON = 0.01;
-const MAX_SEPARATION_PASSES = 8;
-const MAX_SEPARATION_RINGS = 8;
+const MAX_SPAWN_CANDIDATES = 32;
+const SPAWN_PROBE_ANGLES = 8;
+const COLLISION_SAMPLE_LIMIT = 120;
+
+export interface EnemyCollisionStats {
+  collisionMainMs: number;
+  collisionMainMsMax: number;
+  collisionMainMsP95: number;
+  collisionCandidatesTotal: number;
+  collisionCandidatesMax: number;
+  collisionPairsThisFrame: number;
+  collisionPushesThisFrame: number;
+  collisionBlockedPushesThisFrame: number;
+}
+
+export type EnemyNeighborProvider = (enemy: Enemy) => readonly Enemy[];
 
 export class EnemyCollisionResolver {
   private terrain: TerrainGrid;
   private readonly spatialIndex: EnemySpatialIndex;
+  private readonly pushSpeed: number;
+  private readonly lookaheadDistance: number;
+  private readonly spawnProbeDistance: number;
+  private readonly collisionDurationSamples: number[] = [];
+  private stats: EnemyCollisionStats = this.createEmptyStats();
 
-  public constructor(terrain: TerrainGrid, spatialCellSize: number) {
+  public constructor(
+    terrain: TerrainGrid,
+    spatialCellSize: number,
+    pushSpeed = 180,
+    lookaheadDistance = 8,
+    spawnProbeDistance = 32,
+  ) {
     this.terrain = terrain;
     this.spatialIndex = new EnemySpatialIndex(spatialCellSize);
+    if (!Number.isFinite(pushSpeed) || pushSpeed <= 0) {
+      throw new Error('[EnemyCollisionResolver] pushSpeed must be a finite number > 0');
+    }
+    if (!Number.isFinite(lookaheadDistance) || lookaheadDistance < 0) {
+      throw new Error('[EnemyCollisionResolver] lookaheadDistance must be a finite number >= 0');
+    }
+    if (!Number.isFinite(spawnProbeDistance) || spawnProbeDistance <= 0) {
+      throw new Error('[EnemyCollisionResolver] spawnProbeDistance must be a finite number > 0');
+    }
+    this.pushSpeed = pushSpeed;
+    this.lookaheadDistance = lookaheadDistance;
+    this.spawnProbeDistance = spawnProbeDistance;
   }
 
   public setTerrain(terrain: TerrainGrid): void {
     this.terrain = terrain;
     this.spatialIndex.reset();
+    this.collisionDurationSamples.length = 0;
+    this.stats = this.createEmptyStats();
+  }
+
+  public collectPushIntents(
+    enemies: readonly Enemy[],
+    getNearbyEnemies: EnemyNeighborProvider,
+    dt: number,
+  ): ReadonlyMap<Enemy, TerrainPoint> {
+    const startedAt = this.now();
+    const activeEnemies = new Set<Enemy>();
+    for (const enemy of enemies) {
+      if (!enemy.isDead()) activeEnemies.add(enemy);
+    }
+
+    const intents = new Map<Enemy, TerrainPoint>();
+    const contactCounts = new Map<Enemy, number>();
+    const processedPairs = new Set<string>();
+    let candidatesTotal = 0;
+    let candidatesMax = 0;
+    let collisionPairsThisFrame = 0;
+
+    for (const enemy of enemies) {
+      if (!activeEnemies.has(enemy)) continue;
+      const nearbyEnemies = getNearbyEnemies(enemy);
+      candidatesTotal += nearbyEnemies.length;
+      candidatesMax = Math.max(candidatesMax, nearbyEnemies.length);
+
+      for (const other of nearbyEnemies) {
+        if (other === enemy || !activeEnemies.has(other)) continue;
+        const pairKey = this.getPairKey(enemy, other);
+        if (processedPairs.has(pairKey)) continue;
+        processedPairs.add(pairKey);
+
+        const first = enemy.navigationId < other.navigationId ? enemy : other;
+        const second = first === enemy ? other : enemy;
+        const minimumDistance = first.radius + second.radius + COLLISION_EPSILON;
+        const delta = { x: first.x - second.x, y: first.y - second.y };
+        const distance = Math.hypot(delta.x, delta.y);
+        const pressure = minimumDistance
+          + this.getLookaheadDistance(first, second, dt)
+          - distance;
+        if (pressure <= 0) continue;
+
+        collisionPairsThisFrame++;
+        contactCounts.set(first, (contactCounts.get(first) ?? 0) + 1);
+        contactCounts.set(second, (contactCounts.get(second) ?? 0) + 1);
+        const direction = distance > 1e-9
+          ? { x: delta.x / distance, y: delta.y / distance }
+          : this.getDeterministicDirection(first, second);
+        const strength = Math.min(
+          this.pushSpeed,
+          this.pushSpeed * Math.min(1, pressure / Math.max(1, minimumDistance * 0.5)),
+        );
+        this.addIntent(intents, first, direction, strength);
+        this.addIntent(intents, second, { x: -direction.x, y: -direction.y }, strength);
+      }
+    }
+
+    for (const [enemy, intent] of intents) {
+      const magnitude = Math.hypot(intent.x, intent.y);
+      if (magnitude <= 1e-9) {
+        const contacts = contactCounts.get(enemy) ?? 0;
+        if (contacts > 0) {
+          const angle = (enemy.navigationId % SPAWN_PROBE_ANGLES) * Math.PI * 2 / SPAWN_PROBE_ANGLES;
+          intents.set(enemy, {
+            x: Math.cos(angle) * this.pushSpeed * 0.25,
+            y: Math.sin(angle) * this.pushSpeed * 0.25,
+          });
+        }
+        continue;
+      }
+      if (magnitude <= this.pushSpeed) continue;
+      const scale = this.pushSpeed / magnitude;
+      intents.set(enemy, { x: intent.x * scale, y: intent.y * scale });
+    }
+
+    const collisionMainMs = this.now() - startedAt;
+    this.collisionDurationSamples.push(collisionMainMs);
+    if (this.collisionDurationSamples.length > COLLISION_SAMPLE_LIMIT) {
+      this.collisionDurationSamples.shift();
+    }
+    this.stats = {
+      collisionMainMs,
+      collisionMainMsMax: Math.max(this.stats.collisionMainMsMax, collisionMainMs),
+      collisionMainMsP95: this.getCollisionMainMsP95(),
+      collisionCandidatesTotal: candidatesTotal,
+      collisionCandidatesMax: candidatesMax,
+      collisionPairsThisFrame,
+      collisionPushesThisFrame: intents.size,
+      collisionBlockedPushesThisFrame: 0,
+    };
+    return intents;
+  }
+
+  public recordPushSafeProgress(safeProgress: number): void {
+    if (!Number.isFinite(safeProgress) || safeProgress >= 1 - COLLISION_EPSILON) return;
+    this.stats = {
+      ...this.stats,
+      collisionBlockedPushesThisFrame: this.stats.collisionBlockedPushesThisFrame + 1,
+    };
+  }
+
+  public canSpawnAt(point: TerrainPoint, radius: number, enemies: readonly Enemy[]): boolean {
+    return this.getSpawnAdmission(point, radius, enemies).allowed;
+  }
+
+  public getSpawnAdmission(
+    point: TerrainPoint,
+    radius: number,
+    enemies: readonly Enemy[],
+  ): { allowed: boolean; reason?: 'terrain' | 'saturated' } {
+    if (!this.terrain.isOpenForRadius(point, radius, 'enemy')) {
+      return { allowed: false, reason: 'terrain' };
+    }
+
+    this.spatialIndex.build(enemies);
+    const candidates = this.spatialIndex.queryAt(point, MAX_SPAWN_CANDIDATES);
+    if (!this.overlapsAnyEnemy(point, radius, candidates)) return { allowed: true };
+
+    const probeDistance = Math.max(this.spawnProbeDistance, radius * 2 + COLLISION_EPSILON);
+    for (let index = 0; index < SPAWN_PROBE_ANGLES; index++) {
+      const angle = index * Math.PI * 2 / SPAWN_PROBE_ANGLES;
+      const probe = {
+        x: point.x + Math.cos(angle) * probeDistance,
+        y: point.y + Math.sin(angle) * probeDistance,
+      };
+      if (!this.terrain.isOpenForRadiusSegment(point, probe, radius, 'enemy')) continue;
+      const probeCandidates = this.spatialIndex.queryAt(probe, MAX_SPAWN_CANDIDATES);
+      if (!this.overlapsAnyEnemy(probe, radius, probeCandidates)) return { allowed: true };
+    }
+    return { allowed: false, reason: 'saturated' };
   }
 
   public resolveAgainstVehicle(
@@ -44,121 +213,37 @@ export class EnemyCollisionResolver {
     return true;
   }
 
-  public separate(enemies: readonly Enemy[], vehicleBounds?: TerrainAabb): number {
-    let corrections = 0;
-
-    // ponytail: bounded passes keep a large spawn burst cheap; the spatial index limits checks to local buckets.
-    for (let pass = 0; pass < MAX_SEPARATION_PASSES; pass++) {
-      this.spatialIndex.build(enemies);
-      let changed = false;
-      for (const enemy of enemies) {
-        if (enemy.isDead()) continue;
-        for (const other of this.spatialIndex.query(enemy, enemies.length)) {
-          if (other.navigationId <= enemy.navigationId || other.isDead()) continue;
-
-          const minimumDistance = enemy.radius + other.radius + COLLISION_EPSILON;
-          const delta = { x: enemy.x - other.x, y: enemy.y - other.y };
-          const currentDistance = Math.hypot(delta.x, delta.y);
-          if (currentDistance >= minimumDistance) continue;
-
-          const direction = currentDistance > 1e-9
-            ? { x: delta.x / currentDistance, y: delta.y / currentDistance }
-            : this.getDeterministicDirection(enemy, other);
-          const penetration = minimumDistance - currentDistance;
-          const mover = other.navigationId > enemy.navigationId ? other : enemy;
-          const stationary = mover === enemy ? other : enemy;
-          const moverDirection = mover === enemy
-            ? direction
-            : { x: -direction.x, y: -direction.y };
-          const moved = this.displaceFrom(
-            mover,
-            stationary,
-            moverDirection,
-            penetration,
-            enemies,
-            vehicleBounds,
-          ) || this.displaceFrom(
-            stationary,
-            mover,
-            { x: -moverDirection.x, y: -moverDirection.y },
-            penetration,
-            enemies,
-            vehicleBounds,
-          );
-          if (!moved) continue;
-          changed = true;
-          corrections++;
-        }
-      }
-      if (!changed) break;
-    }
-
-    return corrections;
+  public getStats(): EnemyCollisionStats {
+    return { ...this.stats };
   }
 
-  private displaceFrom(
-    mover: Enemy,
-    stationary: Enemy,
+  private addIntent(
+    intents: Map<Enemy, TerrainPoint>,
+    enemy: Enemy,
     direction: TerrainPoint,
-    distance: number,
-    enemies: readonly Enemy[],
-    vehicleBounds?: TerrainAabb,
-  ): boolean {
-    const desiredAngle = Math.atan2(direction.y, direction.x);
-    const offsets = [
-      0,
-      -Math.PI / 4,
-      Math.PI / 4,
-      -Math.PI / 2,
-      Math.PI / 2,
-      -Math.PI * 3 / 4,
-      Math.PI * 3 / 4,
-      Math.PI,
-    ];
-    const currentDistance = Math.hypot(mover.x - stationary.x, mover.y - stationary.y);
-    let bestPoint: TerrainPoint | null = null;
-    let bestDistance = currentDistance;
-    let fallbackPoint: TerrainPoint | null = null;
-    let fallbackDistance = currentDistance;
-
-    const separationStep = mover.radius + stationary.radius + COLLISION_EPSILON;
-    for (let ring = 0; ring < MAX_SEPARATION_RINGS; ring++) {
-      const probeDistance = distance + COLLISION_EPSILON + ring * separationStep;
-      for (const offset of offsets) {
-        const angle = desiredAngle + offset;
-        const target = {
-          x: mover.x + Math.cos(angle) * probeDistance,
-          y: mover.y + Math.sin(angle) * probeDistance,
-        };
-        if (vehicleBounds && this.overlapsVehicle(target, mover.radius, vehicleBounds)) continue;
-
-        const safePoint = this.getSafePoint(mover, target);
-        if (vehicleBounds && this.overlapsVehicle(safePoint, mover.radius, vehicleBounds)) continue;
-        const resultingDistance = Math.hypot(safePoint.x - stationary.x, safePoint.y - stationary.y);
-        if (resultingDistance > fallbackDistance + 1e-6) {
-          fallbackDistance = resultingDistance;
-          fallbackPoint = safePoint;
-        }
-        if (resultingDistance <= bestDistance + 1e-6 || this.overlapsAnyEnemy(safePoint, mover, enemies)) continue;
-        bestDistance = resultingDistance;
-        bestPoint = safePoint;
-      }
-      if (bestPoint) break;
-    }
-
-    if (!bestPoint) bestPoint = fallbackPoint;
-    if (!bestPoint) return false;
-    mover.x = bestPoint.x;
-    mover.y = bestPoint.y;
-    return true;
+    strength: number,
+  ): void {
+    const previous = intents.get(enemy) ?? { x: 0, y: 0 };
+    intents.set(enemy, {
+      x: previous.x + direction.x * strength,
+      y: previous.y + direction.y * strength,
+    });
   }
 
-  private overlapsAnyEnemy(point: TerrainPoint, mover: Enemy, enemies: readonly Enemy[]): boolean {
-    for (const other of this.spatialIndex.queryAt(point, enemies.length, mover)) {
-      const minimumDistance = mover.radius + other.radius + COLLISION_EPSILON;
-      if (Math.hypot(point.x - other.x, point.y - other.y) < minimumDistance) return true;
-    }
-    return false;
+  private getLookaheadDistance(first: Enemy, second: Enemy, dt: number): number {
+    const relativeTravel = Math.max(0, dt) * (first.speed + second.speed);
+    return this.lookaheadDistance + Math.min(this.lookaheadDistance, relativeTravel);
+  }
+
+  private getPairKey(first: Enemy, second: Enemy): string {
+    return first.navigationId < second.navigationId
+      ? `${first.navigationId}:${second.navigationId}`
+      : `${second.navigationId}:${first.navigationId}`;
+  }
+
+  private overlapsAnyEnemy(point: TerrainPoint, radius: number, enemies: readonly Enemy[]): boolean {
+    return enemies.some((other) => Math.hypot(point.x - other.x, point.y - other.y)
+      < radius + other.radius + COLLISION_EPSILON);
   }
 
   private getSafePoint(enemy: Enemy, target: TerrainPoint): TerrainPoint {
@@ -198,16 +283,33 @@ export class EnemyCollisionResolver {
     return distances[0].point;
   }
 
-  private overlapsVehicle(point: TerrainPoint, radius: number, bounds: TerrainAabb): boolean {
-    const closestX = Math.max(bounds.left, Math.min(bounds.right, point.x));
-    const closestY = Math.max(bounds.top, Math.min(bounds.bottom, point.y));
-    const deltaX = point.x - closestX;
-    const deltaY = point.y - closestY;
-    return deltaX * deltaX + deltaY * deltaY <= radius * radius;
+  private getDeterministicDirection(first: Enemy, second: Enemy): TerrainPoint {
+    const angle = ((first.navigationId + second.navigationId) % SPAWN_PROBE_ANGLES)
+      * Math.PI * 2 / SPAWN_PROBE_ANGLES;
+    return { x: Math.cos(angle), y: Math.sin(angle) };
   }
 
-  private getDeterministicDirection(first: Enemy, second: Enemy): TerrainPoint {
-    const angle = ((first.navigationId + second.navigationId) % 8) * Math.PI / 4;
-    return { x: Math.cos(angle), y: Math.sin(angle) };
+  private now(): number {
+    return typeof performance !== 'undefined' ? performance.now() : Date.now();
+  }
+
+  private getCollisionMainMsP95(): number {
+    if (this.collisionDurationSamples.length === 0) return 0;
+    const sorted = [...this.collisionDurationSamples].sort((first, second) => first - second);
+    const index = Math.floor((sorted.length - 1) * 0.95);
+    return sorted[index];
+  }
+
+  private createEmptyStats(): EnemyCollisionStats {
+    return {
+      collisionMainMs: 0,
+      collisionMainMsMax: 0,
+      collisionMainMsP95: 0,
+      collisionCandidatesTotal: 0,
+      collisionCandidatesMax: 0,
+      collisionPairsThisFrame: 0,
+      collisionPushesThisFrame: 0,
+      collisionBlockedPushesThisFrame: 0,
+    };
   }
 }

@@ -32,7 +32,7 @@ import { LocalStorageCampaignProgressStore } from './LocalStorageCampaignProgres
 import { WorldMapDataLoader } from './WorldMapDataLoader';
 import { WorldMap } from '../ui/WorldMap';
 import { GameTestObserver } from './GameTestObserver';
-import { getGameTestScenario, getGameTestWorkerEnabled } from './GameTestScenario';
+import { getGameTestEnemyCount, getGameTestScenario, getGameTestWorkerEnabled } from './GameTestScenario';
 
 export enum AppScreen {
   START_MENU = 'START_MENU',
@@ -101,6 +101,9 @@ export class Game {
   private pickups: ResourcePickup[] = [];
   private readonly resources = new ResourceStorage({ resource: 50 });
   private lastTime = 0;
+  private lastFrameDeltaMs = 0;
+  private maxFrameDeltaMs = 0;
+  private frameOverBudgetCount = 0;
   private terrainDebugVisible = false;
   private recentTerrainHitCell: TerrainCell | null = null;
   private recentTerrainHitTimer = 0;
@@ -154,6 +157,9 @@ export class Game {
     this.enemyCollision = new EnemyCollisionResolver(
       this.terrainGrid,
       ENEMY_NAVIGATION_POLICY.spatialCellSize,
+      ENEMY_NAVIGATION_POLICY.collisionPushSpeed,
+      ENEMY_NAVIGATION_POLICY.collisionLookaheadDistance,
+      ENEMY_NAVIGATION_POLICY.spawnAdmissionProbeDistance,
     );
     this.camera = new Camera(
       this.gameplayWidth,
@@ -252,6 +258,9 @@ export class Game {
     this.lastMovementInput = { x: 0, y: 0 };
     this.lastMovementAt = null;
     this.testNavigationElapsed = 0;
+    this.lastFrameDeltaMs = 0;
+    this.maxFrameDeltaMs = 0;
+    this.frameOverBudgetCount = 0;
     this.resources.reset();
     this.camera.snapTo(this.vehicle);
     this.state = GameState.PLAYING;
@@ -435,7 +444,15 @@ export class Game {
       this.progression.currentRegion,
       this.progression.enemyDefinitions,
       this.progression.baseEnemySpawn,
-      { terrain: this.terrainGrid, spawnCells: map.enemySpawnCells },
+      {
+        terrain: this.terrainGrid,
+        spawnCells: map.enemySpawnCells,
+        canSpawn: (type, point, enemies) => this.enemyCollision.getSpawnAdmission(
+          point,
+          this.progression.enemyDefinitions[type].radius,
+          enemies,
+        ),
+      },
     );
   }
 
@@ -471,6 +488,12 @@ export class Game {
         break;
       case 'enemy-navigation-worker':
         this.setupEnemyNavigationWorkerFixture();
+        break;
+      case 'enemy-collision-stress':
+        this.setupEnemyNavigationWorkerFixture(getGameTestEnemyCount());
+        break;
+      case 'enemy-collision-spawn':
+        this.setupEnemyCollisionSpawnFixture();
         break;
       case 'terminal-game-over':
         this.vehicle.takeDamage(9999, 0, { x: 0, y: 0 });
@@ -523,7 +546,7 @@ export class Game {
     this.testNavigationStuckReleaseAt = 0.6;
   }
 
-  private setupEnemyNavigationWorkerFixture(): void {
+  private setupEnemyNavigationWorkerFixture(fixtureCount = 160): void {
     const map = this.getCurrentMap();
     if (!map) return;
     const definition = this.progression.enemyDefinitions.standard;
@@ -534,10 +557,39 @@ export class Game {
       contactDamage: 0,
     };
     const spawnPoints = map.enemySpawnCells.map((cell) => this.terrainGrid.cellToWorldCenter(cell));
-    const fixtureCount = 160;
     for (let index = 0; index < fixtureCount; index++) {
       const point = spawnPoints[index % spawnPoints.length];
       this.enemies.push(new StandardEnemy(point.x, point.y, fixtureDefinition));
+    }
+  }
+
+  private setupEnemyCollisionSpawnFixture(): void {
+    const map = this.getCurrentMap();
+    if (!map || map.enemySpawnCells.length < 2) return;
+    const definition = this.progression.enemyDefinitions.standard;
+    const fixtureDefinition = {
+      ...definition,
+      hp: 1_000_000,
+      reward: 0,
+      contactDamage: 0,
+    };
+
+    const spawnPoints = map.enemySpawnCells.map((cell) => this.terrainGrid.cellToWorldCenter(cell));
+    const saturatedPoint = spawnPoints[0];
+    const probeDistance = definition.radius * 2;
+    for (let index = 0; index < 8; index++) {
+      const angle = index * Math.PI * 2 / 8;
+      const point = {
+        x: saturatedPoint.x + Math.cos(angle) * probeDistance,
+        y: saturatedPoint.y + Math.sin(angle) * probeDistance,
+      };
+      if (!this.terrainGrid.isOpenForRadius(point, definition.radius, 'enemy')) continue;
+      this.enemies.push(new StandardEnemy(point.x, point.y, fixtureDefinition));
+    }
+
+    const overlapPoint = spawnPoints[1];
+    for (let index = 0; index < 3; index++) {
+      this.enemies.push(new StandardEnemy(overlapPoint.x, overlapPoint.y, fixtureDefinition));
     }
   }
 
@@ -614,7 +666,11 @@ export class Game {
   }
 
   private gameLoop(time: number): void {
-    const dt = Math.min(0.1, (time - this.lastTime) / 1000);
+    const frameDeltaMs = Math.max(0, time - this.lastTime);
+    this.lastFrameDeltaMs = frameDeltaMs;
+    this.maxFrameDeltaMs = Math.max(this.maxFrameDeltaMs, frameDeltaMs);
+    if (frameDeltaMs > 1000 / 30) this.frameOverBudgetCount++;
+    const dt = Math.min(0.1, frameDeltaMs / 1000);
     this.lastTime = time;
     this.update(dt);
     this.render();
@@ -647,6 +703,8 @@ export class Game {
     const movementInput = this.testScenario === 'enemy-navigation'
       || this.testScenario === 'enemy-navigation-fixtures'
       || this.testScenario === 'enemy-navigation-worker'
+      || this.testScenario === 'enemy-collision-stress'
+      || this.testScenario === 'enemy-collision-spawn'
       ? this.getTestNavigationMovement(dt)
       : this.input.getMovementVector();
     this.movementInput = isPaused ? { x: 0, y: 0 } : movementInput;
@@ -700,7 +758,7 @@ export class Game {
       return;
     }
 
-    if (this.testScenario !== 'enemy-navigation-fixtures' && this.testScenario !== 'enemy-navigation-worker') {
+    if (this.testScenario !== 'enemy-navigation-fixtures' && this.testScenario !== 'enemy-navigation-worker' && this.testScenario !== 'enemy-collision-stress') {
       this.waveManager.update(
         dt,
         this.enemies,
@@ -731,7 +789,11 @@ export class Game {
     };
     this.enemyNavigation.update(dt, this.enemies, navigationTarget);
     const vehicleBounds = this.vehicle.getGridBounds();
-    this.enemyCollision.separate(this.enemies, vehicleBounds);
+    const collisionPushes = this.enemyCollision.collectPushIntents(
+      this.enemies,
+      (enemy) => this.enemyNavigation.getNearbyEnemies(enemy),
+      dt,
+    );
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const enemy = this.enemies[i];
       const previousPos = { x: enemy.x, y: enemy.y };
@@ -748,7 +810,11 @@ export class Game {
         targetCell: directive ? directive.targetCell : targetCell,
         directive: directive ?? undefined,
         nearbyEnemies: this.enemyNavigation.getNearbyEnemies(enemy),
+        collisionPush: collisionPushes.get(enemy),
       });
+      if (collisionPushes.has(enemy)) {
+        this.enemyCollision.recordPushSafeProgress(enemy.getNavigationTelemetry().safeProgress);
+      }
       if (this.enemyCollision.resolveAgainstVehicle(enemy, vehicleBounds, previousPos) && enemy.tryContactDamage()) {
         this.vehicle.takeDamage(enemy.contactDamage, 0, { x: enemy.x - corePos.x, y: enemy.y - corePos.y });
         this.addEffect(new VisualEffect(enemy.x, enemy.y, 25, '#ff1744', 'effect.contact-damage'));
@@ -765,7 +831,6 @@ export class Game {
       }
     }
 
-    this.enemyCollision.separate(this.enemies, vehicleBounds);
 
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const projectile = this.projectiles[i];
@@ -795,6 +860,7 @@ export class Game {
     if (!this.testObserver.isEnabled()) return;
     const liveEnemyCount = this.enemies.reduce((count, enemy) => count + (enemy.isDead() ? 0 : 1), 0);
     const navigationStats = this.enemyNavigation.getStats();
+    const collisionStats = this.enemyCollision.getStats();
     const currentMap = this.getCurrentMap();
     this.testObserver.update({
       scenario: this.testScenario,
@@ -805,6 +871,7 @@ export class Game {
       targetKills: this.waveManager.targetKills,
       killedEnemies: this.waveManager.killedEnemiesCount,
       spawnedEnemies: this.waveManager.spawnedEnemiesCount,
+      spawnSkippedEnemies: this.waveManager.spawnSkippedCount,
       liveEnemies: liveEnemyCount,
       vehicleWorldX: this.vehicle.x,
       vehicleWorldY: this.vehicle.y,
@@ -822,6 +889,19 @@ export class Game {
       lastSpawnBatchSize: this.waveManager.lastSpawnBatchSize,
       lastSpawnAt: this.waveManager.lastSpawnAt,
       lastSpawnTypes: [...this.waveManager.lastSpawnTypes],
+      lastSpawnSkippedCount: this.waveManager.lastSpawnSkippedCount,
+      lastSpawnSkipReason: this.waveManager.lastSpawnSkipReason,
+      collisionMainMs: collisionStats.collisionMainMs,
+      collisionMainMsMax: collisionStats.collisionMainMsMax,
+      collisionMainMsP95: collisionStats.collisionMainMsP95,
+      collisionCandidatesTotal: collisionStats.collisionCandidatesTotal,
+      collisionCandidatesMax: collisionStats.collisionCandidatesMax,
+      collisionPairsThisFrame: collisionStats.collisionPairsThisFrame,
+      collisionPushesThisFrame: collisionStats.collisionPushesThisFrame,
+      collisionBlockedPushesThisFrame: collisionStats.collisionBlockedPushesThisFrame,
+      frameDeltaMs: this.lastFrameDeltaMs,
+      frameDeltaMsMax: this.maxFrameDeltaMs,
+      frameOverBudgetCount: this.frameOverBudgetCount,
       pathSearchesThisFrame: navigationStats.pathSearchesThisFrame,
       cacheHits: navigationStats.cacheHitsThisFrame,
       deduplicatedRequests: navigationStats.deduplicatedRequestsThisFrame,

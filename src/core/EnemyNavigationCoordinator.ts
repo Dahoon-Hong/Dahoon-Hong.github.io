@@ -30,6 +30,9 @@ export interface EnemyNavigationPolicy {
   localSteeringGracePeriod: number;
   separationWeight: number;
   maxNearbyEnemies: number;
+  collisionPushSpeed: number;
+  collisionLookaheadDistance: number;
+  spawnAdmissionProbeDistance: number;
   spatialCellSize: number;
   workerEnabled: boolean;
   workerDispatchInterval: number;
@@ -226,6 +229,9 @@ export function validateEnemyNavigationPolicy(value: unknown): asserts value is 
   positiveNumber(value.localSteeringGracePeriod, 'localSteeringGracePeriod');
   nonNegativeNumber(value.separationWeight, 'separationWeight');
   positiveInteger(value.maxNearbyEnemies, 'maxNearbyEnemies');
+  positiveNumber(value.collisionPushSpeed, 'collisionPushSpeed');
+  nonNegativeNumber(value.collisionLookaheadDistance, 'collisionLookaheadDistance');
+  positiveNumber(value.spawnAdmissionProbeDistance, 'spawnAdmissionProbeDistance');
   positiveNumber(value.spatialCellSize, 'spatialCellSize');
   boolean(value.workerEnabled, 'workerEnabled');
   nonNegativeNumber(value.workerDispatchInterval, 'workerDispatchInterval');

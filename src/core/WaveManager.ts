@@ -1,10 +1,16 @@
 import { Enemy, EnemyDefinition, EnemyType, StandardEnemy, TankerEnemy } from '../entities/Enemy';
 import type { RegionDefinition } from './ProgressionManager';
-import type { TerrainCell, TerrainGrid } from './TerrainGrid';
+import type { TerrainCell, TerrainGrid, TerrainPoint } from './TerrainGrid';
+export interface WaveSpawnAdmission {
+  allowed: boolean;
+  reason?: string;
+}
+
 
 export interface WaveSpawnContext {
   terrain: TerrainGrid;
   spawnCells: readonly TerrainCell[];
+  canSpawn?: (type: EnemyType, point: TerrainPoint, enemies: readonly Enemy[]) => boolean | WaveSpawnAdmission;
 }
 
 export function calculateEnemySpawnCount(
@@ -28,8 +34,11 @@ export class WaveManager {
   public targetKills = 0;
   public killedEnemiesCount = 0;
   public spawnedEnemiesCount = 0;
+  public spawnSkippedCount = 0;
   public waveCleared = false;
   public lastSpawnBatchSize = 0;
+  public lastSpawnSkippedCount = 0;
+  public lastSpawnSkipReason: string | null = null;
   public lastSpawnTypes: EnemyType[] = [];
   public lastSpawnAt: number | null = null;
 
@@ -40,6 +49,7 @@ export class WaveManager {
   private readonly spawnTimers: Record<EnemyType, number> = { standard: 0, tanker: 0 };
   private readonly activeWaveEnemies = new Set<Enemy>();
   private elapsedTime = 0;
+  private spawnAttemptCursor = 0;
 
   constructor(
     region: RegionDefinition,
@@ -72,6 +82,8 @@ export class WaveManager {
     }
 
     const spawnedTypes: EnemyType[] = [];
+    this.lastSpawnSkippedCount = 0;
+    this.lastSpawnSkipReason = null;
     for (const type of ['standard', 'tanker'] as const) {
       const definition = this.enemyDefinitions[type];
       this.spawnTimers[type] += elapsed;
@@ -99,14 +111,18 @@ export class WaveManager {
     this.targetKills = wave.targetKills;
     this.killedEnemiesCount = 0;
     this.spawnedEnemiesCount = 0;
+    this.spawnSkippedCount = 0;
     this.spawnTimers.standard = 0;
     this.spawnTimers.tanker = 0;
     this.activeWaveEnemies.clear();
     this.elapsedTime = 0;
     this.lastSpawnBatchSize = 0;
+    this.lastSpawnSkippedCount = 0;
+    this.lastSpawnSkipReason = null;
     this.lastSpawnTypes = [];
     this.lastSpawnAt = null;
     this.waveCleared = false;
+    this.spawnAttemptCursor = 0;
   }
 
   private collectKilledEnemies(): void {
@@ -121,20 +137,31 @@ export class WaveManager {
     const spawnCount = calculateEnemySpawnCount(this.baseEnemySpawn, this.enemyDefinitions[type]);
     const spawnedTypes: EnemyType[] = [];
     for (let count = 0; count < spawnCount; count++) {
-      this.spawnEnemy(type, enemies);
-      this.spawnedEnemiesCount++;
-      spawnedTypes.push(type);
+      if (this.spawnEnemy(type, enemies)) spawnedTypes.push(type);
     }
     return spawnedTypes;
   }
 
-  private spawnEnemy(type: EnemyType, enemies: Enemy[]): void {
-    const spawnCell = this.spawnContext.spawnCells[this.spawnedEnemiesCount % this.spawnContext.spawnCells.length];
+  private spawnEnemy(type: EnemyType, enemies: Enemy[]): boolean {
+    if (this.spawnContext.spawnCells.length === 0) return false;
+    const spawnCell = this.spawnContext.spawnCells[this.spawnAttemptCursor % this.spawnContext.spawnCells.length];
+    this.spawnAttemptCursor++;
     const spawnPoint = this.spawnContext.terrain.cellToWorldCenter(spawnCell);
+    const admission = this.spawnContext.canSpawn?.(type, spawnPoint, enemies);
+    const admissionAllowed = admission === undefined
+      || (typeof admission === 'boolean' ? admission : admission.allowed);
+    if (!admissionAllowed) {
+      this.spawnSkippedCount++;
+      this.lastSpawnSkippedCount++;
+      this.lastSpawnSkipReason = typeof admission === 'boolean' ? 'admission' : admission?.reason ?? 'admission';
+      return false;
+    }
     const enemy = type === 'tanker'
       ? new TankerEnemy(spawnPoint.x, spawnPoint.y, this.enemyDefinitions.tanker)
       : new StandardEnemy(spawnPoint.x, spawnPoint.y, this.enemyDefinitions.standard);
     enemies.push(enemy);
     this.activeWaveEnemies.add(enemy);
+    this.spawnedEnemiesCount++;
+    return true;
   }
 }

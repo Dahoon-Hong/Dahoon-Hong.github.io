@@ -2,7 +2,7 @@ import type { Enemy } from '../entities/Enemy';
 
 interface EnemyCandidate {
   enemy: Enemy;
-  distance: number;
+  distanceSquared: number;
 }
 
 export class EnemySpatialIndex {
@@ -34,7 +34,8 @@ export class EnemySpatialIndex {
   }
 
   public queryAt(point: { x: number; y: number }, maxResults: number, excluded?: Enemy): Enemy[] {
-    if (maxResults <= 0) return [];
+    const limit = Math.floor(maxResults);
+    if (limit <= 0) return [];
 
     const centerX = Math.floor(point.x / this.bucketSize);
     const centerY = Math.floor(point.y / this.bucketSize);
@@ -43,16 +44,29 @@ export class EnemySpatialIndex {
       for (let x = centerX - 1; x <= centerX + 1; x++) {
         for (const other of this.buckets.get(`${x},${y}`) ?? []) {
           if (other === excluded || other.isDead()) continue;
-          candidates.push({
+          const dx = point.x - other.x;
+          const dy = point.y - other.y;
+          this.insertNearest(candidates, {
             enemy: other,
-            distance: Math.hypot(point.x - other.x, point.y - other.y),
-          });
+            distanceSquared: dx * dx + dy * dy,
+          }, limit);
         }
       }
     }
 
-    candidates.sort((first, second) => first.distance - second.distance);
-    return candidates.slice(0, maxResults).map((candidate) => candidate.enemy);
+    return candidates.map((candidate) => candidate.enemy);
+  }
+
+  private insertNearest(
+    candidates: EnemyCandidate[],
+    candidate: EnemyCandidate,
+    limit: number,
+  ): void {
+    let index = 0;
+    while (index < candidates.length && candidates[index].distanceSquared <= candidate.distanceSquared) index++;
+    if (index >= limit) return;
+    candidates.splice(index, 0, candidate);
+    if (candidates.length > limit) candidates.pop();
   }
 
   private keyFor(x: number, y: number): string {
