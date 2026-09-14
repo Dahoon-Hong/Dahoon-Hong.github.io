@@ -4,6 +4,7 @@ export const GAME_TEST_SCENARIOS = [
   'production-storage-full',
   'armory-install',
   'enemy-navigation',
+  'enemy-navigation-fixtures',
   'terminal-game-over',
   'terminal-region',
 ] as const;

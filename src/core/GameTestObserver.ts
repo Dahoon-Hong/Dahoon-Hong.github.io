@@ -1,3 +1,5 @@
+import type { EnemyNavigationAgentSnapshot } from './EnemyNavigationCoordinator';
+
 export interface GameTestResourceSnapshot {
   amount: number;
   capacity: number;
@@ -42,6 +44,13 @@ export interface GameTestSnapshot {
   deduplicatedRequests?: number;
   pendingRequests?: number;
   maxSearchesThisFrame?: number;
+  localSteeringAgents?: number;
+  engagedAgents?: number;
+  stuckAgents?: number;
+  pendingNavigationAgents?: number;
+  oldestPendingRequestAge?: number;
+  localSteeringTransitionsThisFrame?: number;
+  enemyNavigationAgents?: readonly EnemyNavigationAgentSnapshot[];
   timestamp: number;
   scenario: string | null;
   resources: Record<string, GameTestResourceSnapshot>;

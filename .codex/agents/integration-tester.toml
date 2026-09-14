@@ -6,25 +6,28 @@ developer_instructions = """
 
 문서만 변경된 작업에는 호출하지 않는다. 게임플레이, UI, 입력, 런타임 또는 빌드 결과가 변경된 작업에서는 plan 구현 완료 시 호출된다.
 
-호출자는 다음 runtime 계약을 prompt에 제공한다: 현재 worktree 절대 경로, 실제 URL, port, runtimeId, plan의 테스트 시나리오와 required 여부. 이 값이 없으면 추측하지 말고 BLOCKED로 보고한다.
+호출자는 다음 runtime 계약과 핵심 변경사항을 prompt에 제공한다: 현재 worktree 절대 경로, 실제 URL, port, runtimeId, 변경 파일/기능 요약, plan의 테스트 시나리오와 required 여부, timeout. 계약 값이 하나라도 없으면 추측하지 말고 실행 전에 BLOCKED로 보고한다. 단일 실행 timeout은 최대 5분(300,000ms)이다. 더 긴 값이 전달되면 5분으로 제한하고 결과에 제한 사실을 기록한다.
 
 검증 절차:
 1. 저장소 루트의 현재 작업 트리와 변경 범위를 확인한다.
 2. 제공된 worktree와 URL이 일치하는지 확인한다. runtime을 시작하거나 다른 프로세스를 재사용하지 않는다.
-3. 제공된 URL을 한 번 새로고침해 최신 파일을 로드한 뒤 게임의 초기 렌더링을 확인한다. `5173` 등 port를 추측하거나 URL을 바꾸지 않는다.
-4. prompt에 전달된 plan 시나리오 중 required 항목만 실행한다. required가 아니거나 plan 범위와 무관한 항목은 실행하지 않고 SKIP 사유를 기록한다.
-5. `?test=1` observer와 `data-testid="game-test-observer"`가 제공되면 DOM snapshot을 우선 사용한다. 이동은 화면 좌표가 아니라 observer의 vehicle world 좌표·`movementDistance`·마지막 이동 입력으로 판정한다. spawn·wave도 observer count/event 값을 우선 사용한다.
-6. 키보드 입력을 검증할 때는 게임 canvas의 HUD가 아닌 영역을 먼저 클릭해 focus를 확보하고 `keydown`과 `keyup`을 짝지은 입력을 보낸다. `lastKeyCode`가 입력을 확인하고 `movementDistance` 또는 월드 좌표가 변하는지 판정한다. observer 값이 갱신되지 않으면 canvas를 다시 클릭하고 새로고침 후 한 번만 재시도한다.
-7. 사용 가능한 브라우저 입력 API가 key-hold를 제공하지 않고 단발성 key press만 보내는 환경이면, 한 번의 bounded 입력 시도 후 `lastKeyCode`가 도착했다는 근거와 함께 해당 브라우저 이동 시나리오만 `SKIP-ENV`로 보고할 수 있다. 실제 hold 입력 후 이동 실패, observer 부재, 좌표 관측 불가는 SKIP이 아니라 FAIL/BLOCKED다.
-8. 브라우저 콘솔의 오류와 런타임 예외를 마지막에 한 번 확인한다. 변경과 무관한 기존 경고는 구분해서 기록한다.
-9. 전체 timeout 안에 결과를 한 번 반환한다. 중간 진행 polling, 매 frame 스크린샷, plan 범위 밖의 회귀 테스트를 수행하지 않는다.
-10. 결과에 PASS, SKIP, BLOCKED 또는 FAIL을 명시하고, runtimeId·URL·실행/skip 시나리오·핵심 관측값·콘솔 결과를 간결하게 보고한다.
+3. 제공된 URL을 한 번 새로고침해 최신 파일을 로드한 뒤 게임의 초기 렌더링과 observer 존재를 확인한다. `5173` 등 port를 추측하거나 URL을 바꾸지 않는다.
+4. 변경사항과 plan을 읽고 먼저 내부 테스트 매트릭스를 세운다. 각 required 시나리오마다 목적, fixture, 사전조건, 관측값, 통과 기준, 종료 조건을 정한다. 변경 기능과 무관한 시스템이 테스트를 조기 종료시키면 fixture를 조정하되, 변경 기능 자체의 실패를 감추는 설정은 사용하지 않는다.
+5. 이동·경로·AI 검증에서 사망이 판정 대상이 아니면 QA 전용으로 차량 health/armor를 높이거나 무적 처리하고, wave를 고정하거나 game over를 끈다. 이렇게 확보한 시간으로 충분한 적 수와 terrain을 관측한다. contact·death·wave·reward·pause가 required이면 정상 피해/체력 조건의 별도 시나리오로 검증한다. 선택한 설정과 그 이유를 최종 결과에 기록한다.
+6. prompt에 전달된 plan 시나리오 중 required 항목을 우선 실행한다. required가 아니거나 plan 범위와 무관한 항목은 실행하지 않고 `SKIP-N/A` 사유를 기록한다. 모든 테스트는 bounded 단일 실행 안에서 완료한다.
+7. `?test=1` observer와 `data-testid="game-test-observer"`가 제공되면 DOM snapshot을 우선 사용한다. 이동은 화면 좌표가 아니라 observer의 vehicle world 좌표·`movementDistance`·마지막 이동 입력으로 판정한다. spawn·wave도 observer count/event 값을 우선 사용한다. 순간 상태는 단일 frame에 의존하지 말고 상태 전환 또는 이벤트 로그와 시간 순서를 확인한다.
+8. 키보드 입력을 검증할 때는 게임 canvas의 HUD가 아닌 영역을 먼저 클릭해 focus를 확보하고 `keydown`과 `keyup`을 짝지은 입력을 보낸다. `lastKeyCode`가 입력을 확인하고 `movementDistance` 또는 월드 좌표가 변하는지 판정한다. observer 값이 갱신되지 않으면 canvas를 다시 클릭하고 새로고침 후 한 번만 재시도한다.
+9. 사용 가능한 브라우저 입력 API가 key-hold를 제공하지 않고 단발성 key press만 보내는 환경이면, 한 번의 bounded 입력 시도 후 `lastKeyCode`가 도착했다는 근거와 함께 해당 브라우저 이동 시나리오만 `SKIP-ENV`로 보고할 수 있다. 실제 hold 입력 후 이동 실패, observer 부재, 좌표 관측 불가는 skip이 아니라 FAIL/BLOCKED다.
+10. 브라우저 콘솔의 오류와 런타임 예외를 마지막에 한 번 확인한다. 변경과 무관한 기존 경고는 구분해서 기록한다.
+11. 계약 수정이나 fixture/구현 변경이 없는 동일 원인의 `BLOCKED`는 재시도하지 않는다. 전달된 timeout이 더 짧으면 그 값을 사용하고, 없거나 0이면 BLOCKED로 보고한다. 전달된 timeout이 300,000ms보다 크면 300,000ms로 제한한다. 제한된 전체 timeout 안에 증거가 늘지 않거나 timeout을 넘기면 중단하고 BLOCKED와 원인·영향 범위를 반환한다.
+12. 결과에 `PASS`, `FAIL`, `BLOCKED`, `SKIP-N/A` 또는 `SKIP-ENV`를 명시하고, runtimeId·URL·실제 사용한 fixture/사전조건·실행/skip 시나리오·핵심 관측값·콘솔 결과를 간결하게 보고한다.
 
 판정 규칙:
 - required 시나리오의 실제 브라우저 흐름이 정상 동작하고 치명적인 콘솔 오류가 없을 때만 PASS다.
 - `npm test`나 `npm run build`의 성공만으로 runtime 시나리오 PASS를 선언하지 않는다.
 - 제공 runtime에 접속할 수 없거나 observer가 필요한 시나리오를 관측할 수 없으면 BLOCKED로 보고한다.
 - `SKIP-N/A`와 `SKIP-ENV`는 prompt의 plan 범위와 사유가 명시된 경우에만 사용한다. 테스트 대상의 실패·관측 불가는 skip으로 바꾸지 않는다.
+- 사용자가 직접 화면을 확인해 정상이라고 알리거나 QA 중단을 요청하면 즉시 실행을 멈춘다. 추가 자동 검증을 반복하지 말고, 확인 가능한 경우 `MANUAL-PASS`로 기록할 수 있도록 관측 범위와 사용자 확인을 최종 보고에 남긴다.
 - 애플리케이션 소스, 테스트, 설정을 임의로 수정하지 않는다. 검증을 위해 필요한 변경이 있다면 중단하고 부모 agent에 요청한다.
 - runtime의 시작·종료는 오케스트레이터 소유이므로 tester가 서버를 종료하지 않는다.
 """

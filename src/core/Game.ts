@@ -1,5 +1,5 @@
 import { HUDManager } from '../ui/HUDManager';
-import { Enemy } from '../entities/Enemy';
+import { Enemy, StandardEnemy } from '../entities/Enemy';
 import { Projectile, VisualEffect } from '../entities/Projectile';
 import type { ProjectileSoundEvent } from '../entities/Projectile';
 import type { CombatSoundEvent } from '../entities/Module';
@@ -24,6 +24,7 @@ import { TerrainGrid } from './TerrainGrid';
 import type { TerrainCell } from './TerrainGrid';
 import { TerrainPathfinder } from './TerrainPathfinder';
 import { EnemyNavigationCoordinator } from './EnemyNavigationCoordinator';
+import type { EnemyNavigationTarget } from './EnemyNavigationCoordinator';
 import { SettingsScreen, StartMenu } from '../ui/StartMenu';
 import { CampaignProgress, EMPTY_CAMPAIGN_PROGRESS } from './CampaignProgressStore';
 import { LocalStorageCampaignProgressStore } from './LocalStorageCampaignProgressStore';
@@ -110,6 +111,8 @@ export class Game {
   private lastMovementInput = { x: 0, y: 0 };
   private lastMovementAt: number | null = null;
   private testNavigationElapsed = 0;
+  private testNavigationStuckProbe: StandardEnemy | null = null;
+  private testNavigationStuckReleaseAt: number | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -450,6 +453,9 @@ export class Game {
         this.setTestResource('matter', this.resources.getCapacity('matter'));
         this.setState(GameState.PAUSED);
         break;
+      case 'enemy-navigation-fixtures':
+        this.setupEnemyNavigationFixtures();
+        break;
       case 'terminal-game-over':
         this.vehicle.takeDamage(9999, 0, { x: 0, y: 0 });
         this.setState(GameState.GAME_OVER);
@@ -469,8 +475,44 @@ export class Game {
 
   private getTestNavigationMovement(dt: number): { x: number; y: number } {
     this.testNavigationElapsed += dt;
+    if (this.testScenario === 'enemy-navigation-fixtures') return { x: 0, y: 0 };
     // ponytail: a short deterministic sweep is enough to cross cells without adding a test-only input API.
     return (this.testNavigationElapsed % 0.5) < 0.25 ? { x: 1, y: 0 } : { x: -1, y: 0 };
+  }
+
+  private setupEnemyNavigationFixtures(): void {
+    const definition = this.progression.enemyDefinitions.standard;
+    const bounds = this.vehicle.getGridBounds();
+    const width = bounds.right - bounds.left;
+    const gap = definition.radius + 0.01;
+    const cornerOffset = gap * 0.8;
+    const fixtureDefinition = {
+      ...definition,
+      hp: 1_000_000,
+      reward: 0,
+      contactDamage: 0,
+    };
+    const engaged = new StandardEnemy(
+      bounds.left + width * 0.25,
+      bounds.top - gap,
+      fixtureDefinition,
+    );
+    const stalled = new StandardEnemy(
+      bounds.right + cornerOffset,
+      bounds.top - cornerOffset,
+      { ...fixtureDefinition, speed: 0 },
+    );
+    this.enemies.push(engaged, stalled);
+    this.testNavigationStuckProbe = stalled;
+    this.testNavigationStuckReleaseAt = 0.6;
+  }
+
+  private releaseTestNavigationStuckProbe(): void {
+    if (!this.testNavigationStuckProbe || this.testNavigationStuckReleaseAt === null) return;
+    if (this.renderContext.time < this.testNavigationStuckReleaseAt) return;
+    this.testNavigationStuckProbe.speed = this.progression.enemyDefinitions.standard.speed;
+    this.testNavigationStuckProbe = null;
+    this.testNavigationStuckReleaseAt = null;
   }
 
   private setState(nextState: GameState): void {
@@ -569,7 +611,7 @@ export class Game {
       return;
     }
     const isPaused = this.state === GameState.PAUSED;
-    const movementInput = this.testScenario === 'enemy-navigation'
+    const movementInput = this.testScenario === 'enemy-navigation' || this.testScenario === 'enemy-navigation-fixtures'
       ? this.getTestNavigationMovement(dt)
       : this.input.getMovementVector();
     this.movementInput = isPaused ? { x: 0, y: 0 } : movementInput;
@@ -577,6 +619,7 @@ export class Game {
 
     if (!isPaused) {
       this.renderContext.time += dt;
+      this.releaseTestNavigationStuckProbe();
       const startX = this.vehicle.x;
       const startY = this.vehicle.y;
       this.vehicle.update(dt, movementInput, {
@@ -622,28 +665,35 @@ export class Game {
       return;
     }
 
-    this.waveManager.update(
-      dt,
-      this.enemies,
-      this.camera.width,
-      this.camera.height,
-      { x: this.vehicle.x, y: this.vehicle.y }
-    );
+    if (this.testScenario !== 'enemy-navigation-fixtures') {
+      this.waveManager.update(
+        dt,
+        this.enemies,
+        this.camera.width,
+        this.camera.height,
+        { x: this.vehicle.x, y: this.vehicle.y }
+      );
 
-    if (this.waveManager.waveCleared) {
-      if (this.waveManager.currentWave >= this.waveManager.totalWaves) {
-        this.audio.stopAll();
-        this.recordCurrentMapClear();
-        this.setState(GameState.REGION_CLEARED);
-        this.publishTestSnapshot();
-        return;
+      if (this.waveManager.waveCleared) {
+        if (this.waveManager.currentWave >= this.waveManager.totalWaves) {
+          this.audio.stopAll();
+          this.recordCurrentMapClear();
+          this.setState(GameState.REGION_CLEARED);
+          this.publishTestSnapshot();
+          return;
+        }
+        this.waveManager.nextWave();
       }
-      this.waveManager.nextWave();
     }
 
     const corePos = { x: this.vehicle.x, y: this.vehicle.y };
     const targetCell = this.terrainGrid.worldToCell(corePos);
-    this.enemyNavigation.update(dt, this.enemies, targetCell);
+    const navigationTarget: EnemyNavigationTarget = {
+      point: corePos,
+      cell: targetCell,
+      engagementBounds: this.vehicle.getGridBounds(),
+    };
+    this.enemyNavigation.update(dt, this.enemies, navigationTarget);
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const enemy = this.enemies[i];
       const previousPos = { x: enemy.x, y: enemy.y };
@@ -654,9 +704,12 @@ export class Game {
         continue;
       }
 
+      const directive = this.enemyNavigation.getDirective(enemy);
       enemy.update(dt, corePos, {
         terrain: this.terrainGrid,
-        targetCell,
+        targetCell: directive ? directive.targetCell : targetCell,
+        directive: directive ?? undefined,
+        nearbyEnemies: this.enemies,
       });
       if (this.resolveEnemyAgainstGrid(enemy, this.vehicle.getGridBounds(), previousPos) && enemy.tryContactDamage()) {
         this.vehicle.takeDamage(enemy.contactDamage, 0, { x: enemy.x - corePos.x, y: enemy.y - corePos.y });
@@ -731,6 +784,13 @@ export class Game {
       deduplicatedRequests: navigationStats.deduplicatedRequestsThisFrame,
       pendingRequests: navigationStats.pendingRequests,
       maxSearchesThisFrame: navigationStats.maxSearchesThisFrame,
+      localSteeringAgents: navigationStats.localSteeringAgents,
+      engagedAgents: navigationStats.engagedAgents,
+      stuckAgents: navigationStats.stuckAgents,
+      pendingNavigationAgents: navigationStats.pendingNavigationAgents,
+      oldestPendingRequestAge: navigationStats.oldestPendingRequestAge,
+      localSteeringTransitionsThisFrame: navigationStats.localSteeringTransitionsThisFrame,
+      enemyNavigationAgents: this.enemyNavigation.getAgentSnapshots(this.enemies),
       resources: Object.fromEntries(RESOURCE_TYPES.map((type) => [type, {
         amount: this.resources.get(type),
         capacity: this.resources.getCapacity(type),
@@ -1079,17 +1139,36 @@ export class Game {
     }
 
     for (const enemy of this.enemies) {
+      const directive = this.enemyNavigation.getDirective(enemy);
       const path = enemy.getPath();
-      if (path.length === 0) continue;
-      ctx.strokeStyle = enemy.enemyType === 'tanker' ? '#ff9f43' : '#00e676';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(enemy.x, enemy.y);
-      for (const cell of path) {
-        const point = this.terrainGrid.cellToWorldCenter(cell);
-        ctx.lineTo(point.x, point.y);
+      if (path.length > 0) {
+        ctx.strokeStyle = enemy.enemyType === 'tanker' ? '#ff9f43' : '#00e676';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(enemy.x, enemy.y);
+        for (const cell of path) {
+          const point = this.terrainGrid.cellToWorldCenter(cell);
+          ctx.lineTo(point.x, point.y);
+        }
+        ctx.stroke();
       }
-      ctx.stroke();
+      if (directive?.targetPoint) {
+        const modeColor = directive.mode === 'engaged'
+          ? '#ff4081'
+          : directive.mode === 'local'
+            ? '#00b0ff'
+            : directive.mode === 'repath'
+              ? '#ff1744'
+              : '#ffd54f';
+        ctx.strokeStyle = modeColor;
+        ctx.fillStyle = modeColor;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(directive.targetPoint.x, directive.targetPoint.y, 5, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.font = '10px monospace';
+        ctx.fillText(directive.mode.toUpperCase(), directive.targetPoint.x + 7, directive.targetPoint.y - 7);
+      }
     }
 
     if (this.recentTerrainHitCell && this.recentTerrainHitTimer > 0) {
@@ -1258,6 +1337,8 @@ export class Game {
     this.terrainDebugVisible = false;
     this.recentTerrainHitCell = null;
     this.recentTerrainHitTimer = 0;
+    this.testNavigationStuckProbe = null;
+    this.testNavigationStuckReleaseAt = null;
     this.hud.resetSelection();
   }
 

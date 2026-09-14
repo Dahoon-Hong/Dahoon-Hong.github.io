@@ -1,5 +1,5 @@
 import type { RenderContext } from '../rendering/RenderContext';
-import type { TerrainCell, TerrainGrid } from '../core/TerrainGrid';
+import type { TerrainCell, TerrainGrid, TerrainPoint } from '../core/TerrainGrid';
 
 export type EnemyType = 'standard' | 'tanker';
 type EnemyVisualState = 'idle' | 'hit' | 'dead';
@@ -20,9 +20,35 @@ export interface EnemyDefinition {
 export interface EnemyNavigationContext {
   terrain: TerrainGrid;
   targetCell?: TerrainCell | null;
+  nearbyEnemies?: readonly Enemy[];
+  directive?: EnemyNavigationDirective;
+}
+
+export type EnemyNavigationMode = 'path' | 'local' | 'engaged' | 'repath';
+
+export interface EnemyNavigationDirective {
+  mode: EnemyNavigationMode;
+  targetCell: TerrainCell | null;
+  targetPoint: TerrainPoint | null;
+  arrivalRadius: number;
+  stopDistance: number;
+  probeDistance: number;
+  separationWeight: number;
+  maxNearbyEnemies: number;
+}
+
+export interface EnemyNavigationTelemetry {
+  movementDistance: number;
+  safeProgress: number;
+  steeringDirection: TerrainPoint | null;
+  blockedProbeCount: number;
+  stopped: boolean;
 }
 
 export abstract class Enemy {
+  private static nextNavigationId = 1;
+
+  public readonly navigationId = Enemy.nextNavigationId++;
   public x: number;
   public y: number;
   public hp: number;
@@ -40,6 +66,14 @@ export abstract class Enemy {
   private path: TerrainCell[] = [];
   private waypointIndex = 0;
   private lastTargetCell: TerrainCell | null = null;
+  private lastMoveSafeProgress = 1;
+  private navigationTelemetry: EnemyNavigationTelemetry = {
+    movementDistance: 0,
+    safeProgress: 1,
+    steeringDirection: null,
+    blockedProbeCount: 0,
+    stopped: false,
+  };
 
   constructor(
     x: number,
@@ -101,24 +135,54 @@ export abstract class Enemy {
     return this.waypointIndex;
   }
 
+  public getNavigationTelemetry(): EnemyNavigationTelemetry {
+    return {
+      ...this.navigationTelemetry,
+      steeringDirection: this.navigationTelemetry.steeringDirection
+        ? { ...this.navigationTelemetry.steeringDirection }
+        : null,
+    };
+  }
+
   public update(dt: number, targetPos: { x: number; y: number }, navigation?: EnemyNavigationContext): void {
     if (this.isDead()) return;
 
+    const startX = this.x;
+    const startY = this.y;
+    this.lastMoveSafeProgress = 1;
+    this.navigationTelemetry = {
+      movementDistance: 0,
+      safeProgress: 1,
+      steeringDirection: null,
+      blockedProbeCount: 0,
+      stopped: false,
+    };
     this.contactDamageTimer = Math.max(0, this.contactDamageTimer - dt);
     this.hitTimer = Math.max(0, this.hitTimer - dt);
 
     if (navigation) {
       this.updateWithTerrain(dt, targetPos, navigation);
-      return;
+    } else {
+      this.moveToward(targetPos, dt);
     }
 
-    this.moveToward(targetPos, dt);
+    this.navigationTelemetry.movementDistance = Math.hypot(this.x - startX, this.y - startY);
+    this.navigationTelemetry.safeProgress = this.lastMoveSafeProgress;
   }
 
   private updateWithTerrain(dt: number, targetPos: { x: number; y: number }, navigation: EnemyNavigationContext): void {
-    const targetCell = navigation.targetCell ?? navigation.terrain.worldToCell(targetPos);
+    const directive = navigation.directive;
+    if (directive?.mode === 'local' || directive?.mode === 'engaged') {
+      this.updateWithLocalSteering(dt, directive, navigation);
+      return;
+    }
+
+    const targetCell = directive
+      ? directive.targetCell
+      : navigation.targetCell ?? navigation.terrain.worldToCell(targetPos);
     const enemyCell = navigation.terrain.worldToCell({ x: this.x, y: this.y });
     if (targetCell === null || !enemyCell) return;
+    if (directive?.mode === 'repath') return;
     const currentPath = this.path.slice(this.waypointIndex);
     if (currentPath.length > 0) {
       const waypoint = navigation.terrain.cellToWorldCenter(currentPath[0]);
@@ -128,8 +192,100 @@ export abstract class Enemy {
 
     if (this.path.length === 0 && this.lastTargetCell && this.sameCell(this.lastTargetCell, targetCell)) {
       // A path may legitimately be empty when the enemy and target share a cell.
-      if (this.sameCell(enemyCell, targetCell)) this.moveToward(targetPos, dt, navigation.terrain);
+      if (this.sameCell(enemyCell, targetCell)) {
+        this.moveToward(directive?.targetPoint ?? targetPos, dt, navigation.terrain);
+      }
     }
+  }
+
+  private updateWithLocalSteering(
+    dt: number,
+    directive: EnemyNavigationDirective,
+    navigation: EnemyNavigationContext,
+  ): void {
+    const targetPoint = directive.targetPoint;
+    if (!targetPoint) return;
+
+    const toTarget = { x: targetPoint.x - this.x, y: targetPoint.y - this.y };
+    const distance = Math.hypot(toTarget.x, toTarget.y);
+    if (distance <= directive.stopDistance) {
+      this.navigationTelemetry.stopped = true;
+      return;
+    }
+
+    const seek = { x: toTarget.x / distance, y: toTarget.y / distance };
+    const separation = this.getSeparation(navigation.nearbyEnemies ?? [], directive.maxNearbyEnemies);
+    const desired = this.normalize({
+      x: seek.x + separation.x * directive.separationWeight,
+      y: seek.y + separation.y * directive.separationWeight,
+    }, seek);
+    const direction = this.findSafeSteeringDirection(desired, dt, directive.probeDistance, navigation.terrain);
+    if (!direction) return;
+
+    const arrivalScale = directive.mode === 'engaged'
+      ? Math.min(1, Math.max(0, distance / Math.max(1, directive.arrivalRadius)))
+      : distance < directive.arrivalRadius
+        ? distance / Math.max(1, directive.arrivalRadius)
+        : 1;
+    this.moveAlong(direction, this.speed * dt * arrivalScale, navigation.terrain);
+  }
+
+  private getSeparation(nearbyEnemies: readonly Enemy[], maxNearbyEnemies: number): TerrainPoint {
+    let x = 0;
+    let y = 0;
+    let considered = 0;
+    for (const other of nearbyEnemies) {
+      if (other === this || other.isDead()) continue;
+      const dx = this.x - other.x;
+      const dy = this.y - other.y;
+      const distance = Math.hypot(dx, dy);
+      const minimumDistance = this.radius + other.radius + 8;
+      if (distance <= 1e-9 || distance >= minimumDistance) continue;
+      const strength = (minimumDistance - distance) / minimumDistance;
+      x += (dx / distance) * strength;
+      y += (dy / distance) * strength;
+      considered++;
+      if (considered >= maxNearbyEnemies) break;
+    }
+    return this.normalize({ x, y }, { x: 0, y: 0 });
+  }
+
+  private findSafeSteeringDirection(
+    desired: TerrainPoint,
+    dt: number,
+    probeDistance: number,
+    terrain: TerrainGrid,
+  ): TerrainPoint | null {
+    const desiredAngle = Math.atan2(desired.y, desired.x);
+    const offsets = [0, -Math.PI / 9, Math.PI / 9, -Math.PI / 4, Math.PI / 4, -Math.PI / 2, Math.PI / 2, Math.PI];
+    const lookAhead = Math.min(probeDistance, Math.max(this.speed * dt, terrain.cellSize * 0.25));
+    let best: TerrainPoint | null = null;
+    let bestScore = Number.NEGATIVE_INFINITY;
+
+    for (const offset of offsets) {
+      const angle = desiredAngle + offset;
+      const direction = { x: Math.cos(angle), y: Math.sin(angle) };
+      const end = {
+        x: this.x + direction.x * lookAhead,
+        y: this.y + direction.y * lookAhead,
+      };
+      if (!terrain.isOpenForRadiusSegment({ x: this.x, y: this.y }, end, this.radius, 'enemy')) {
+        this.navigationTelemetry.blockedProbeCount++;
+        continue;
+      }
+      const score = direction.x * desired.x + direction.y * desired.y - Math.abs(offset) * 0.05;
+      if (score <= bestScore) continue;
+      best = direction;
+      bestScore = score;
+    }
+    this.navigationTelemetry.steeringDirection = best ? { ...best } : null;
+    return best;
+  }
+
+  private normalize(value: TerrainPoint, fallback: TerrainPoint): TerrainPoint {
+    const length = Math.hypot(value.x, value.y);
+    if (length <= 1e-9) return { ...fallback };
+    return { x: value.x / length, y: value.y / length };
   }
 
   private moveToward(targetPos: { x: number; y: number }, dt: number, terrain?: TerrainGrid): boolean {
@@ -140,16 +296,26 @@ export abstract class Enemy {
 
     const moveDistance = this.speed * dt;
     const requestedDistance = Math.min(dist, moveDistance);
+    this.moveAlong({ x: dx / dist, y: dy / dist }, requestedDistance, terrain);
+    const safeProgress = this.lastMoveSafeProgress;
+    return requestedDistance >= dist - 1e-9 && safeProgress >= 1 - 1e-9;
+  }
+
+  private moveAlong(direction: TerrainPoint, distance: number, terrain?: TerrainGrid): void {
+    if (distance <= 0) {
+      this.lastMoveSafeProgress = 1;
+      return;
+    }
     const requestedEnd = {
-      x: this.x + (dx / dist) * requestedDistance,
-      y: this.y + (dy / dist) * requestedDistance,
+      x: this.x + direction.x * distance,
+      y: this.y + direction.y * distance,
     };
     const safeProgress = terrain
       ? terrain.getSafeRadiusProgress({ x: this.x, y: this.y }, requestedEnd, this.radius, 'enemy')
       : 1;
+    this.lastMoveSafeProgress = safeProgress;
     this.x += (requestedEnd.x - this.x) * safeProgress;
     this.y += (requestedEnd.y - this.y) * safeProgress;
-    return requestedDistance >= dist - 1e-9 && safeProgress >= 1 - 1e-9;
   }
 
   private sameCell(a: TerrainCell | null, b: TerrainCell | null): boolean {
