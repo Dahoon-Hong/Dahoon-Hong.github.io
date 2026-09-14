@@ -195,24 +195,33 @@ export abstract class CombatModule {
   }
 
   protected spendShot(spendResource: (type: ResourceType, amount: number) => boolean): boolean {
+    const usesReloadAmmo = this.getWeaponClass() === 'machine-gun';
     if (this.loadedShots <= 0) {
-      this.startReload();
+      this.startReload(usesReloadAmmo ? spendResource : undefined);
       return false;
     }
-    if (!spendResource('ammo', 1)) return false;
+    if (!usesReloadAmmo && !spendResource('ammo', 1)) return false;
     this.loadedShots--;
-    if (this.loadedShots <= 0) this.startReload();
+    if (this.loadedShots <= 0) {
+      this.startReload(usesReloadAmmo ? spendResource : undefined);
+    }
     return true;
   }
 
-  protected startReload(): void {
+  protected startReload(
+    spendResource?: (type: ResourceType, amount: number) => boolean,
+  ): boolean {
+    if (this.getWeaponClass() === 'machine-gun' && (!spendResource || !spendResource('ammo', 1))) {
+      return false;
+    }
     const reloadTime = this.getReloadTime();
     if (reloadTime <= 0) {
       this.loadedShots = this.getMagazineSize();
       this.reloadTimer = 0;
-      return;
+      return true;
     }
     this.reloadTimer = reloadTime;
+    return true;
   }
 
   protected emitFire(

@@ -19,6 +19,7 @@
 - 기관총은 탄창 연사와 다중 적 관통을 사용한다.
 - 전차포는 최소 사거리, 직선 관통, 목표 지점 또는 차단 지점 폭발을 사용한다.
 - 곡사포는 최소 사거리, 곡사 탄도와 목표 지점 범위 폭발을 사용한다.
+- 기관총은 재장전 시 ammo 1개를 소비하고, 12.7mm/20mm/30mm 순서로 20발/15발/10발을 발사한다. 전차포·곡사포는 발사당 ammo 1개를 소비한다.
 - 적 Standard/Tanker에 장갑을 추가하고, `penetration > armor`일 때만 피해를 준다.
 - 관통 성공 후 남은 관통력은 대상 장갑만큼 줄어든다.
 - 모든 무기는 고유 module body와 발사 sound ID를 사용한다.
@@ -82,7 +83,7 @@
 
 ## 데이터 및 밸런스 기준
 
-적 장갑은 Standard 10, Tanker 40이다. 승인된 1차 무기 기준값은 설계 문서의 표를 그대로 사용하며, 거리 px와 시간 초 단위를 유지한다.
+적 장갑은 Standard 10, Tanker 40이다. 승인된 1차 무기 기준값은 설계 문서의 표를 그대로 사용하며, 거리 px와 시간 초 단위를 유지한다. 기관총 탄창은 12.7mm 20발, 20mm 15발, 30mm 10발이며 재장전마다 ammo 1개를 사용한다.
 
 새 combat definition에는 `weaponClass`, `moduleAssetId`, `fireSoundId`, `fireEffectId`와 `minRange`, `penetration`, `magazineSize`, `reloadTime` stats를 추가한다. `fireRate`는 탄창 내 발사 간격이며 단발 무기는 0, `magazineSize`는 1이다.
 
