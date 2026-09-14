@@ -82,6 +82,9 @@ function validateEnemyDefinition(value: unknown, type: EnemyType): asserts value
   positiveNumber(definition.spawnInterval, `enemyData.${type}.spawnInterval`);
   positiveInteger(definition.spawnBatchSize, `enemyData.${type}.spawnBatchSize`);
   positiveNumber(definition.hp, `enemyData.${type}.hp`);
+  if (definition.armor !== undefined) {
+    nonNegativeNumber(definition.armor, `enemyData.${type}.armor`);
+  }
   nonNegativeNumber(definition.speed, `enemyData.${type}.speed`);
   positiveNumber(definition.radius, `enemyData.${type}.radius`);
   nonNegativeNumber(definition.reward, `enemyData.${type}.reward`);

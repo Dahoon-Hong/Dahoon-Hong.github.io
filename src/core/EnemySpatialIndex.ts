@@ -5,7 +5,17 @@ interface EnemyCandidate {
   distanceSquared: number;
 }
 
-export class EnemySpatialIndex {
+export interface EnemySpatialQuery {
+  queryCircle(point: { x: number; y: number }, radius: number, excluded?: Enemy): Enemy[];
+  querySegment(
+    start: { x: number; y: number },
+    end: { x: number; y: number },
+    margin: number,
+    excluded?: Enemy,
+  ): Enemy[];
+}
+
+export class EnemySpatialIndex implements EnemySpatialQuery {
   private readonly buckets = new Map<string, Enemy[]>();
 
   public constructor(private readonly bucketSize: number) {
@@ -57,6 +67,46 @@ export class EnemySpatialIndex {
     return candidates.map((candidate) => candidate.enemy);
   }
 
+  public queryCircle(point: { x: number; y: number }, radius: number, excluded?: Enemy): Enemy[] {
+    const safeRadius = Math.max(0, Number.isFinite(radius) ? radius : 0);
+    const radiusSquared = safeRadius * safeRadius;
+    const candidates: Enemy[] = [];
+    this.forEachInBounds(
+      point.x - safeRadius,
+      point.y - safeRadius,
+      point.x + safeRadius,
+      point.y + safeRadius,
+      (enemy) => {
+        if (enemy === excluded || enemy.isDead()) return;
+        const dx = enemy.x - point.x;
+        const dy = enemy.y - point.y;
+        if (dx * dx + dy * dy <= radiusSquared) candidates.push(enemy);
+      },
+    );
+    return candidates;
+  }
+
+  /** Returns broad-phase candidates in an expanded segment AABB. */
+  public querySegment(
+    start: { x: number; y: number },
+    end: { x: number; y: number },
+    margin: number,
+    excluded?: Enemy,
+  ): Enemy[] {
+    const safeMargin = Math.max(0, Number.isFinite(margin) ? margin : 0);
+    const candidates: Enemy[] = [];
+    this.forEachInBounds(
+      Math.min(start.x, end.x) - safeMargin,
+      Math.min(start.y, end.y) - safeMargin,
+      Math.max(start.x, end.x) + safeMargin,
+      Math.max(start.y, end.y) + safeMargin,
+      (enemy) => {
+        if (enemy !== excluded && !enemy.isDead()) candidates.push(enemy);
+      },
+    );
+    return candidates;
+  }
+
   private insertNearest(
     candidates: EnemyCandidate[],
     candidate: EnemyCandidate,
@@ -71,5 +121,23 @@ export class EnemySpatialIndex {
 
   private keyFor(x: number, y: number): string {
     return `${Math.floor(x / this.bucketSize)},${Math.floor(y / this.bucketSize)}`;
+  }
+
+  private forEachInBounds(
+    left: number,
+    top: number,
+    right: number,
+    bottom: number,
+    visit: (enemy: Enemy) => void,
+  ): void {
+    const minX = Math.floor(left / this.bucketSize);
+    const minY = Math.floor(top / this.bucketSize);
+    const maxX = Math.floor(right / this.bucketSize);
+    const maxY = Math.floor(bottom / this.bucketSize);
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        for (const enemy of this.buckets.get(`${x},${y}`) ?? []) visit(enemy);
+      }
+    }
   }
 }

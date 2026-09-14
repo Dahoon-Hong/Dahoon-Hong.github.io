@@ -65,6 +65,78 @@
       "layer": "actors",
       "fallback": "shape.tank.module.arc-weapon"
     },
+    "tank.module.modern.hmg-12-7": {
+      "src": "/assets/game/tank/module-modern-hmg-12-7.png",
+      "draw": { "width": 44, "height": 44 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.tank.module.direct-weapon"
+    },
+    "tank.module.modern.autocannon-20": {
+      "src": "/assets/game/tank/module-modern-autocannon-20.png",
+      "draw": { "width": 44, "height": 44 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.tank.module.direct-weapon"
+    },
+    "tank.module.modern.aa-30": {
+      "src": "/assets/game/tank/module-modern-aa-30.png",
+      "draw": { "width": 44, "height": 44 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.tank.module.direct-weapon"
+    },
+    "tank.module.modern.rifle-76": {
+      "src": "/assets/game/tank/module-modern-rifle-76.png",
+      "draw": { "width": 44, "height": 88 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.tank.module.direct-weapon"
+    },
+    "tank.module.modern.rifle-90": {
+      "src": "/assets/game/tank/module-modern-rifle-90.png",
+      "draw": { "width": 44, "height": 88 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.tank.module.direct-weapon"
+    },
+    "tank.module.modern.smoothbore-120": {
+      "src": "/assets/game/tank/module-modern-smoothbore-120.png",
+      "draw": { "width": 44, "height": 88 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.tank.module.direct-weapon"
+    },
+    "tank.module.modern.mortar-60": {
+      "src": "/assets/game/tank/module-modern-mortar-60.png",
+      "draw": { "width": 44, "height": 44 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.tank.module.arc-weapon"
+    },
+    "tank.module.modern.howitzer-105": {
+      "src": "/assets/game/tank/module-modern-howitzer-105.png",
+      "draw": { "width": 88, "height": 88 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.tank.module.arc-weapon"
+    },
+    "tank.module.modern.howitzer-155": {
+      "src": "/assets/game/tank/module-modern-howitzer-155.png",
+      "draw": { "width": 88, "height": 88 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "actors",
+      "fallback": "shape.tank.module.arc-weapon"
+    },
     "enemy.standard.idle": {
       "src": "/assets/game/enemies/standard-idle.png",
       "draw": { "width": 24, "height": 24 },
@@ -242,7 +314,7 @@
       "fallback": "shape.icon.armor-plate"
     },
     "ui.icon.direct-weapon": {
-      "src": "/assets/game/ui/icon-direct-weapon.png",
+      "src": "/assets/game/ui/icon-modern-hmg-12-7.png",
       "draw": { "width": 20, "height": 20 },
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
@@ -250,7 +322,63 @@
       "fallback": "shape.icon.direct-weapon"
     },
     "ui.icon.arc-weapon": {
-      "src": "/assets/game/ui/icon-arc-weapon.png",
+      "src": "/assets/game/ui/icon-modern-mortar-60.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.arc-weapon"
+    },
+    "ui.icon.machine-gun-20mm": {
+      "src": "/assets/game/ui/icon-modern-autocannon-20.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.direct-weapon"
+    },
+    "ui.icon.machine-gun-30mm": {
+      "src": "/assets/game/ui/icon-modern-aa-30.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.direct-weapon"
+    },
+    "ui.icon.tank-gun-76mm": {
+      "src": "/assets/game/ui/icon-modern-rifle-76.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.direct-weapon"
+    },
+    "ui.icon.tank-gun-90mm": {
+      "src": "/assets/game/ui/icon-modern-rifle-90.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.direct-weapon"
+    },
+    "ui.icon.tank-gun-120mm": {
+      "src": "/assets/game/ui/icon-modern-smoothbore-120.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.direct-weapon"
+    },
+    "ui.icon.howitzer-105mm": {
+      "src": "/assets/game/ui/icon-modern-howitzer-105.png",
+      "draw": { "width": 20, "height": 20 },
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "frames": { "columns": 1, "rows": 1, "duration": 0 },
+      "layer": "hud",
+      "fallback": "shape.icon.arc-weapon"
+    },
+    "ui.icon.howitzer-155mm": {
+      "src": "/assets/game/ui/icon-modern-howitzer-155.png",
       "draw": { "width": 20, "height": 20 },
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },

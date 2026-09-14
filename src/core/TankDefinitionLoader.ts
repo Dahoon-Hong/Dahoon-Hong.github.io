@@ -2,6 +2,7 @@ import { RESOURCE_TYPES, ResourceType } from './ResourceStorage';
 
 export type ModuleKind = 'builtin' | 'combat';
 export type UpgradeOperation = 'add' | 'multiply';
+export type WeaponClass = 'machine-gun' | 'tank-gun' | 'howitzer';
 
 export interface GridCell {
   x: number;
@@ -30,6 +31,8 @@ export interface UpgradeNodeDefinition {
   cost: ResourceCost;
   effects: UpgradeEffect[];
   unlocksModuleId?: string;
+  /** null opts a sibling out of the default exclusive branch rule. */
+  exclusiveGroup?: string | null;
 }
 
 export interface UpgradeTreeDefinition {
@@ -59,6 +62,10 @@ export interface TankModuleDefinition {
   purchaseCost?: ResourceCost;
   fireArcDegrees?: number;
   defaultOrientation?: ModuleOrientation;
+  weaponClass?: WeaponClass;
+  moduleAssetId?: string;
+  fireSoundId?: string;
+  fireEffectId?: string;
   baseStats: Record<string, number>;
   upgradeTree: UpgradeTreeDefinition;
 }
@@ -92,6 +99,10 @@ const ALLOWED_STATS = new Set([
   'maxDistance',
   'aoeRadius',
   'flightTime',
+  'minRange',
+  'penetration',
+  'magazineSize',
+  'reloadTime',
   'movementSpeed',
   'trackMaxSpeed',
   'rotationSpeed',
@@ -208,6 +219,11 @@ function parseUpgradeTree(value: unknown, path: string): UpgradeTreeDefinition {
       ...(node.unlocksModuleId === undefined
         ? {}
         : { unlocksModuleId: requiredString(node.unlocksModuleId, `${nodePath}.unlocksModuleId`) }),
+      ...(node.exclusiveGroup === undefined
+        ? {}
+        : { exclusiveGroup: node.exclusiveGroup === null
+          ? null
+          : requiredString(node.exclusiveGroup, `${nodePath}.exclusiveGroup`) }),
     };
   });
 
@@ -304,6 +320,36 @@ function parseModuleDefinition(value: unknown, path: string, expectedId: string)
     if (definition.fireArcDegrees <= 0) fail(`${path}.fireArcDegrees`, 'must be > 0');
     if (definition.fireArcDegrees > 360) fail(`${path}.fireArcDegrees`, 'must be <= 360');
     definition.defaultOrientation = parseOrientation(record.defaultOrientation ?? 0, `${path}.defaultOrientation`);
+
+    const weaponClass = requiredString(record.weaponClass, `${path}.weaponClass`);
+    if (weaponClass !== 'machine-gun' && weaponClass !== 'tank-gun' && weaponClass !== 'howitzer') {
+      fail(`${path}.weaponClass`, `unsupported weapon class '${weaponClass}'`);
+    }
+    const expectedBehavior = weaponClass === 'howitzer' ? 'arc' : 'direct';
+    if (definition.behavior !== expectedBehavior) {
+      fail(`${path}.behavior`, `weapon class '${weaponClass}' requires '${expectedBehavior}' behavior`);
+    }
+    definition.weaponClass = weaponClass;
+    definition.moduleAssetId = requiredString(record.moduleAssetId, `${path}.moduleAssetId`);
+    definition.fireSoundId = requiredString(record.fireSoundId, `${path}.fireSoundId`);
+    definition.fireEffectId = requiredString(record.fireEffectId, `${path}.fireEffectId`);
+
+    const magazineSize = definition.baseStats.magazineSize;
+    if (magazineSize === undefined || !Number.isInteger(magazineSize) || magazineSize < 1) {
+      fail(`${path}.baseStats.magazineSize`, 'combat modules require a positive integer magazineSize');
+    }
+    if (definition.baseStats.minRange === undefined) {
+      fail(`${path}.baseStats.minRange`, 'combat modules require minRange');
+    }
+    if (definition.baseStats.penetration === undefined) {
+      fail(`${path}.baseStats.penetration`, 'combat modules require penetration');
+    }
+    if (definition.baseStats.reloadTime === undefined) {
+      fail(`${path}.baseStats.reloadTime`, 'combat modules require reloadTime');
+    }
+    if (definition.baseStats.minRange > definition.baseStats.range) {
+      fail(`${path}.baseStats.minRange`, 'must not exceed range');
+    }
   }
 
   if (definition.behavior === 'core' && definition.kind !== 'builtin') {

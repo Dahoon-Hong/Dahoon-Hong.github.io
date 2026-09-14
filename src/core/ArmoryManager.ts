@@ -16,9 +16,17 @@ export class ArmoryManager {
   }
 
   public getCombatModuleDefinitions(): TankModuleDefinition[] {
+    const moduleOrder = this.definition.modules.armory?.upgradeTree.nodes
+      .flatMap((node) => node.unlocksModuleId ? [node.unlocksModuleId] : []);
     return Object.values(this.definition.modules).filter(
       (module) => module.kind === 'combat' && module.id !== 'core' && module.behavior !== 'core'
-    );
+    ).sort((a, b) => {
+      const aIndex = moduleOrder?.indexOf(a.id) ?? -1;
+      const bIndex = moduleOrder?.indexOf(b.id) ?? -1;
+      return (aIndex < 0 ? Number.MAX_SAFE_INTEGER : aIndex)
+        - (bIndex < 0 ? Number.MAX_SAFE_INTEGER : bIndex)
+        || a.id.localeCompare(b.id);
+    });
   }
 
   public isResearched(moduleId: string): boolean {

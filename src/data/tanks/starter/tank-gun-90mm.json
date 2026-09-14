@@ -1,0 +1,23 @@
+{
+  "id": "tank-gun-90mm",
+  "kind": "combat",
+  "name": "90mm Rifled Gun",
+  "behavior": "direct",
+  "size": { "width": 1, "height": 2 },
+  "installCost": { "matter": 140 },
+  "researchCost": { "matter": 90 },
+  "purchaseCost": { "matter": 140 },
+  "fireArcDegrees": 30,
+  "defaultOrientation": 0,
+  "weaponClass": "tank-gun",
+  "moduleAssetId": "tank.module.modern.rifle-90",
+  "fireSoundId": "sfx.weapon.rifle-90-fire",
+  "fireEffectId": "effect.projectile.direct-hit",
+  "baseStats": { "maxHp": 100, "range": 880, "damage": 145, "fireRate": 0, "projectileSpeed": 850, "maxDistance": 880, "minRange": 150, "penetration": 85, "magazineSize": 1, "reloadTime": 3.8, "aoeRadius": 72 },
+  "upgradeTree": {
+    "rootId": "root",
+    "nodes": [
+      { "id": "root", "parentId": null, "cost": {}, "effects": [] }
+    ]
+  }
+}

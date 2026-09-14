@@ -52,7 +52,9 @@ export class UpgradeManager {
       }
 
       const selectedSibling = definition.upgradeTree.nodes.some(
-        (candidate) => candidate.parentId === node.parentId && selected.has(candidate.id)
+        (candidate) => candidate.parentId === node.parentId
+          && selected.has(candidate.id)
+          && this.isExclusiveWith(node, candidate)
       );
       if (selectedSibling) {
         statuses.set(node.id, 'disabled');
@@ -129,5 +131,10 @@ export class UpgradeManager {
     stats[effect.stat] = effect.operation === 'add'
       ? current + effect.value
       : current * effect.value;
+  }
+
+  private isExclusiveWith(a: UpgradeNodeDefinition, b: UpgradeNodeDefinition): boolean {
+    if (a.exclusiveGroup === null || b.exclusiveGroup === null) return false;
+    return (a.exclusiveGroup ?? '__default__') === (b.exclusiveGroup ?? '__default__');
   }
 }

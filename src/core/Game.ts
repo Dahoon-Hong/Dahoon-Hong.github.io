@@ -1,5 +1,5 @@
 import { HUDManager } from '../ui/HUDManager';
-import { Enemy, StandardEnemy } from '../entities/Enemy';
+import { Enemy, StandardEnemy, TankerEnemy } from '../entities/Enemy';
 import { Projectile, VisualEffect } from '../entities/Projectile';
 import type { ProjectileSoundEvent } from '../entities/Projectile';
 import type { CombatSoundEvent } from '../entities/Module';
@@ -26,6 +26,7 @@ import { TerrainPathfinder } from './TerrainPathfinder';
 import { ENEMY_NAVIGATION_POLICY, EnemyNavigationCoordinator } from './EnemyNavigationCoordinator';
 import type { EnemyNavigationTarget } from './EnemyNavigationCoordinator';
 import { EnemyCollisionResolver } from './EnemyCollisionResolver';
+import { EnemySpatialIndex } from './EnemySpatialIndex';
 import { SettingsScreen, StartMenu } from '../ui/StartMenu';
 import { CampaignProgress, EMPTY_CAMPAIGN_PROGRESS } from './CampaignProgressStore';
 import { LocalStorageCampaignProgressStore } from './LocalStorageCampaignProgressStore';
@@ -88,6 +89,7 @@ export class Game {
   private pathfinder: TerrainPathfinder;
   private readonly enemyNavigation: EnemyNavigationCoordinator;
   private readonly enemyCollision: EnemyCollisionResolver;
+  private readonly combatSpatialIndex: EnemySpatialIndex;
 
   private screen: AppScreen = AppScreen.START_MENU;
   private state: GameState = GameState.PLAYING;
@@ -161,6 +163,7 @@ export class Game {
       ENEMY_NAVIGATION_POLICY.collisionLookaheadDistance,
       ENEMY_NAVIGATION_POLICY.spawnAdmissionProbeDistance,
     );
+    this.combatSpatialIndex = new EnemySpatialIndex(ENEMY_NAVIGATION_POLICY.spatialCellSize);
     this.camera = new Camera(
       this.gameplayWidth,
       this.logicalHeight,
@@ -483,6 +486,12 @@ export class Game {
         this.setTestResource('matter', this.resources.getCapacity('matter'));
         this.setState(GameState.PAUSED);
         break;
+      case 'modern-firearms':
+        this.setupModernFirearmsFixture();
+        break;
+      case 'modern-firearms-stress':
+        this.setupModernFirearmsStressFixture();
+        break;
       case 'enemy-navigation-fixtures':
         this.setupEnemyNavigationFixtures();
         break;
@@ -544,6 +553,69 @@ export class Game {
     this.enemies.push(engaged, stalled);
     this.testNavigationStuckProbe = stalled;
     this.testNavigationStuckReleaseAt = 0.6;
+  }
+
+  private setupModernFirearmsFixture(): void {
+    const armoryInstanceId = this.armory.getInstanceId();
+    for (let pass = 0; pass < 12; pass++) {
+      const next = this.upgradeManager.getNodeStates(armoryInstanceId).find(
+        (state) => state.status === 'available' && state.definition.unlocksModuleId,
+      );
+      if (!next || !this.upgradeManager.select(armoryInstanceId, next.definition.id, () => true)) break;
+    }
+
+    for (const definition of this.armory.getCombatModuleDefinitions()) {
+      this.armory.purchase(definition.id, () => true);
+    }
+    this.setTestResource('ammo', this.resources.getCapacity('ammo'));
+    this.setState(GameState.PAUSED);
+  }
+
+  private setupModernFirearmsStressFixture(): void {
+    this.setupModernFirearmsFixture();
+
+    const placements: Array<{
+      moduleId: string;
+      anchor: { x: number; y: number };
+    }> = [
+      { moduleId: 'machine-gun-20mm', anchor: { x: 0, y: 0 } },
+      { moduleId: 'machine-gun-30mm', anchor: { x: 2, y: 0 } },
+      { moduleId: 'howitzer-105mm', anchor: { x: 0, y: 1 } },
+      { moduleId: 'tank-gun-76mm', anchor: { x: 2, y: 1 } },
+    ];
+    for (const placement of placements) {
+      this.installPurchasedModule(placement.moduleId, placement.anchor, 0);
+    }
+
+    const standardDefinition = this.progression.enemyDefinitions.standard;
+    const tankerDefinition = this.progression.enemyDefinitions.tanker;
+    const fixtureCount = getGameTestEnemyCount(120);
+    let attempt = 0;
+    while (this.enemies.length < fixtureCount && attempt < fixtureCount * 20) {
+      const angle = -Math.PI / 2 + (attempt % fixtureCount) * Math.PI * 2 / fixtureCount;
+      const radius = 360 + (attempt % 4) * 72;
+      const point = {
+        x: this.vehicle.x + Math.cos(angle) * radius,
+        y: this.vehicle.y + Math.sin(angle) * radius,
+      };
+      attempt++;
+      const definition = this.enemies.length % 5 === 0 ? tankerDefinition : standardDefinition;
+      if (!this.terrainGrid.isOpenForRadius(point, definition.radius, 'enemy')) continue;
+      const fixtureDefinition = {
+        ...definition,
+        hp: 1_000_000,
+        reward: 0,
+        speed: 0,
+        contactDamage: 0,
+      };
+      this.enemies.push(
+        definition === tankerDefinition
+          ? new TankerEnemy(point.x, point.y, fixtureDefinition)
+          : new StandardEnemy(point.x, point.y, fixtureDefinition),
+      );
+    }
+
+    this.setState(GameState.PLAYING);
   }
 
   private setupEnemyNavigationWorkerFixture(fixtureCount = 160): void {
@@ -735,18 +807,6 @@ export class Game {
         }
       }
 
-      for (const module of this.vehicle.getCombatModules()) {
-        module.update(
-          dt,
-          this.vehicle.getModuleWorldCenter(module),
-          this.vehicle.getModuleFireAngle(module),
-          this.enemies,
-          (projectile) => this.projectiles.push(projectile),
-          (type, amount) => this.resources.spend(type, amount),
-          (event) => this.handleCombatSound(event),
-          (from, to) => this.terrainGrid.raycast(from, to) === null,
-        );
-      }
     }
 
     for (let i = this.pickups.length - 1; i >= 0; i--) {
@@ -758,7 +818,12 @@ export class Game {
       return;
     }
 
-    if (this.testScenario !== 'enemy-navigation-fixtures' && this.testScenario !== 'enemy-navigation-worker' && this.testScenario !== 'enemy-collision-stress') {
+    if (
+      this.testScenario !== 'enemy-navigation-fixtures'
+      && this.testScenario !== 'enemy-navigation-worker'
+      && this.testScenario !== 'enemy-collision-stress'
+      && this.testScenario !== 'modern-firearms-stress'
+    ) {
       this.waveManager.update(
         dt,
         this.enemies,
@@ -832,6 +897,22 @@ export class Game {
     }
 
 
+    this.combatSpatialIndex.build(this.enemies);
+    for (const module of this.vehicle.getCombatModules()) {
+      module.update(
+        dt,
+        this.vehicle.getModuleWorldCenter(module),
+        this.vehicle.getModuleFireAngle(module),
+        this.enemies,
+        (projectile) => this.projectiles.push(projectile),
+        (type, amount) => this.resources.spend(type, amount),
+        (event) => this.handleCombatSound(event),
+        (from, to) => this.terrainGrid.raycast(from, to) === null,
+        this.combatSpatialIndex,
+        (effect) => this.addEffect(effect),
+      );
+    }
+
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const projectile = this.projectiles[i];
       projectile.update(
@@ -840,6 +921,7 @@ export class Game {
         (effect) => this.addEffect(effect),
         (event) => this.handleProjectileSound(event),
         this.terrainGrid,
+        this.combatSpatialIndex,
       );
       if (projectile.terrainHitCell) {
         this.recentTerrainHitCell = { ...projectile.terrainHitCell };
@@ -883,6 +965,20 @@ export class Game {
       lastKeyAt: this.input.lastKeyAt,
       movementDistance: this.movementDistance,
       vehicleArmor: this.vehicle.systems.getArmorValue(),
+      combatModules: this.vehicle.getCombatModules().map((module) => ({
+        moduleId: module.moduleId,
+        weaponClass: module.getWeaponClass(),
+        loadedShots: module.getLoadedShots(),
+        magazineSize: module.getMagazineSize(),
+        reloading: module.isReloading(),
+      })),
+      combatEnemies: this.enemies.slice(0, 16).map((enemy) => ({
+        enemyType: enemy.enemyType,
+        armor: enemy.armor,
+        hp: enemy.hp,
+        maxHp: enemy.maxHp,
+      })),
+      liveProjectiles: this.projectiles.length,
       lastMovementInputX: this.lastMovementInput.x,
       lastMovementInputY: this.lastMovementInput.y,
       lastMovementAt: this.lastMovementAt,
@@ -1476,9 +1572,7 @@ export class Game {
   }
 
   private handleCombatSound(event: CombatSoundEvent): void {
-    this.audio.playSfx(
-      event.weapon === 'direct' ? 'sfx.weapon.direct-fire' : 'sfx.weapon.arc-fire'
-    );
+    this.audio.playSfx(event.soundId);
   }
 
   private handleProjectileSound(event: ProjectileSoundEvent): void {

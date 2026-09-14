@@ -1,0 +1,23 @@
+{
+  "id": "tank-gun-76mm",
+  "kind": "combat",
+  "name": "76mm Rifled Gun",
+  "behavior": "direct",
+  "size": { "width": 1, "height": 2 },
+  "installCost": { "matter": 90 },
+  "researchCost": { "matter": 60 },
+  "purchaseCost": { "matter": 90 },
+  "fireArcDegrees": 30,
+  "defaultOrientation": 0,
+  "weaponClass": "tank-gun",
+  "moduleAssetId": "tank.module.modern.rifle-76",
+  "fireSoundId": "sfx.weapon.rifle-76-fire",
+  "fireEffectId": "effect.projectile.direct-hit",
+  "baseStats": { "maxHp": 100, "range": 760, "damage": 100, "fireRate": 0, "projectileSpeed": 900, "maxDistance": 760, "minRange": 120, "penetration": 55, "magazineSize": 1, "reloadTime": 2.8, "aoeRadius": 50 },
+  "upgradeTree": {
+    "rootId": "root",
+    "nodes": [
+      { "id": "root", "parentId": null, "cost": {}, "effects": [] }
+    ]
+  }
+}

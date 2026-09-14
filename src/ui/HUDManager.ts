@@ -99,6 +99,8 @@ export class HUDManager {
   private musicControlRect: Rect | null = null;
   private pointer: { x: number; y: number } | null = null;
   private screenToWorld: ((point: { x: number; y: number }) => { x: number; y: number }) | null = null;
+  private armoryScroll = 0;
+  private armoryMaxScroll = 0;
 
   public setupMouseListeners(
     canvas: HTMLCanvasElement,
@@ -116,6 +118,15 @@ export class HUDManager {
       if (!callbacks.isActive()) return;
       this.updateDragPreview(point, callbacks.getVehicle());
     });
+    canvas.addEventListener('wheel', (event) => {
+      if (!callbacks.isActive()) return;
+      const point = this.toCanvasPoint(canvas, event, viewport);
+      const panelX = viewport.width - HUDManager.PANEL_WIDTH;
+      if (point.x < panelX || this.selectedInstanceId !== callbacks.getVehicle().systems.getInstanceId('armory')) return;
+      if (this.armoryMaxScroll <= 0) return;
+      this.armoryScroll = Math.max(0, Math.min(this.armoryMaxScroll, this.armoryScroll + event.deltaY));
+      event.preventDefault();
+    }, { passive: false });
     canvas.addEventListener('mouseleave', () => {
       this.pointer = null;
       if (this.dragState) this.dragState.previewAnchor = null;
@@ -203,6 +214,8 @@ export class HUDManager {
     this.productionHitboxes = [];
     this.coreHealthHitbox = null;
     this.tooltipTarget = null;
+    this.armoryScroll = 0;
+    this.armoryMaxScroll = 0;
   }
 
   public render(
@@ -895,15 +908,34 @@ export class HUDManager {
     ctx.fillStyle = theme.textSecondary;
     ctx.font = '11px sans-serif';
     ctx.fillText('Research modules, then purchase stock.', panelX + 12, top + 22);
+    const contentTop = top + 34;
+    const contentBottom = canvasHeight - 24;
+    const treeHeight = 210;
+    const cardsTop = contentTop + treeHeight + 8;
+    const cardsHeight = 218;
+    this.armoryMaxScroll = Math.max(0, contentTop + treeHeight + 8 + cardsHeight - contentBottom);
+    this.armoryScroll = Math.min(this.armoryScroll, this.armoryMaxScroll);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(panelX, contentTop, HUDManager.PANEL_WIDTH, Math.max(0, contentBottom - contentTop));
+    ctx.clip();
     this.renderUpgradeWeb(
       render,
       panelX,
-      top + 34,
-      Math.min(canvasHeight - 166, top + 156),
+      contentTop - this.armoryScroll,
+      contentTop + treeHeight - this.armoryScroll,
       vehicle.systems.getInstanceId('armory'),
       storage,
     );
-    this.renderArmoryModuleCards(render, panelX, top + 174, storage);
+    this.renderArmoryModuleCards(render, panelX, cardsTop - this.armoryScroll, storage);
+    ctx.restore();
+    if (this.armoryMaxScroll > 0) {
+      ctx.fillStyle = theme.textMuted;
+      ctx.font = '9px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText('SCROLL FOR STOCK', panelX + HUDManager.PANEL_WIDTH - 12, contentBottom + 14);
+      ctx.textAlign = 'left';
+    }
   }
 
   private renderArmoryModuleCards(
@@ -920,12 +952,17 @@ export class HUDManager {
     ctx.font = 'bold 11px sans-serif';
     ctx.fillText('COMBAT MODULE STOCK', panelX + 12, top);
 
-    const actionButtonWidth = 72;
     const actionButtonGap = 4;
-    const installButtonX = panelX + HUDManager.PANEL_WIDTH - 12 - actionButtonWidth;
-    const purchaseButtonX = installButtonX - actionButtonGap - actionButtonWidth;
+    const cardWidth = (HUDManager.PANEL_WIDTH - 28) / 2;
+    const cardHeight = 38;
+    const columnGap = 4;
+    const rowHeight = 43;
+    const compactButtonWidth = (cardWidth - 10) / 2;
     for (const [index, definition] of armory.getCombatModuleDefinitions().entries()) {
-      const y = top + 8 + index * 38;
+      const column = index % 2;
+      const row = Math.floor(index / 2);
+      const x = panelX + 8 + column * (cardWidth + columnGap);
+      const y = top + 8 + row * rowHeight;
       const researched = armory.isResearched(definition.id);
       const stock = armory.getStock(definition.id);
       const purchaseCost = armory.getPurchaseCost(definition.id);
@@ -933,24 +970,26 @@ export class HUDManager {
       const installEnabled = researched && stock > 0;
       const rowEnabled = purchaseEnabled || installEnabled;
       ctx.fillStyle = rowEnabled ? theme.surfaceAvailable : theme.surfaceDisabled;
-      ctx.fillRect(panelX + 12, y, HUDManager.PANEL_WIDTH - 24, 30);
+      ctx.fillRect(x, y, cardWidth, cardHeight);
       ctx.strokeStyle = rowEnabled ? theme.accent : theme.borderMuted;
       ctx.lineWidth = rowEnabled ? 2 : 1;
-      ctx.strokeRect(panelX + 12, y, HUDManager.PANEL_WIDTH - 24, 30);
-      this.drawIcon(render, this.moduleIcon(definition.id), panelX + 29, y + 15, 0.72);
+      ctx.strokeRect(x, y, cardWidth, cardHeight);
+      this.drawIcon(render, this.moduleIcon(definition.id), x + 14, y + 12, 0.55);
       ctx.fillStyle = rowEnabled ? theme.textPrimary : theme.textDisabled;
-      ctx.font = 'bold 11px sans-serif';
-      ctx.fillText(`${this.truncate(definition.name, 18)} · ${definition.size?.width}x${definition.size?.height}`, panelX + 42, y + 13);
-      ctx.font = '10px sans-serif';
-      ctx.fillText(researched ? `Owned ${stock} · ${this.formatCost(purchaseCost)}` : 'Research required', panelX + 42, y + 24);
-      this.drawArmoryActionButton(ctx, purchaseButtonX, y + 4, actionButtonWidth, 'PURCHASE', purchaseEnabled);
-      this.drawArmoryActionButton(ctx, installButtonX, y + 4, actionButtonWidth, 'INSTALL', installEnabled);
+      ctx.font = 'bold 9px sans-serif';
+      ctx.fillText(this.truncate(definition.name, 13), x + 26, y + 11);
+      ctx.font = '8px monospace';
+      ctx.fillText(researched ? `OWN ${stock} · ${this.formatCost(purchaseCost)}` : 'RESEARCH REQUIRED', x + 26, y + 21);
+      const purchaseButtonX = x + 4;
+      const installButtonX = purchaseButtonX + compactButtonWidth + actionButtonGap;
+      this.drawArmoryActionButton(ctx, purchaseButtonX, y + 24, compactButtonWidth, 'BUY', purchaseEnabled);
+      this.drawArmoryActionButton(ctx, installButtonX, y + 24, compactButtonWidth, 'INSTALL', installEnabled);
       if (purchaseEnabled) {
         this.purchaseHitboxes.push({
           x: purchaseButtonX,
-          y: y + 4,
-          width: actionButtonWidth,
-          height: 22,
+          y: y + 24,
+          width: compactButtonWidth,
+          height: 14,
           moduleId: definition.id,
           action: 'purchase',
         });
@@ -958,9 +997,9 @@ export class HUDManager {
       if (installEnabled) {
         this.purchaseHitboxes.push({
           x: installButtonX,
-          y: y + 4,
-          width: actionButtonWidth,
-          height: 22,
+          y: y + 24,
+          width: compactButtonWidth,
+          height: 14,
           moduleId: definition.id,
           action: 'install',
         });
@@ -978,14 +1017,14 @@ export class HUDManager {
   ): void {
     const theme = VisualTheme.color;
     ctx.fillStyle = enabled ? theme.surfaceSelected : theme.surfaceDisabled;
-    ctx.fillRect(x, y, width, 22);
+    ctx.fillRect(x, y, width, 14);
     ctx.strokeStyle = enabled ? theme.accent : theme.borderMuted;
     ctx.lineWidth = 1;
-    ctx.strokeRect(x, y, width, 22);
+    ctx.strokeRect(x, y, width, 14);
     ctx.fillStyle = enabled ? theme.textPrimary : theme.textDisabled;
-    ctx.font = 'bold 9px monospace';
+    ctx.font = 'bold 7px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(label, x + width / 2, y + 14);
+    ctx.fillText(label, x + width / 2, y + 10);
     ctx.textAlign = 'left';
   }
 
