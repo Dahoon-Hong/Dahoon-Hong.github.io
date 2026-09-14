@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { EnemyNavigationCoordinator } from '../core/EnemyNavigationCoordinator';
 import { TerrainGrid, TerrainMapData } from '../core/TerrainGrid';
 import { TerrainPathfinder } from '../core/TerrainPathfinder';
 import { EnemyDefinition, StandardEnemy, TankerEnemy } from './Enemy';
@@ -32,11 +33,14 @@ describe('Enemy terrain navigation', () => {
   it('follows a path around terrain and never enters a blocked radius', () => {
     const terrain = makeGrid(['.......', '..HHH..', '.......']);
     const pathfinder = new TerrainPathfinder(terrain);
+    const navigation = new EnemyNavigationCoordinator(terrain, pathfinder);
     const enemy = new StandardEnemy(18, 54, definition);
     const target = terrain.cellToWorldCenter({ x: 6, y: 1 });
 
     for (let index = 0; index < 10; index++) {
-      enemy.update(0.1, target, { terrain, pathfinder });
+      const targetCell = terrain.worldToCell(target);
+      navigation.update(0.1, [enemy], targetCell);
+      enemy.update(0.1, target, { terrain, targetCell });
       expect(terrain.isOpenForRadius({ x: enemy.x, y: enemy.y }, enemy.radius, 'enemy')).toBe(true);
     }
 
@@ -47,10 +51,13 @@ describe('Enemy terrain navigation', () => {
   it('stops and retries instead of teleporting when no route exists', () => {
     const terrain = makeGrid(['..H..', '..H..', '..H..', '..H..', '..H..']);
     const pathfinder = new TerrainPathfinder(terrain);
-    const enemy = new TankerEnemy(18, 90, { ...definition, radius: 18 }, 0);
+    const navigation = new EnemyNavigationCoordinator(terrain, pathfinder);
+    const enemy = new TankerEnemy(18, 90, { ...definition, radius: 18 });
     const target = terrain.cellToWorldCenter({ x: 4, y: 2 });
+    const targetCell = terrain.worldToCell(target);
 
-    enemy.update(0.1, target, { terrain, pathfinder });
+    navigation.update(0.1, [enemy], targetCell);
+    enemy.update(0.1, target, { terrain, targetCell });
 
     expect(enemy.x).toBe(18);
     expect(enemy.y).toBe(90);

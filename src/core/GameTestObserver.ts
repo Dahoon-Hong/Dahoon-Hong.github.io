@@ -37,6 +37,11 @@ export interface GameTestSnapshot {
   lastSpawnBatchSize: number;
   lastSpawnAt: number | null;
   lastSpawnTypes: readonly string[];
+  pathSearchesThisFrame?: number;
+  cacheHits?: number;
+  deduplicatedRequests?: number;
+  pendingRequests?: number;
+  maxSearchesThisFrame?: number;
   timestamp: number;
   scenario: string | null;
   resources: Record<string, GameTestResourceSnapshot>;

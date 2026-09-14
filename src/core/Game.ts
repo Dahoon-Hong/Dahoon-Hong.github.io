@@ -23,6 +23,7 @@ import { MapDefinition, mapDefinitionLoader } from './MapDefinitionLoader';
 import { TerrainGrid } from './TerrainGrid';
 import type { TerrainCell } from './TerrainGrid';
 import { TerrainPathfinder } from './TerrainPathfinder';
+import { EnemyNavigationCoordinator } from './EnemyNavigationCoordinator';
 import { SettingsScreen, StartMenu } from '../ui/StartMenu';
 import { CampaignProgress, EMPTY_CAMPAIGN_PROGRESS } from './CampaignProgressStore';
 import { LocalStorageCampaignProgressStore } from './LocalStorageCampaignProgressStore';
@@ -82,6 +83,7 @@ export class Game {
   private readonly settingsScreen = new SettingsScreen();
   private terrainGrid: TerrainGrid;
   private pathfinder: TerrainPathfinder;
+  private readonly enemyNavigation: EnemyNavigationCoordinator;
 
   private screen: AppScreen = AppScreen.START_MENU;
   private state: GameState = GameState.PLAYING;
@@ -107,6 +109,7 @@ export class Game {
   private movementDistance = 0;
   private lastMovementInput = { x: 0, y: 0 };
   private lastMovementAt: number | null = null;
+  private testNavigationElapsed = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -136,6 +139,7 @@ export class Game {
     if (!initialMap) throw new Error('[Game] initial map is missing');
     this.terrainGrid = new TerrainGrid(initialMap);
     this.pathfinder = new TerrainPathfinder(this.terrainGrid);
+    this.enemyNavigation = new EnemyNavigationCoordinator(this.terrainGrid, this.pathfinder);
     this.camera = new Camera(
       this.gameplayWidth,
       this.logicalHeight,
@@ -232,6 +236,7 @@ export class Game {
     this.movementDistance = 0;
     this.lastMovementInput = { x: 0, y: 0 };
     this.lastMovementAt = null;
+    this.testNavigationElapsed = 0;
     this.resources.reset();
     this.camera.snapTo(this.vehicle);
     this.state = GameState.PLAYING;
@@ -462,6 +467,12 @@ export class Game {
     this.resources.add(type, amount);
   }
 
+  private getTestNavigationMovement(dt: number): { x: number; y: number } {
+    this.testNavigationElapsed += dt;
+    // ponytail: a short deterministic sweep is enough to cross cells without adding a test-only input API.
+    return (this.testNavigationElapsed % 0.5) < 0.25 ? { x: 1, y: 0 } : { x: -1, y: 0 };
+  }
+
   private setState(nextState: GameState): void {
     if (this.state === nextState) {
       if (nextState === GameState.PLAYING && this.screen === AppScreen.GAMEPLAY) this.audio.playMusic();
@@ -558,7 +569,9 @@ export class Game {
       return;
     }
     const isPaused = this.state === GameState.PAUSED;
-    const movementInput = this.input.getMovementVector();
+    const movementInput = this.testScenario === 'enemy-navigation'
+      ? this.getTestNavigationMovement(dt)
+      : this.input.getMovementVector();
     this.movementInput = isPaused ? { x: 0, y: 0 } : movementInput;
     if (!isPaused) this.recentTerrainHitTimer = Math.max(0, this.recentTerrainHitTimer - dt);
 
@@ -629,6 +642,8 @@ export class Game {
     }
 
     const corePos = { x: this.vehicle.x, y: this.vehicle.y };
+    const targetCell = this.terrainGrid.worldToCell(corePos);
+    this.enemyNavigation.update(dt, this.enemies, targetCell);
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const enemy = this.enemies[i];
       const previousPos = { x: enemy.x, y: enemy.y };
@@ -641,8 +656,7 @@ export class Game {
 
       enemy.update(dt, corePos, {
         terrain: this.terrainGrid,
-        pathfinder: this.pathfinder,
-        targetCell: this.terrainGrid.worldToCell(corePos),
+        targetCell,
       });
       if (this.resolveEnemyAgainstGrid(enemy, this.vehicle.getGridBounds(), previousPos) && enemy.tryContactDamage()) {
         this.vehicle.takeDamage(enemy.contactDamage, 0, { x: enemy.x - corePos.x, y: enemy.y - corePos.y });
@@ -687,6 +701,7 @@ export class Game {
   private publishTestSnapshot(): void {
     if (!this.testObserver.isEnabled()) return;
     const liveEnemyCount = this.enemies.reduce((count, enemy) => count + (enemy.isDead() ? 0 : 1), 0);
+    const navigationStats = this.enemyNavigation.getStats();
     this.testObserver.update({
       scenario: this.testScenario,
       screen: this.screen,
@@ -711,6 +726,11 @@ export class Game {
       lastSpawnBatchSize: this.waveManager.lastSpawnBatchSize,
       lastSpawnAt: this.waveManager.lastSpawnAt,
       lastSpawnTypes: [...this.waveManager.lastSpawnTypes],
+      pathSearchesThisFrame: navigationStats.pathSearchesThisFrame,
+      cacheHits: navigationStats.cacheHitsThisFrame,
+      deduplicatedRequests: navigationStats.deduplicatedRequestsThisFrame,
+      pendingRequests: navigationStats.pendingRequests,
+      maxSearchesThisFrame: navigationStats.maxSearchesThisFrame,
       resources: Object.fromEntries(RESOURCE_TYPES.map((type) => [type, {
         amount: this.resources.get(type),
         capacity: this.resources.getCapacity(type),
@@ -1103,6 +1123,7 @@ export class Game {
   private setTerrainContext(map: MapDefinition): void {
     this.terrainGrid = new TerrainGrid(map);
     this.pathfinder = new TerrainPathfinder(this.terrainGrid);
+    this.enemyNavigation.setContext(this.terrainGrid, this.pathfinder);
     this.camera.setWorldSize(this.terrainGrid.width, this.terrainGrid.height);
   }
 

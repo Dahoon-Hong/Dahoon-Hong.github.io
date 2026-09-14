@@ -1,0 +1,7 @@
+{
+  "repathInterval": 0.25,
+  "pathValidationInterval": 0.25,
+  "maxPathSearchesPerFrame": 1,
+  "maxPathValidationsPerFrame": 4,
+  "pathCacheSize": 256
+}
