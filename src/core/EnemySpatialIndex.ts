@@ -30,18 +30,22 @@ export class EnemySpatialIndex {
   }
 
   public query(enemy: Enemy, maxResults: number): Enemy[] {
+    return this.queryAt({ x: enemy.x, y: enemy.y }, maxResults, enemy);
+  }
+
+  public queryAt(point: { x: number; y: number }, maxResults: number, excluded?: Enemy): Enemy[] {
     if (maxResults <= 0) return [];
 
-    const centerX = Math.floor(enemy.x / this.bucketSize);
-    const centerY = Math.floor(enemy.y / this.bucketSize);
+    const centerX = Math.floor(point.x / this.bucketSize);
+    const centerY = Math.floor(point.y / this.bucketSize);
     const candidates: EnemyCandidate[] = [];
     for (let y = centerY - 1; y <= centerY + 1; y++) {
       for (let x = centerX - 1; x <= centerX + 1; x++) {
         for (const other of this.buckets.get(`${x},${y}`) ?? []) {
-          if (other === enemy || other.isDead()) continue;
+          if (other === excluded || other.isDead()) continue;
           candidates.push({
             enemy: other,
-            distance: Math.hypot(enemy.x - other.x, enemy.y - other.y),
+            distance: Math.hypot(point.x - other.x, point.y - other.y),
           });
         }
       }

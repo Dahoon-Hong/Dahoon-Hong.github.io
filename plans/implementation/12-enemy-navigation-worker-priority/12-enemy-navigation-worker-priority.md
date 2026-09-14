@@ -331,6 +331,25 @@ DEV observer에 다음 값을 추가한다.
 - 필요 시 F3에는 aggregate 값만 추가하고, 적별 debug는 기존 DEV observer
   계약 안에서만 유지한다.
 
+### 12.5.1 적 충돌 보정 후속
+
+스크린샷 QA에서 차량에 밀린 적이 벽에 끼이거나 spawn 군집이 겹치는 현상을
+확인해 다음 보정을 같은 plan의 후속 범위로 추가한다.
+
+- `EnemyCollisionResolver`가 차량 충돌 보정 후보를 `TerrainGrid`의 enemy
+  반경 기준 safe progress로 클리핑해 적이 벽 뒤로 이동하지 않게 한다.
+- 기존 `EnemySpatialIndex`를 broadphase로 재사용해 적 간 겹침을 이동 전·후에
+  bounded pass로 보정한다. exact-overlap spawn은 결정론적 방향과 대체 각도
+  probe로 강제 분산한다.
+- 충돌 보정은 별도 Worker/thread를 늘리지 않고 메인 게임 루프의 짧은 위치
+  보정으로 처리해 pathfinding Worker의 책임과 queue 계약을 유지한다.
+
+단위 테스트:
+
+- 차량이 적을 벽 방향으로 밀어도 최종 위치가 enemy terrain footprint를
+  침범하지 않는다.
+- 같은 위치에서 생성된 적 군집이 보정 후 서로 겹치지 않고 모두 terrain-safe다.
+
 ### 12.6 검증 명령과 runtime QA
 
 node_modules가 없는 환경에서는 구현 검증 전에 npm ci를 실행해 package-lock의
@@ -342,9 +361,11 @@ vitest, TypeScript, Vite 의존성을 복원한다. 이후 다음 명령을 실�
 
 오케스트레이터는 현재 plan worktree의 실제 Vite URL·port와 고유 runtimeId를
 integration-tester에 전달한다. tester는 별도 서버를 만들거나 다른 port를
-찾지 않는다. 단일 QA 실행 timeout은 최대 300,000ms다.
+찾지 않는다. 정상 검증은 60,000ms 내 결론을 기대하며, 단일 QA 실행 timeout은
+최대 240,000ms다. 제품 동작 현상이 확인되면 최소 증거를 남기고 즉시 `FAIL`로
+종료한다.
 
-## 3~4분 runtime 시나리오
+## 약 1분 기대, 최대 4분 runtime 시나리오
 
 필수 URL:
 
@@ -365,13 +386,13 @@ worker=off는 선택 비교용으로 두고, worker=on 실행을 필수 성능 �
 
 시간 순서:
 
-- 0:00~0:20: fixture 초기화, Worker init, armor 100, 적 수와 revision 기록
-- 0:20~1:00: 적이 시야 밖에서 생성되고 카메라 영역에 진입
-- 1:00~2:20: 차량을 좌우로 반복 이동시켜 시야 진입과 target cell 변경을 발생
-- 2:20~3:20: 좁은 지형·군집에서 blocked priority path, separation, stuck recovery를
-  관측
-- 3:20~4:00: queue, main navigation time, stale result, console error와 최종
-  movement 상태를 확인
+- 0:00~0:15: fixture 초기화, Worker init, armor 100, 적 수와 revision 기록
+- 0:15~0:45: 적이 시야 밖에서 생성되고 카메라 영역에 진입하는 동안 핵심 이동·충돌
+  기준을 확인
+- 0:45~1:00: 차량 이동, queue, stuck recovery, console과 최종 movement 상태를
+  확인하고 결론
+- 1:00~4:00: 1분 내 결론이 불가능한 환경 지연이나 증거 부족이 있을 때만 연장한다.
+  제품 동작 현상이 확인되면 이 구간에 진입하지 않고 즉시 `FAIL`로 종료한다.
 
 통과 기준:
 
@@ -423,6 +444,8 @@ worker=off는 선택 비교용으로 두고, worker=on 실행을 필수 성능 �
 - src/entities/Enemy.ts
 - src/entities/Enemy.test.ts
 - src/core/Game.ts
+- src/core/EnemyCollisionResolver.ts
+- src/core/EnemyCollisionResolver.test.ts
 - src/core/GameTestScenario.ts
 - src/core/GameTestObserver.ts
 - src/core/GameTestObserver.test.ts
