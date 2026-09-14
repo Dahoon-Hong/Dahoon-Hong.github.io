@@ -5,9 +5,9 @@ describe('modern firearms tank data', () => {
   it('loads all nine modern tank weapons with the approved contracts', () => {
     const tank = new TankDefinitionLoader().getDefault();
     const expected = {
-      'direct-weapon': ['machine-gun', 1, 1, 360, 0, 24],
+      'direct-weapon': ['machine-gun', 1, 1, 360, 0, 20],
       'machine-gun-20mm': ['machine-gun', 1, 1, 360, 0, 15],
-      'machine-gun-30mm': ['machine-gun', 1, 1, 360, 0, 8],
+      'machine-gun-30mm': ['machine-gun', 1, 1, 360, 0, 10],
       'tank-gun-76mm': ['tank-gun', 1, 2, 30, 120, 1],
       'tank-gun-90mm': ['tank-gun', 1, 2, 30, 150, 1],
       'tank-gun-120mm': ['tank-gun', 1, 2, 30, 190, 1],

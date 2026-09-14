@@ -82,9 +82,10 @@ describe('combat terrain targeting', () => {
     expect(weapon.getFireRate()).toBe(0.2);
   });
 
-  it('fires a magazine, then reloads without reserving ammo', () => {
+  it('fires a magazine, then spends one ammo to reload', () => {
     const definition: TankModuleDefinition = {
       ...weaponDefinition,
+      weaponClass: 'machine-gun',
       baseStats: {
         ...weaponDefinition.baseStats,
         fireRate: 0.1,
@@ -111,16 +112,102 @@ describe('combat terrain targeting', () => {
 
     fire(0.01);
     expect(weapon.getLoadedShots()).toBe(1);
+    expect(spent).toBe(0);
     fire(0.1);
     expect(weapon.getLoadedShots()).toBe(0);
     expect(weapon.isReloading()).toBe(true);
-    expect(spent).toBe(2);
+    expect(spent).toBe(1);
     expect(spawned).toBe(2);
     fire(0.5);
-    expect(spent).toBe(2);
+    expect(spent).toBe(1);
     fire(0.5);
-    expect(spent).toBe(3);
+    expect(spent).toBe(1);
     expect(weapon.getLoadedShots()).toBe(1);
+  });
+
+  it('spends one ammo for each single-shot weapon round', () => {
+    const definition: TankModuleDefinition = {
+      ...weaponDefinition,
+      weaponClass: 'tank-gun',
+      baseStats: {
+        ...weaponDefinition.baseStats,
+        fireRate: 0,
+        magazineSize: 1,
+        reloadTime: 1,
+        penetration: 10,
+      },
+    };
+    const upgrades = new UpgradeManager({ 'single-shot-test': definition });
+    upgrades.registerInstance('single-shot-test#1', 'single-shot-test');
+    const weapon = new DirectWeaponModule(definition, 'single-shot-test#1', { x: 0, y: 0 }, upgrades);
+    const target = new StandardEnemy(100, 0, enemyDefinition);
+    let spent = 0;
+    let spawned = 0;
+
+    weapon.update(
+      0.01,
+      { x: 0, y: 0 },
+      0,
+      [target],
+      () => { spawned++; },
+      () => { spent++; return true; },
+      () => undefined,
+    );
+
+    expect(spent).toBe(1);
+    expect(spawned).toBe(1);
+    expect(weapon.getLoadedShots()).toBe(0);
+    expect(weapon.isReloading()).toBe(true);
+  });
+
+  it('keeps a machine-gun empty when reload ammo is unavailable', () => {
+    const definition: TankModuleDefinition = {
+      ...weaponDefinition,
+      weaponClass: 'machine-gun',
+      baseStats: {
+        ...weaponDefinition.baseStats,
+        fireRate: 0,
+        magazineSize: 1,
+        reloadTime: 1,
+        penetration: 10,
+      },
+    };
+    const upgrades = new UpgradeManager({ 'empty-magazine-test': definition });
+    upgrades.registerInstance('empty-magazine-test#1', 'empty-magazine-test');
+    const weapon = new DirectWeaponModule(definition, 'empty-magazine-test#1', { x: 0, y: 0 }, upgrades);
+    const target = new StandardEnemy(100, 0, enemyDefinition);
+    let ammoAvailable = false;
+    let reloadAttempts = 0;
+    let spawned = 0;
+    const fire = (dt: number) => weapon.update(
+      dt,
+      { x: 0, y: 0 },
+      0,
+      [target],
+      () => { spawned++; },
+      () => {
+        reloadAttempts++;
+        return ammoAvailable;
+      },
+      () => undefined,
+    );
+
+    fire(0.01);
+    expect(spawned).toBe(1);
+    expect(weapon.getLoadedShots()).toBe(0);
+    expect(weapon.isReloading()).toBe(false);
+    expect(reloadAttempts).toBe(1);
+
+    fire(0.01);
+    expect(spawned).toBe(1);
+    expect(reloadAttempts).toBe(2);
+
+    ammoAvailable = true;
+    fire(0.01);
+    expect(spawned).toBe(1);
+    expect(weapon.isReloading()).toBe(true);
+    fire(1);
+    expect(spawned).toBe(2);
   });
 
   it('does not fire a minimum-range weapon at a target inside its dead zone', () => {
