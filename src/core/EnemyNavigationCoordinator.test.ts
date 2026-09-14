@@ -4,6 +4,7 @@ import {
   ENEMY_NAVIGATION_POLICY,
   validateEnemyNavigationPolicy,
 } from './EnemyNavigationCoordinator';
+import type { EnemyNavigationTarget } from './EnemyNavigationCoordinator';
 import { TerrainGrid, TerrainMapData } from './TerrainGrid';
 import { TerrainPathfinder } from './TerrainPathfinder';
 import { EnemyDefinition, StandardEnemy, TankerEnemy } from '../entities/Enemy';
@@ -38,7 +39,121 @@ const policy = (overrides: Partial<typeof ENEMY_NAVIGATION_POLICY> = {}) => ({
   ...overrides,
 });
 
+const makeNavigationTarget = (
+  point = { x: 126, y: 126 },
+  bounds = { left: 90, top: 90, right: 162, bottom: 162 },
+): EnemyNavigationTarget => ({
+  point,
+  cell: { x: 3, y: 3 },
+  engagementBounds: bounds,
+});
+
 describe('EnemyNavigationCoordinator', () => {
+  it('uses an approach slot and local steering near the vehicle without searching', () => {
+    const terrain = makeGrid(['.......', '.......', '.......', '.......', '.......', '.......', '.......']);
+    const pathfinder = new TerrainPathfinder(terrain);
+    const spy = vi.spyOn(pathfinder, 'findPath');
+    const coordinator = new EnemyNavigationCoordinator(terrain, pathfinder);
+    const enemy = new StandardEnemy(126, 50, definition);
+
+    coordinator.update(0.1, [enemy], makeNavigationTarget());
+    const directive = coordinator.getDirective(enemy);
+    const previousY = enemy.y;
+    enemy.update(0.1, { x: 126, y: 126 }, {
+      terrain,
+      directive: directive ?? undefined,
+      nearbyEnemies: [enemy],
+    });
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(directive?.mode).toBe('local');
+    expect(directive?.targetCell).not.toEqual({ x: 3, y: 3 });
+    expect(directive?.targetPoint?.y).toBeLessThan(126);
+    expect(enemy.y).toBeGreaterThan(previousY);
+    expect(coordinator.getStats().localSteeringAgents).toBe(1);
+    expect(coordinator.getStats().pathSearchesThisFrame).toBe(0);
+    const snapshot = coordinator.getAgentSnapshots([enemy])[0];
+    expect(snapshot).toMatchObject({
+      mode: 'local',
+      directApproachClear: true,
+      terrainSafe: true,
+      pathSearchesThisFrame: 0,
+    });
+    expect(snapshot.movementDistance).toBeGreaterThan(0);
+    expect(snapshot.steeringDirection).not.toBeNull();
+  });
+
+  it('tracks a moving target point inside the same cell without restarting A*', () => {
+    const terrain = makeGrid(['.......', '.......', '.......', '.......', '.......', '.......', '.......']);
+    const pathfinder = new TerrainPathfinder(terrain);
+    const spy = vi.spyOn(pathfinder, 'findPath');
+    const coordinator = new EnemyNavigationCoordinator(terrain, pathfinder);
+    const enemy = new StandardEnemy(126, 50, definition);
+
+    coordinator.update(0.1, [enemy], makeNavigationTarget());
+    const firstPoint = coordinator.getDirective(enemy)?.targetPoint;
+    coordinator.update(0.1, [enemy], makeNavigationTarget(
+      { x: 132, y: 126 },
+      { left: 96, top: 90, right: 168, bottom: 162 },
+    ));
+    const secondDirective = coordinator.getDirective(enemy);
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(secondDirective?.mode).toBe('local');
+    expect(secondDirective?.targetPoint).not.toEqual(firstPoint);
+    expect(secondDirective?.targetCell).not.toEqual({ x: 3, y: 3 });
+  });
+
+  it('keeps a local stall event visible while rotating the approach slot', () => {
+    const terrain = makeGrid(['.......', '.......', '.......', '.......', '.......', '.......', '.......']);
+    const pathfinder = new TerrainPathfinder(terrain);
+    const coordinator = new EnemyNavigationCoordinator(terrain, pathfinder);
+    const enemy = new StandardEnemy(108, 30, { ...definition, speed: 0 });
+    let snapshot = coordinator.getAgentSnapshots([])[0];
+
+    for (let index = 0; index < 4; index++) {
+      coordinator.update(0.1, [enemy], makeNavigationTarget());
+      snapshot = coordinator.getAgentSnapshots([enemy])[0];
+      enemy.update(0.1, { x: 126, y: 126 }, {
+        terrain,
+        directive: coordinator.getDirective(enemy) ?? undefined,
+        nearbyEnemies: [enemy],
+      });
+    }
+
+    expect(snapshot.stuckEvent).toBe(true);
+    expect(snapshot.stuckReported).toBe(true);
+    expect(snapshot.slotIndex).toBeGreaterThan(0);
+    expect(coordinator.getStats().stuckAgents).toBe(1);
+  });
+
+  it('recovers a stalled local agent after its movement resumes', () => {
+    const terrain = makeGrid(Array.from({ length: 20 }, () => '.'.repeat(20)));
+    const pathfinder = new TerrainPathfinder(terrain);
+    const coordinator = new EnemyNavigationCoordinator(terrain, pathfinder);
+    const enemy = new StandardEnemy(387.6, 296.4, { ...definition, speed: 0 });
+    const target = makeNavigationTarget({ x: 342, y: 342 }, { left: 306, top: 306, right: 378, bottom: 378 });
+    let sawStuck = false;
+    let sawRecovery = false;
+
+    for (let index = 0; index < 10; index++) {
+      if (index === 5) enemy.speed = definition.speed;
+      coordinator.update(0.1, [enemy], target);
+      const snapshot = coordinator.getAgentSnapshots([enemy])[0];
+      sawStuck ||= snapshot.stuckEvent;
+      sawRecovery ||= snapshot.movementDistance > 0;
+      enemy.update(0.1, target.point, {
+        terrain,
+        directive: coordinator.getDirective(enemy) ?? undefined,
+        nearbyEnemies: [enemy],
+      });
+    }
+
+    expect(sawStuck).toBe(true);
+    expect(sawRecovery).toBe(true);
+    expect(coordinator.getAgentSnapshots([enemy])[0].recoveredAfterStuck).toBe(true);
+  });
+
   it('deduplicates equal requests and applies one route to every requester', () => {
     const terrain = makeGrid(['.......', '..HHH..', '.......']);
     const pathfinder = new TerrainPathfinder(terrain);
@@ -218,5 +333,9 @@ describe('EnemyNavigationCoordinator', () => {
       ...ENEMY_NAVIGATION_POLICY,
       pathValidationInterval: -1,
     })).toThrow('pathValidationInterval');
+    expect(() => validateEnemyNavigationPolicy({
+      ...ENEMY_NAVIGATION_POLICY,
+      localSteeringExitDistance: ENEMY_NAVIGATION_POLICY.localSteeringEnterDistance - 1,
+    })).toThrow('localSteeringExitDistance');
   });
 });
