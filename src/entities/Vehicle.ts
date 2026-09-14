@@ -16,6 +16,7 @@ export interface VehicleUpdateBounds {
 export interface VehicleOptions {
   terrainFootprintScale?: number;
   terrainFootprintShape?: TerrainFootprintShape;
+  armorOverride?: number;
 }
 
 export class Vehicle {
@@ -40,7 +41,7 @@ export class Vehicle {
     this.y = startY;
     this.terrainFootprintScale = options.terrainFootprintScale ?? 1;
     this.terrainFootprintShape = options.terrainFootprintShape ?? 'rect';
-    this.systems = new VehicleSystems(definition, upgrades);
+    this.systems = new VehicleSystems(definition, upgrades, options.armorOverride);
     this.combatGrid = new CombatGrid(definition.grid, definition.modules, upgrades);
     this.combatGrid.installInitial(definition.initialCombatModules);
   }

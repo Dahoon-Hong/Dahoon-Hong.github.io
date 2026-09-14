@@ -56,6 +56,17 @@ describe('TerrainGrid', () => {
     expect(grid.isBlockedAabb({ left: -1, top: 0, right: 20, bottom: 20 }, 'tank')).toBe(true);
   });
 
+  it('exports an isolated serializable terrain snapshot', () => {
+    const grid = new TerrainGrid(map);
+
+    const snapshot = grid.toData();
+    snapshot.terrain.rows![0] = 'HHHHH';
+    snapshot.terrainTypes.open.blocks.enemy = true;
+
+    expect(grid.getTerrainTypeId({ x: 0, y: 0 })).toBe('open');
+    expect(grid.isOpenForRadius({ x: 18, y: 18 }, 4, 'enemy')).toBe(true);
+  });
+
   it('returns the first terrain hit for a swept segment', () => {
     const grid = new TerrainGrid({
       ...map,

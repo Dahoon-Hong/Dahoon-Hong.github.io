@@ -50,12 +50,30 @@ export interface GameTestSnapshot {
   pendingNavigationAgents?: number;
   oldestPendingRequestAge?: number;
   localSteeringTransitionsThisFrame?: number;
+  visibleAgents?: number;
+  visibleImmediateFollowTransitions?: number;
+  visibleBlockedAgents?: number;
+  navigationMainMs?: number;
+  navigationMainMsMax?: number;
+  workerEnabled?: boolean;
+  workerDispatchesThisFrame?: number;
+  workerJobsInFlight?: number;
+  workerQueueDepth?: number;
+  workerResultsThisFrame?: number;
+  workerStaleResultsThisFrame?: number;
+  workerFallbackCount?: number;
+  oldestWorkerRequestAge?: number;
+  neighborCandidatesTotal?: number;
+  neighborCandidatesMax?: number;
+  stoppedAgentsByReason?: Readonly<Record<string, number>>;
   enemyNavigationAgents?: readonly EnemyNavigationAgentSnapshot[];
   timestamp: number;
   scenario: string | null;
   resources: Record<string, GameTestResourceSnapshot>;
   production: readonly GameTestProductionSnapshot[];
   armoryStock: Record<string, number>;
+  mapId?: string | null;
+  vehicleArmor?: number;
 }
 
 type LegacyGameTestSnapshot = Omit<GameTestSnapshot, 'scenario' | 'resources' | 'production' | 'armoryStock'>;

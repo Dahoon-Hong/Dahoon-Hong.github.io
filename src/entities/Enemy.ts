@@ -43,6 +43,7 @@ export interface EnemyNavigationTelemetry {
   steeringDirection: TerrainPoint | null;
   blockedProbeCount: number;
   stopped: boolean;
+  stoppedReason: 'arrival' | 'blocked' | 'pending-path' | null;
 }
 
 export abstract class Enemy {
@@ -73,6 +74,7 @@ export abstract class Enemy {
     steeringDirection: null,
     blockedProbeCount: 0,
     stopped: false,
+    stoppedReason: null,
   };
 
   constructor(
@@ -156,6 +158,7 @@ export abstract class Enemy {
       steeringDirection: null,
       blockedProbeCount: 0,
       stopped: false,
+      stoppedReason: null,
     };
     this.contactDamageTimer = Math.max(0, this.contactDamageTimer - dt);
     this.hitTimer = Math.max(0, this.hitTimer - dt);
@@ -182,8 +185,17 @@ export abstract class Enemy {
       : navigation.targetCell ?? navigation.terrain.worldToCell(targetPos);
     const enemyCell = navigation.terrain.worldToCell({ x: this.x, y: this.y });
     if (targetCell === null || !enemyCell) return;
-    if (directive?.mode === 'repath') return;
     const currentPath = this.path.slice(this.waypointIndex);
+    if (directive?.mode === 'repath' && currentPath.length === 0) {
+      const previous = { x: this.x, y: this.y };
+      this.updateWithLocalSteering(dt, directive, navigation);
+      if (this.x === previous.x && this.y === previous.y && !this.navigationTelemetry.stopped) {
+        this.navigationTelemetry.stoppedReason = this.navigationTelemetry.blockedProbeCount > 0
+          ? 'blocked'
+          : 'pending-path';
+      }
+      return;
+    }
     if (currentPath.length > 0) {
       const waypoint = navigation.terrain.cellToWorldCenter(currentPath[0]);
       if (this.moveToward(waypoint, dt, navigation.terrain)) this.waypointIndex++;
@@ -210,6 +222,7 @@ export abstract class Enemy {
     const distance = Math.hypot(toTarget.x, toTarget.y);
     if (distance <= directive.stopDistance) {
       this.navigationTelemetry.stopped = true;
+      this.navigationTelemetry.stoppedReason = 'arrival';
       return;
     }
 

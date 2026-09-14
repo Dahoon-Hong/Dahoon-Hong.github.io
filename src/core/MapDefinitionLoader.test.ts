@@ -176,20 +176,18 @@ describe('MapDefinitionLoader', () => {
     }), noAssets)).toThrow(/inside the world bounds/);
   });
 
-  it('loads every production map and the terrain test map at the explicit world size', () => {
-    expect(mapDefinitionLoader.getAll()).toHaveLength(5);
+  it('loads the canonical development map and scenario maps at the explicit world size', () => {
+    expect(mapDefinitionLoader.getAll()).toHaveLength(4);
     const expectedRegionCounts: Record<string, number> = {
       'aurelia/relay-fields': 4,
       'cinder/ash-basin': 4,
       'cinder/core-ruins': 7,
-      'test/terrain-test': 11,
     };
     const expectedWorlds = {
       'aurelia/landing-zone': { cellSize: 18, columns: 160, rows: 120 },
       'aurelia/relay-fields': { cellSize: 36, columns: 80, rows: 60 },
       'cinder/ash-basin': { cellSize: 36, columns: 80, rows: 60 },
       'cinder/core-ruins': { cellSize: 36, columns: 80, rows: 60 },
-      'test/terrain-test': { cellSize: 36, columns: 80, rows: 60 },
     } as const;
     for (const map of mapDefinitionLoader.getAll()) {
       expect(map.world).toEqual(expectedWorlds[map.mapId as keyof typeof expectedWorlds]);
@@ -215,8 +213,8 @@ describe('MapDefinitionLoader', () => {
       expect(map.enemySpawnCells.length).toBeGreaterThanOrEqual(3);
       expect(mapDefinitionLoader.getAccessiblePickupCells(map.mapId, 10)).not.toHaveLength(0);
     }
-    expect(mapDefinitionLoader.getById('test/terrain-test')?.gameplay.campaign).toBe(false);
-    expect(mapDefinitionLoader.getById('test/terrain-test')?.artwork).toEqual({
+    expect(mapDefinitionLoader.getById('aurelia/landing-zone')?.gameplay.campaign).toBe(false);
+    expect(mapDefinitionLoader.getById('aurelia/landing-zone')?.artwork).toEqual({
       worldSize: { width: 2880, height: 2160 },
       origin: { x: 0, y: 0 },
     });
