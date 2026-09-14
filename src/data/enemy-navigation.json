@@ -10,5 +10,12 @@
   "localSteeringStuckDuration": 0.2,
   "localSteeringGracePeriod": 0.15,
   "separationWeight": 0.3,
-  "maxNearbyEnemies": 8
+  "maxNearbyEnemies": 8,
+  "spatialCellSize": 72,
+  "workerEnabled": true,
+  "workerDispatchInterval": 0.05,
+  "maxWorkerJobsPerBatch": 4,
+  "maxWorkerInFlightJobs": 8,
+  "maxWorkerQueueDepth": 64,
+  "maxNavigationMainThreadMs": 4
 }

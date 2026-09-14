@@ -5,6 +5,7 @@ export const GAME_TEST_SCENARIOS = [
   'armory-install',
   'enemy-navigation',
   'enemy-navigation-fixtures',
+  'enemy-navigation-worker',
   'terminal-game-over',
   'terminal-region',
 ] as const;
@@ -19,6 +20,11 @@ export function getGameTestScenario(): GameTestScenario | null {
 
   const scenario = params.get('scenario');
   return isGameTestScenario(scenario) ? scenario : null;
+}
+
+export function getGameTestWorkerEnabled(): boolean {
+  if (typeof window === 'undefined' || !import.meta.env.DEV) return true;
+  return new URLSearchParams(window.location.search).get('worker') !== 'off';
 }
 
 function isGameTestScenario(value: string | null): value is GameTestScenario {

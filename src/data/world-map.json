@@ -4,10 +4,10 @@
     {
       "id": "landing-zone",
       "mapId": "aurelia/landing-zone",
-      "label": "AURELIA // LANDING ZONE",
+      "label": "TEST RANGE // LANDING ZONE",
       "position": { "x": 0.32, "y": 0.66 },
-      "nextMapId": "aurelia/relay-fields",
-      "test": false
+      "nextMapId": null,
+      "test": true
     },
     {
       "id": "relay-fields",
@@ -32,14 +32,6 @@
       "position": { "x": 0.78, "y": 0.25 },
       "nextMapId": null,
       "test": false
-    },
-    {
-      "id": "terrain-test",
-      "mapId": "test/terrain-test",
-      "label": "TEST RANGE // TERRAIN",
-      "position": { "x": 0.12, "y": 0.80 },
-      "nextMapId": null,
-      "test": true
     }
   ]
 }

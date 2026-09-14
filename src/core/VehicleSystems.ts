@@ -32,13 +32,17 @@ const PRODUCTION_MODULE_IDS = ['resource-generator', ...Object.keys(PRODUCTION_R
 export class VehicleSystems {
   private readonly definition: TankDefinition;
   private readonly upgrades: UpgradeManager;
+  private readonly armorOverride: number | null;
   private readonly timers = new Map<string, number>();
   private readonly outputs = new Map<string, number>();
   private coreHp: number;
 
-  constructor(definition: TankDefinition, upgrades: UpgradeManager) {
+  constructor(definition: TankDefinition, upgrades: UpgradeManager, armorOverride?: number) {
     this.definition = definition;
     this.upgrades = upgrades;
+    this.armorOverride = armorOverride !== undefined && Number.isFinite(armorOverride)
+      ? Math.max(0, armorOverride)
+      : null;
 
     for (const moduleId of definition.builtinModuleIds) {
       upgrades.registerInstance(this.getInstanceId(moduleId), moduleId);
@@ -111,7 +115,8 @@ export class VehicleSystems {
   }
 
   public getArmorValue(): number {
-    return this.getStat('armor-plate', 'armorValue', 0);
+    // ponytail: keep test-map survivability at the Vehicle boundary; production upgrade data stays unchanged.
+    return this.armorOverride ?? this.getStat('armor-plate', 'armorValue', 0);
   }
 
   public update(

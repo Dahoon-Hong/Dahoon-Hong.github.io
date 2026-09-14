@@ -38,7 +38,19 @@ const rectangularDefinition: TankDefinition = {
   grid: { columns: 2, rows: 4, blockedCells: [] },
 };
 
-describe('Vehicle terrain movement', () => {
+describe('Vehicle terrain movement and damage', () => {
+  it('uses a test-map armor override without changing upgrade stats', () => {
+    const vehicle = new Vehicle(90, 180, definition, new UpgradeManager(definition.modules), {
+      armorOverride: 100,
+    });
+
+    expect(vehicle.systems.getArmorValue()).toBe(100);
+    vehicle.takeDamage(99);
+    expect(vehicle.getCoreHp()).toBe(100);
+    vehicle.takeDamage(101);
+    expect(vehicle.getCoreHp()).toBe(99);
+  });
+
   it('stops at a wall while allowing the unblocked axis to slide', () => {
     const vehicle = new Vehicle(90, 180, definition, new UpgradeManager(definition.modules));
     const grid = new TerrainGrid(terrain);
@@ -171,9 +183,9 @@ describe('Vehicle terrain movement', () => {
     expect(circleVehicle.isTerrainPositionValid({ x: circleVehicle.x, y: circleVehicle.y }, grid)).toBe(true);
   });
 
-  it('moves from the terrain test map start through open terrain', () => {
-    const map = mapDefinitionLoader.getById('test/terrain-test');
-    if (!map) throw new Error('terrain test map is missing');
+  it('moves from the canonical development map start through open terrain', () => {
+    const map = mapDefinitionLoader.getById('aurelia/landing-zone');
+    if (!map) throw new Error('canonical development map is missing');
     const grid = new TerrainGrid(map);
     const tankDefinition = new TankDefinitionLoader().getDefault();
     const start = grid.cellToWorldCenter(map.tankStartCell);

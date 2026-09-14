@@ -217,7 +217,7 @@ The Plan 26 hill sprite entries above were retired in Plan 27.5 after all maps m
 
 Plan 27.5에서 hill 타일 두 종류와 맵별 hill sprite 참조를 제거했다. 아래 월드 크기 이미지가 캠페인 맵의 배경과 표시 경계를 함께 담당한다. 현재는 `aurelia/landing-zone`에 한해 `maps.json`의 18px tile rows가 이미지와 같은 좌표의 지형 판정에 사용되며, 나머지 맵은 기존 `terrain.regions` 계약을 유지한다.
 
-### Plan 27.5 캠페인 맵 결과
+### Plan 27.5 맵 결과
 
 | Map ID | Source | Runtime file | Logical draw box |
 | --- | --- | --- | ---: |
@@ -226,7 +226,7 @@ Plan 27.5에서 hill 타일 두 종류와 맵별 hill sprite 참조를 제거했
 | `cinder/ash-basin` | `scripts/map-source/cinder-ash-basin-background.png` + polygon overlay | `public/assets/game/maps/cinder-ash-basin-map.png` | 2880x2160 |
 | `cinder/core-ruins` | `scripts/map-source/cinder-core-ruins-background.png` + polygon overlay | `public/assets/game/maps/cinder-core-ruins-map.png` | 2880x2160 |
 
-`scripts/generate-campaign-terrain-maps.ps1`는 기존 지역 색감과 `maps.json`의 지형 정의를 한 번에 rasterize한다. `aurelia/landing-zone`은 tile row를 셀 단위로 채우고 외곽 림만 그리며, 나머지 캠페인 맵은 polygon을 사용한다. 캠페인과 테스트 맵 모두 배경을 반복하지 않고, tiles/props/hill sprite를 별도 장애물처럼 얹지 않는다.
+`scripts/generate-campaign-terrain-maps.ps1`는 기존 지역 색감과 `maps.json`의 지형 정의를 한 번에 rasterize한다. `aurelia/landing-zone`은 tile row를 셀 단위로 채우고 외곽 림만 그리며, 나머지 맵은 polygon을 사용한다. 현재 `aurelia/landing-zone`이 개발·테스트용 canonical map이며, 나머지 세 맵은 기초 개발 완료 후 시나리오 맵으로 갱신한다. 맵 배경을 반복하지 않고, tiles/props/hill sprite를 별도 장애물처럼 얹지 않는다.
 
 ### Plan 7 map1 tile terrain conversion
 
@@ -243,12 +243,10 @@ Plan 27.5에서 hill 타일 두 종류와 맵별 hill sprite 참조를 제거했
 
 Tank start is gameplay spawn data and is not drawn as terrain or a normal runtime marker. Enemy spawn cells are also not terrain; the game may show them as a distinct red visual marker while the tile rows remain the only collision source.
 
-### Plan 27.2 테스트 맵 결과
+### 현재 개발·테스트 맵
 
-`test/terrain-test`는 `test-terrain-map.png` 한 장으로 월드 전체를 그린다. PNG의 월드 크기는 2880x2160이며, `maps.json`의 11개 hill polygon과 같은 36px 셀 경계에서 생성했다. 기존 hill 타일 반복 렌더링은 이 맵에서 사용하지 않는다. 경계 판정은 같은 polygon을 `TerrainGrid`가 재사용하며, 반지름 footprint·구간 스윕·raycast가 이미지 윤곽과 일치한다.
-
-| Logical ID | Source | Runtime file | Logical draw box |
-| --- | --- | --- | ---: |
-| `map.test.terrain-test.background` | `scripts/generate-test-terrain-map.ps1` + `field-base.png` | `public/assets/game/maps/test-terrain-map.png` | 2880x2160 |
-
-생성 스크립트는 어두운 전술 지형 위에 고정 hill polygon, 그림자, 림과 내부 등고선을 결정론적으로 합성한다. 충돌용 obstacle object나 반복 hill sprite는 이미지 위에 추가하지 않는다.
+`aurelia/landing-zone`을 개발·테스트용 canonical map으로 사용한다. 이 맵은
+`maps.json`과 `progression.json`에서 non-campaign으로 분류하고, 개발·테스트
+runtime에서는 차량 armor를 100으로 적용한다. 기존 `test/terrain-test`의
+데이터·asset·생성 스크립트는 폐기했으며, 나머지 세 맵은 기초 개발 완료 후
+시나리오 맵으로 갱신한다.

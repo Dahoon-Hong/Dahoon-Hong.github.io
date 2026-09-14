@@ -171,6 +171,9 @@ const map1 = (maps.maps ?? []).find((map) => map.mapId === 'aurelia/landing-zone
 if (!map1) {
   fail('aurelia/landing-zone map is missing');
 } else {
+  if (map1.gameplay?.campaign !== false) {
+    fail(`${map1.mapId} must be the non-campaign development/test map`);
+  }
   const expectedWorld = { cellSize: 18, columns: 160, rows: 120 };
   for (const [key, value] of Object.entries(expectedWorld)) {
     if (map1.world?.[key] !== value) fail(`${map1.mapId}.world.${key} must be ${value}`);
@@ -255,7 +258,6 @@ const expectedRegionCounts = {
   'aurelia/relay-fields': 4,
   'cinder/ash-basin': 4,
   'cinder/core-ruins': 7,
-  'test/terrain-test': 11,
 };
 for (const [mapId, expectedCount] of Object.entries(expectedRegionCounts)) {
   const map = (maps.maps ?? []).find((candidate) => candidate.mapId === mapId);
@@ -267,15 +269,6 @@ for (const [mapId, expectedCount] of Object.entries(expectedRegionCounts)) {
     fail(`${mapId}.terrain.regions must contain ${expectedCount} regions`);
   }
 }
-
-const terrainTest = (maps.maps ?? []).find((map) => map.mapId === 'test/terrain-test');
-for (const id of [
-  'map.test.terrain-test.background',
-  'map.test.terrain-test.spawn-edge',
-]) {
-  if (!sprites[id]) fail(`terrain-test requires missing manifest ID ${id}`);
-}
-if (!terrainTest) fail('terrain-test map is missing from maps.json');
 
 const publicAssetRoot = path.join(root, 'public', 'assets', 'game');
 for (const file of walk(publicAssetRoot)) {

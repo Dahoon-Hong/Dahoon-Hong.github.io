@@ -17,11 +17,11 @@ describe('CampaignProgressStore', () => {
     const storage = new MemoryStorage();
     storage.setItem(CAMPAIGN_PROGRESS_STORAGE_KEY, JSON.stringify({
       version: 1,
-      clearedMapIds: ['aurelia/landing-zone', 'test/terrain-test', 'aurelia/landing-zone', 'unknown'],
+      clearedMapIds: ['aurelia/landing-zone', 'test/terrain-test', 'cinder/core-ruins', 'cinder/core-ruins', 'unknown'],
     }));
-    const store = new LocalStorageCampaignProgressStore(['aurelia/landing-zone', 'cinder/core-ruins'], storage);
+    const store = new LocalStorageCampaignProgressStore(['aurelia/relay-fields', 'cinder/core-ruins'], storage);
 
-    await expect(store.load()).resolves.toEqual({ version: 1, clearedMapIds: ['aurelia/landing-zone'] });
+    await expect(store.load()).resolves.toEqual({ version: 1, clearedMapIds: ['cinder/core-ruins'] });
   });
 
   it('falls back to memory for malformed or inaccessible storage and keeps a failed save', async () => {
@@ -29,10 +29,10 @@ describe('CampaignProgressStore', () => {
       getItem(): string { throw new Error('blocked'); },
       setItem(): void { throw new Error('blocked'); },
     } as unknown as Storage;
-    const store = new LocalStorageCampaignProgressStore(['aurelia/landing-zone'], inaccessible);
+    const store = new LocalStorageCampaignProgressStore(['aurelia/relay-fields'], inaccessible);
     await expect(store.load()).resolves.toEqual({ version: 1, clearedMapIds: [] });
 
-    const progress: CampaignProgress = { version: 1, clearedMapIds: ['aurelia/landing-zone'] };
+    const progress: CampaignProgress = { version: 1, clearedMapIds: ['aurelia/relay-fields'] };
     await expect(store.save(progress)).rejects.toThrow('blocked');
     await expect(store.load()).resolves.toEqual(progress);
   });

@@ -162,6 +162,28 @@ export class TerrainGrid {
     }));
   }
 
+  public toData(): TerrainMapData {
+    return {
+      world: {
+        cellSize: this.cellSize,
+        columns: this.columns,
+        rows: this.rows,
+      },
+      terrain: {
+        legend: { ...this.legend },
+        ...(this.terrainRows
+          ? { rows: [...this.terrainRows] }
+          : { regions: this.getTerrainRegions() }),
+      },
+      terrainTypes: Object.fromEntries(
+        Object.entries(this.terrainTypes).map(([id, type]) => [id, {
+          ...type,
+          blocks: { ...type.blocks },
+        }]),
+      ),
+    };
+  }
+
   public isBlocked(cell: TerrainCell, target: TerrainCollisionTarget): boolean {
     if (!this.isInside(cell)) return true;
     return this.getTerrainType(cell)?.blocks[target] ?? true;

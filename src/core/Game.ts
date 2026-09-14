@@ -21,7 +21,7 @@ import { ArmoryManager } from './ArmoryManager';
 import type { ModuleOrientation } from './TankDefinitionLoader';
 import { MapDefinition, mapDefinitionLoader } from './MapDefinitionLoader';
 import { TerrainGrid } from './TerrainGrid';
-import type { TerrainCell } from './TerrainGrid';
+import type { TerrainAabb, TerrainCell } from './TerrainGrid';
 import { TerrainPathfinder } from './TerrainPathfinder';
 import { EnemyNavigationCoordinator } from './EnemyNavigationCoordinator';
 import type { EnemyNavigationTarget } from './EnemyNavigationCoordinator';
@@ -31,7 +31,7 @@ import { LocalStorageCampaignProgressStore } from './LocalStorageCampaignProgres
 import { WorldMapDataLoader } from './WorldMapDataLoader';
 import { WorldMap } from '../ui/WorldMap';
 import { GameTestObserver } from './GameTestObserver';
-import { getGameTestScenario } from './GameTestScenario';
+import { getGameTestScenario, getGameTestWorkerEnabled } from './GameTestScenario';
 
 export enum AppScreen {
   START_MENU = 'START_MENU',
@@ -57,7 +57,8 @@ const LOGICAL_CANVAS_HEIGHT = 720;
 const MAX_EFFECTS = 128;
 const MAP_TILE_POSITIONS = [[128, 112], [760, 132], [154, 526], [716, 570]] as const;
 const MAP_PROP_POSITIONS = [[78, 174], [846, 176], [96, 626], [824, 614]] as const;
-const TILE_TERRAIN_MAP_ID = 'aurelia/landing-zone';
+const TEST_MAP_ID = 'aurelia/landing-zone';
+const TEST_MAP_ARMOR = 100;
 const PAUSE_MENU_OPTIONS = ['RESUME', 'ABANDON RUN'] as const;
 
 export class Game {
@@ -142,7 +143,12 @@ export class Game {
     if (!initialMap) throw new Error('[Game] initial map is missing');
     this.terrainGrid = new TerrainGrid(initialMap);
     this.pathfinder = new TerrainPathfinder(this.terrainGrid);
-    this.enemyNavigation = new EnemyNavigationCoordinator(this.terrainGrid, this.pathfinder);
+    this.enemyNavigation = new EnemyNavigationCoordinator(
+      this.terrainGrid,
+      this.pathfinder,
+      undefined,
+      { workerEnabled: getGameTestWorkerEnabled() },
+    );
     this.camera = new Camera(
       this.gameplayWidth,
       this.logicalHeight,
@@ -386,7 +392,7 @@ export class Game {
     if (!action) return;
     if (action.type === 'back') {
       this.openStartMenu();
-    } else if (action.type === 'select' && (this.progressReady || action.mapId === 'test/terrain-test')) {
+    } else if (action.type === 'select' && (this.progressReady || action.mapId === TEST_MAP_ID)) {
       this.progression.selectMap(action.mapId);
       this.beginFreshRun();
     }
@@ -408,6 +414,7 @@ export class Game {
     const vehicle = new Vehicle(start.x, start.y, this.tankDefinition, this.upgradeManager, {
       terrainFootprintScale: map?.tankCollisionScale,
       terrainFootprintShape: map?.tankCollisionShape,
+      armorOverride: map?.mapId === TEST_MAP_ID ? TEST_MAP_ARMOR : undefined,
     });
     if (map && !vehicle.isTerrainPositionValid(start, this.terrainGrid)) {
       throw new Error(`[Game] map '${map.mapId}' has an invalid tank start footprint`);
@@ -455,6 +462,9 @@ export class Game {
         break;
       case 'enemy-navigation-fixtures':
         this.setupEnemyNavigationFixtures();
+        break;
+      case 'enemy-navigation-worker':
+        this.setupEnemyNavigationWorkerFixture();
         break;
       case 'terminal-game-over':
         this.vehicle.takeDamage(9999, 0, { x: 0, y: 0 });
@@ -505,6 +515,24 @@ export class Game {
     this.enemies.push(engaged, stalled);
     this.testNavigationStuckProbe = stalled;
     this.testNavigationStuckReleaseAt = 0.6;
+  }
+
+  private setupEnemyNavigationWorkerFixture(): void {
+    const map = this.getCurrentMap();
+    if (!map) return;
+    const definition = this.progression.enemyDefinitions.standard;
+    const fixtureDefinition = {
+      ...definition,
+      hp: 1_000_000,
+      reward: 0,
+      contactDamage: 0,
+    };
+    const spawnPoints = map.enemySpawnCells.map((cell) => this.terrainGrid.cellToWorldCenter(cell));
+    const fixtureCount = 160;
+    for (let index = 0; index < fixtureCount; index++) {
+      const point = spawnPoints[index % spawnPoints.length];
+      this.enemies.push(new StandardEnemy(point.x, point.y, fixtureDefinition));
+    }
   }
 
   private releaseTestNavigationStuckProbe(): void {
@@ -596,8 +624,7 @@ export class Game {
       return;
     }
     const currentMap = this.getCurrentMap();
-    if (this.input.consumeDebugOverlayRequest() &&
-      (currentMap?.mapId === 'test/terrain-test' || currentMap?.mapId === TILE_TERRAIN_MAP_ID)) {
+    if (this.input.consumeDebugOverlayRequest() && currentMap?.mapId === TEST_MAP_ID) {
       this.terrainDebugVisible = !this.terrainDebugVisible;
     }
     if (this.input.consumePauseRequest()) {
@@ -611,7 +638,9 @@ export class Game {
       return;
     }
     const isPaused = this.state === GameState.PAUSED;
-    const movementInput = this.testScenario === 'enemy-navigation' || this.testScenario === 'enemy-navigation-fixtures'
+    const movementInput = this.testScenario === 'enemy-navigation'
+      || this.testScenario === 'enemy-navigation-fixtures'
+      || this.testScenario === 'enemy-navigation-worker'
       ? this.getTestNavigationMovement(dt)
       : this.input.getMovementVector();
     this.movementInput = isPaused ? { x: 0, y: 0 } : movementInput;
@@ -665,7 +694,7 @@ export class Game {
       return;
     }
 
-    if (this.testScenario !== 'enemy-navigation-fixtures') {
+    if (this.testScenario !== 'enemy-navigation-fixtures' && this.testScenario !== 'enemy-navigation-worker') {
       this.waveManager.update(
         dt,
         this.enemies,
@@ -692,6 +721,7 @@ export class Game {
       point: corePos,
       cell: targetCell,
       engagementBounds: this.vehicle.getGridBounds(),
+      visibilityBounds: this.getNavigationVisibilityBounds(),
     };
     this.enemyNavigation.update(dt, this.enemies, navigationTarget);
     for (let i = this.enemies.length - 1; i >= 0; i--) {
@@ -709,7 +739,7 @@ export class Game {
         terrain: this.terrainGrid,
         targetCell: directive ? directive.targetCell : targetCell,
         directive: directive ?? undefined,
-        nearbyEnemies: this.enemies,
+        nearbyEnemies: this.enemyNavigation.getNearbyEnemies(enemy),
       });
       if (this.resolveEnemyAgainstGrid(enemy, this.vehicle.getGridBounds(), previousPos) && enemy.tryContactDamage()) {
         this.vehicle.takeDamage(enemy.contactDamage, 0, { x: enemy.x - corePos.x, y: enemy.y - corePos.y });
@@ -755,8 +785,10 @@ export class Game {
     if (!this.testObserver.isEnabled()) return;
     const liveEnemyCount = this.enemies.reduce((count, enemy) => count + (enemy.isDead() ? 0 : 1), 0);
     const navigationStats = this.enemyNavigation.getStats();
+    const currentMap = this.getCurrentMap();
     this.testObserver.update({
       scenario: this.testScenario,
+      mapId: currentMap?.mapId ?? null,
       screen: this.screen,
       gameState: this.state,
       wave: this.waveManager.currentWave,
@@ -773,6 +805,7 @@ export class Game {
       lastKeyCode: this.input.lastKeyCode,
       lastKeyAt: this.input.lastKeyAt,
       movementDistance: this.movementDistance,
+      vehicleArmor: this.vehicle.systems.getArmorValue(),
       lastMovementInputX: this.lastMovementInput.x,
       lastMovementInputY: this.lastMovementInput.y,
       lastMovementAt: this.lastMovementAt,
@@ -790,6 +823,22 @@ export class Game {
       pendingNavigationAgents: navigationStats.pendingNavigationAgents,
       oldestPendingRequestAge: navigationStats.oldestPendingRequestAge,
       localSteeringTransitionsThisFrame: navigationStats.localSteeringTransitionsThisFrame,
+      visibleAgents: navigationStats.visibleAgents,
+      visibleImmediateFollowTransitions: navigationStats.visibleImmediateFollowTransitions,
+      visibleBlockedAgents: navigationStats.visibleBlockedAgents,
+      navigationMainMs: navigationStats.navigationMainMs,
+      navigationMainMsMax: navigationStats.navigationMainMsMax,
+      workerEnabled: navigationStats.workerEnabled,
+      workerDispatchesThisFrame: navigationStats.workerDispatchesThisFrame,
+      workerJobsInFlight: navigationStats.workerJobsInFlight,
+      workerQueueDepth: navigationStats.workerQueueDepth,
+      workerResultsThisFrame: navigationStats.workerResultsThisFrame,
+      workerStaleResultsThisFrame: navigationStats.workerStaleResultsThisFrame,
+      workerFallbackCount: navigationStats.workerFallbackCount,
+      oldestWorkerRequestAge: navigationStats.oldestWorkerRequestAge,
+      neighborCandidatesTotal: navigationStats.neighborCandidatesTotal,
+      neighborCandidatesMax: navigationStats.neighborCandidatesMax,
+      stoppedAgentsByReason: navigationStats.stoppedAgentsByReason,
       enemyNavigationAgents: this.enemyNavigation.getAgentSnapshots(this.enemies),
       resources: Object.fromEntries(RESOURCE_TYPES.map((type) => [type, {
         amount: this.resources.get(type),
@@ -844,7 +893,7 @@ export class Game {
     for (const projectile of this.projectiles) projectile.render(this.renderContext);
     for (const effect of this.effects) effect.render(this.renderContext);
     const currentMap = this.getCurrentMap();
-    if (currentMap?.mapId === TILE_TERRAIN_MAP_ID) this.renderEnemySpawnMarkers(currentMap);
+    if (currentMap?.mapId === TEST_MAP_ID) this.renderEnemySpawnMarkers(currentMap);
     if (this.terrainDebugVisible) this.renderTerrainDebugOverlay();
     this.ctx.restore();
 
@@ -1104,7 +1153,7 @@ export class Game {
     }
 
     const map = this.getCurrentMap();
-    if (map?.mapId === TILE_TERRAIN_MAP_ID) {
+    if (map?.mapId === TEST_MAP_ID) {
       const bounds = this.terrainGrid.getCellBounds(map.tankStartCell);
       const center = this.terrainGrid.cellToWorldCenter(map.tankStartCell);
       ctx.fillStyle = 'rgba(41, 121, 255, 0.18)';
@@ -1197,6 +1246,16 @@ export class Game {
     const planetId = this.progression.currentPlanet.id;
     const regionId = this.progression.currentRegion.id;
     return mapDefinitionLoader.getByLocation(planetId, regionId);
+  }
+
+  private getNavigationVisibilityBounds(): TerrainAabb {
+    const margin = this.terrainGrid.cellSize;
+    return {
+      left: this.camera.x - margin,
+      top: this.camera.y - margin,
+      right: this.camera.x + this.gameplayWidth + margin,
+      bottom: this.camera.y + this.logicalHeight + margin,
+    };
   }
 
   private setTerrainContext(map: MapDefinition): void {

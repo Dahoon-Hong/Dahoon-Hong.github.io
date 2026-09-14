@@ -7,7 +7,7 @@
         {
           "id": "landing-zone",
           "mapId": "aurelia/landing-zone",
-          "campaign": true,
+          "campaign": false,
           "name": "Landing Zone",
           "waves": [
             { "targetKills": 12 },
@@ -54,23 +54,6 @@
             { "targetKills": 22 },
             { "targetKills": 22 },
             { "targetKills": 22 }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "test",
-      "name": "Test Range",
-      "regions": [
-        {
-          "id": "terrain-test",
-          "mapId": "test/terrain-test",
-          "campaign": false,
-          "name": "Terrain Test",
-          "waves": [
-            { "targetKills": 6 },
-            { "targetKills": 10 },
-            { "targetKills": 14 }
           ]
         }
       ]

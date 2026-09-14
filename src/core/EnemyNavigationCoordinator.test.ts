@@ -8,6 +8,10 @@ import type { EnemyNavigationTarget } from './EnemyNavigationCoordinator';
 import { TerrainGrid, TerrainMapData } from './TerrainGrid';
 import { TerrainPathfinder } from './TerrainPathfinder';
 import { EnemyDefinition, StandardEnemy, TankerEnemy } from '../entities/Enemy';
+import type {
+  EnemyNavigationWorkerMessage,
+  EnemyNavigationWorkerResponse,
+} from './EnemyNavigationWorkerProtocol';
 
 const definition: EnemyDefinition = {
   spawnWeight: 1,
@@ -39,6 +43,34 @@ const policy = (overrides: Partial<typeof ENEMY_NAVIGATION_POLICY> = {}) => ({
   ...overrides,
 });
 
+class TestWorker {
+  public onmessage: ((event: MessageEvent<EnemyNavigationWorkerResponse>) => void) | null = null;
+  public onerror: ((event: ErrorEvent) => void) | null = null;
+  public readonly messages: EnemyNavigationWorkerMessage[] = [];
+
+  public postMessage(message: EnemyNavigationWorkerMessage): void {
+    this.messages.push(message);
+    if (message.type !== 'init') return;
+    queueMicrotask(() => this.onmessage?.({
+      data: { type: 'ready', terrainRevision: message.terrainRevision },
+    } as MessageEvent<EnemyNavigationWorkerResponse>));
+  }
+
+  public terminate(): void {}
+
+  public async waitForReady(): Promise<void> {
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+  }
+
+  public emit(response: EnemyNavigationWorkerResponse): void {
+    this.onmessage?.({ data: response } as MessageEvent<EnemyNavigationWorkerResponse>);
+  }
+
+  public emitError(error: Error): void {
+    this.onerror?.({ error, message: error.message } as ErrorEvent);
+  }
+}
+
 const makeNavigationTarget = (
   point = { x: 126, y: 126 },
   bounds = { left: 90, top: 90, right: 162, bottom: 162 },
@@ -46,9 +78,67 @@ const makeNavigationTarget = (
   point,
   cell: { x: 3, y: 3 },
   engagementBounds: bounds,
+  visibilityBounds: { left: 0, top: 0, right: 252, bottom: 252 },
 });
 
 describe('EnemyNavigationCoordinator', () => {
+  it('starts local follow on the first update for a visible direct enemy regardless of distance', () => {
+    const terrain = makeGrid(Array.from({ length: 8 }, () => '.'.repeat(8)));
+    const pathfinder = new TerrainPathfinder(terrain);
+    const coordinator = new EnemyNavigationCoordinator(terrain, pathfinder);
+    const enemy = new StandardEnemy(126, 220, definition);
+
+    coordinator.update(0.1, [enemy], makeNavigationTarget());
+
+    expect(coordinator.getDirective(enemy)?.mode).toBe('local');
+    expect(coordinator.getStats().visibleAgents).toBe(1);
+    expect(coordinator.getStats().visibleImmediateFollowTransitions).toBe(1);
+    expect(coordinator.getAgentSnapshots([enemy])[0]).toMatchObject({
+      visible: true,
+      immediateFollowTransition: true,
+      visibleFollowLatency: 0,
+      directApproachClear: true,
+    });
+  });
+
+  it('prioritizes a visible blocked approach and reports pending path instead of a silent stop', async () => {
+    const terrain = makeGrid(Array.from({ length: 8 }, () => '.'.repeat(8)));
+    const pathfinder = new TerrainPathfinder(terrain);
+    const worker = new TestWorker();
+    const directSpy = vi.spyOn(terrain, 'isOpenForRadiusSegment').mockReturnValue(false);
+    const coordinator = new EnemyNavigationCoordinator(
+      terrain,
+      pathfinder,
+      policy({ maxWorkerJobsPerBatch: 1 }),
+      { workerFactory: () => worker as unknown as Worker },
+    );
+    await worker.waitForReady();
+    const enemy = new StandardEnemy(126, 220, definition);
+
+    coordinator.update(0.1, [enemy], makeNavigationTarget());
+    const directive = coordinator.getDirective(enemy);
+
+    expect(directive?.mode).toBe('repath');
+    expect(coordinator.getStats()).toMatchObject({
+      visibleAgents: 1,
+      visibleBlockedAgents: 1,
+      pendingNavigationAgents: 1,
+    });
+    expect(coordinator.getAgentSnapshots([enemy])[0]).toMatchObject({
+      visible: true,
+      pending: true,
+      directApproachClear: false,
+    });
+
+    enemy.update(0.1, { x: 126, y: 126 }, {
+      terrain,
+      directive: directive ?? undefined,
+      nearbyEnemies: coordinator.getNearbyEnemies(enemy),
+    });
+    expect(enemy.getNavigationTelemetry().stoppedReason).toBe('blocked');
+    directSpy.mockRestore();
+  });
+
   it('uses an approach slot and local steering near the vehicle without searching', () => {
     const terrain = makeGrid(['.......', '.......', '.......', '.......', '.......', '.......', '.......']);
     const pathfinder = new TerrainPathfinder(terrain);
@@ -202,7 +292,7 @@ describe('EnemyNavigationCoordinator', () => {
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
-  it('caches an unreachable route without retrying A* at the next interval', () => {
+  it('retries an unreachable route after the negative-cache TTL', () => {
     const terrain = makeGrid(['..H..', '..H..', '..H..', '..H..', '..H..']);
     const pathfinder = new TerrainPathfinder(terrain);
     const spy = vi.spyOn(pathfinder, 'findPath');
@@ -210,11 +300,41 @@ describe('EnemyNavigationCoordinator', () => {
     const enemy = new TankerEnemy(18, 90, { ...definition, radius: 18 });
 
     coordinator.update(0.1, [enemy], { x: 4, y: 2 });
-    coordinator.update(0.25, [enemy], { x: 4, y: 2 });
-
+    coordinator.update(0.2, [enemy], { x: 4, y: 2 });
     expect(spy).toHaveBeenCalledTimes(1);
-    expect(coordinator.getStats().cacheHitsThisFrame).toBe(1);
+
+    coordinator.update(0.1, [enemy], { x: 4, y: 2 });
+
+    expect(spy).toHaveBeenCalledTimes(2);
     expect(enemy.getPath()).toEqual([]);
+  });
+
+  it('rotates to the next engagement slot after an unreachable route result', () => {
+    const terrain = makeGrid(Array.from({ length: 8 }, () => '.'.repeat(8)));
+    const pathfinder = new TerrainPathfinder(terrain);
+    const spy = vi.spyOn(pathfinder, 'findPath')
+      .mockReturnValueOnce(null)
+      .mockReturnValue([{ x: 4, y: 2 }]);
+    const directSpy = vi.spyOn(terrain, 'isOpenForRadiusSegment').mockReturnValue(false);
+    const coordinator = new EnemyNavigationCoordinator(
+      terrain,
+      pathfinder,
+      policy({ workerEnabled: false }),
+    );
+    const enemy = new StandardEnemy(126, 220, definition);
+
+    coordinator.update(0.1, [enemy], makeNavigationTarget());
+    expect(coordinator.getAgentSnapshots([enemy])[0]).toMatchObject({
+      slotIndex: 1,
+      mode: 'repath',
+    });
+
+    coordinator.update(0.1, [enemy], makeNavigationTarget());
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(enemy.getPath()).toEqual([{ x: 4, y: 2 }]);
+    expect(coordinator.getAgentSnapshots([enemy])[0]?.slotIndex).toBe(1);
+    directSpy.mockRestore();
   });
 
   it('keeps searches within the per-frame budget while draining distinct jobs', () => {
@@ -322,6 +442,109 @@ describe('EnemyNavigationCoordinator', () => {
     coordinator.update(0.1, [third], { x: 6, y: 0 });
 
     expect(spy).toHaveBeenCalledTimes(3);
+  });
+
+  it('dispatches one worker job for equal requests and applies its batch result', async () => {
+    const terrain = makeGrid(['.......', '..HHH..', '.......']);
+    const pathfinder = new TerrainPathfinder(terrain);
+    const spy = vi.spyOn(pathfinder, 'findPath');
+    const worker = new TestWorker();
+    const coordinator = new EnemyNavigationCoordinator(
+      terrain,
+      pathfinder,
+      policy({ maxWorkerJobsPerBatch: 4, maxWorkerInFlightJobs: 4 }),
+      { workerFactory: () => worker as unknown as Worker },
+    );
+    await worker.waitForReady();
+    const enemies = [
+      new StandardEnemy(18, 54, definition),
+      new StandardEnemy(18, 54, definition),
+    ];
+
+    coordinator.update(0.1, enemies, { x: 6, y: 1 });
+
+    const search = worker.messages.find((message) => message.type === 'search');
+    expect(search?.type).toBe('search');
+    if (!search || search.type !== 'search') throw new Error('worker search was not dispatched');
+    expect(search.jobs).toHaveLength(1);
+    expect(spy).not.toHaveBeenCalled();
+    expect(JSON.stringify(search)).not.toContain('navigationId');
+
+    worker.emit({
+      type: 'result',
+      results: search.jobs.map((job) => ({
+        requestId: job.requestId,
+        key: job.key,
+        targetRevision: job.targetRevision,
+        terrainRevision: job.terrainRevision,
+        path: [{ x: 1, y: 1 }],
+      })),
+    });
+
+    expect(enemies[0].getPath()).toEqual([{ x: 1, y: 1 }]);
+    expect(enemies[1].getPath()).toEqual(enemies[0].getPath());
+    expect(coordinator.getStats()).toMatchObject({
+      workerEnabled: true,
+      workerResultsThisFrame: 1,
+      workerJobsInFlight: 0,
+    });
+  });
+
+  it('discards a worker result after the target revision changes', async () => {
+    const terrain = makeGrid(['.......', '.......', '.......']);
+    const pathfinder = new TerrainPathfinder(terrain);
+    const worker = new TestWorker();
+    const coordinator = new EnemyNavigationCoordinator(
+      terrain,
+      pathfinder,
+      policy({ maxWorkerJobsPerBatch: 1 }),
+      { workerFactory: () => worker as unknown as Worker },
+    );
+    await worker.waitForReady();
+    const enemy = new StandardEnemy(18, 54, definition);
+
+    coordinator.update(0.1, [enemy], { x: 6, y: 1 });
+    const search = worker.messages.find((message) => message.type === 'search');
+    if (!search || search.type !== 'search') throw new Error('worker search was not dispatched');
+    coordinator.update(0.1, [enemy], { x: 6, y: 0 });
+    worker.emit({
+      type: 'result',
+      results: search.jobs.map((job) => ({
+        requestId: job.requestId,
+        key: job.key,
+        targetRevision: job.targetRevision,
+        terrainRevision: job.terrainRevision,
+        path: [{ x: 1, y: 1 }],
+      })),
+    });
+
+    expect(enemy.getPath()).toEqual([]);
+    expect(coordinator.getStats().workerStaleResultsThisFrame).toBeGreaterThan(0);
+  });
+
+  it('falls back to the synchronous budget after a worker error', async () => {
+    const terrain = makeGrid(['.......', '..HHH..', '.......']);
+    const pathfinder = new TerrainPathfinder(terrain);
+    const spy = vi.spyOn(pathfinder, 'findPath');
+    const worker = new TestWorker();
+    const coordinator = new EnemyNavigationCoordinator(
+      terrain,
+      pathfinder,
+      policy({ maxWorkerJobsPerBatch: 1 }),
+      { workerFactory: () => worker as unknown as Worker },
+    );
+    await worker.waitForReady();
+    const enemy = new StandardEnemy(18, 54, definition);
+
+    coordinator.update(0.1, [enemy], { x: 6, y: 1 });
+    worker.emitError(new Error('test worker failure'));
+    coordinator.update(0.1, [enemy], { x: 6, y: 1 });
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(coordinator.getStats()).toMatchObject({
+      workerEnabled: false,
+      workerFallbackCount: 1,
+    });
   });
 
   it('rejects invalid navigation policy values', () => {
