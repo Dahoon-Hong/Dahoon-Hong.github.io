@@ -251,10 +251,6 @@ export class HUDManager {
       if (!this.contains(hitbox, mouseX, mouseY)) continue;
       const manager = callbacks.getUpgradeManager();
       const isArmoryNode = hitbox.instanceId === vehicle.systems.getInstanceId('armory');
-      if (isArmoryNode && !callbacks.isPaused()) {
-        this.setFeedback('Pause before researching Armory modules.');
-        return true;
-      }
       const selected = manager.select(hitbox.instanceId, hitbox.nodeId, callbacks.spendCost);
       if (selected) {
         if (isArmoryNode) callbacks.onArmoryResearchSuccess();
