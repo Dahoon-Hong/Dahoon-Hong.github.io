@@ -21,6 +21,8 @@ export interface EnemyNavigationContext {
   terrain: TerrainGrid;
   targetCell?: TerrainCell | null;
   nearbyEnemies?: readonly Enemy[];
+  /** A velocity-like push computed from the frame's collision snapshot. */
+  collisionPush?: TerrainPoint;
   directive?: EnemyNavigationDirective;
 }
 
@@ -184,7 +186,10 @@ export abstract class Enemy {
       ? directive.targetCell
       : navigation.targetCell ?? navigation.terrain.worldToCell(targetPos);
     const enemyCell = navigation.terrain.worldToCell({ x: this.x, y: this.y });
-    if (targetCell === null || !enemyCell) return;
+    if (targetCell === null || !enemyCell) {
+      this.moveWithVelocity({ x: 0, y: 0 }, navigation.collisionPush, dt, navigation.terrain);
+      return;
+    }
     const currentPath = this.path.slice(this.waypointIndex);
     if (directive?.mode === 'repath' && currentPath.length === 0) {
       const previous = { x: this.x, y: this.y };
@@ -198,15 +203,24 @@ export abstract class Enemy {
     }
     if (currentPath.length > 0) {
       const waypoint = navigation.terrain.cellToWorldCenter(currentPath[0]);
-      if (this.moveToward(waypoint, dt, navigation.terrain)) this.waypointIndex++;
+      if (this.moveToward(waypoint, dt, navigation.terrain, navigation.collisionPush)) this.waypointIndex++;
       return;
     }
 
     if (this.path.length === 0 && this.lastTargetCell && this.sameCell(this.lastTargetCell, targetCell)) {
       // A path may legitimately be empty when the enemy and target share a cell.
       if (this.sameCell(enemyCell, targetCell)) {
-        this.moveToward(directive?.targetPoint ?? targetPos, dt, navigation.terrain);
+        this.moveToward(
+          directive?.targetPoint ?? targetPos,
+          dt,
+          navigation.terrain,
+          navigation.collisionPush,
+        );
+      } else {
+        this.moveWithVelocity({ x: 0, y: 0 }, navigation.collisionPush, dt, navigation.terrain);
       }
+    } else {
+      this.moveWithVelocity({ x: 0, y: 0 }, navigation.collisionPush, dt, navigation.terrain);
     }
   }
 
@@ -216,52 +230,44 @@ export abstract class Enemy {
     navigation: EnemyNavigationContext,
   ): void {
     const targetPoint = directive.targetPoint;
-    if (!targetPoint) return;
+    if (!targetPoint) {
+      this.moveWithVelocity({ x: 0, y: 0 }, navigation.collisionPush, dt, navigation.terrain);
+      return;
+    }
 
     const toTarget = { x: targetPoint.x - this.x, y: targetPoint.y - this.y };
     const distance = Math.hypot(toTarget.x, toTarget.y);
-    if (distance <= directive.stopDistance) {
+    const collisionPush = navigation.collisionPush;
+    const hasCollisionPush = collisionPush !== undefined
+      && Math.hypot(collisionPush.x, collisionPush.y) > 1e-9;
+    if (distance <= directive.stopDistance && !hasCollisionPush) {
       this.navigationTelemetry.stopped = true;
       this.navigationTelemetry.stoppedReason = 'arrival';
       return;
     }
 
-    const seek = { x: toTarget.x / distance, y: toTarget.y / distance };
-    const separation = this.getSeparation(navigation.nearbyEnemies ?? [], directive.maxNearbyEnemies);
-    const desired = this.normalize({
-      x: seek.x + separation.x * directive.separationWeight,
-      y: seek.y + separation.y * directive.separationWeight,
-    }, seek);
-    const direction = this.findSafeSteeringDirection(desired, dt, directive.probeDistance, navigation.terrain);
-    if (!direction) return;
-
+    const seek = distance > 1e-9
+      ? { x: toTarget.x / distance, y: toTarget.y / distance }
+      : { x: 0, y: 0 };
     const arrivalScale = directive.mode === 'engaged'
       ? Math.min(1, Math.max(0, distance / Math.max(1, directive.arrivalRadius)))
       : distance < directive.arrivalRadius
         ? distance / Math.max(1, directive.arrivalRadius)
         : 1;
-    this.moveAlong(direction, this.speed * dt * arrivalScale, navigation.terrain);
+    const desiredVelocity = {
+      x: seek.x * this.speed * arrivalScale + (collisionPush?.x ?? 0),
+      y: seek.y * this.speed * arrivalScale + (collisionPush?.y ?? 0),
+    };
+    const desired = this.normalize(
+      desiredVelocity,
+      hasCollisionPush ? this.normalize(collisionPush, { x: 0, y: 0 }) : seek,
+    );
+    const direction = this.findSafeSteeringDirection(desired, dt, directive.probeDistance, navigation.terrain);
+    if (!direction) return;
+
+    this.moveAlong(direction, Math.hypot(desiredVelocity.x, desiredVelocity.y) * dt, navigation.terrain);
   }
 
-  private getSeparation(nearbyEnemies: readonly Enemy[], maxNearbyEnemies: number): TerrainPoint {
-    let x = 0;
-    let y = 0;
-    let considered = 0;
-    for (const other of nearbyEnemies) {
-      if (other === this || other.isDead()) continue;
-      const dx = this.x - other.x;
-      const dy = this.y - other.y;
-      const distance = Math.hypot(dx, dy);
-      const minimumDistance = this.radius + other.radius + 8;
-      if (distance <= 1e-9 || distance >= minimumDistance) continue;
-      const strength = (minimumDistance - distance) / minimumDistance;
-      x += (dx / distance) * strength;
-      y += (dy / distance) * strength;
-      considered++;
-      if (considered >= maxNearbyEnemies) break;
-    }
-    return this.normalize({ x, y }, { x: 0, y: 0 });
-  }
 
   private findSafeSteeringDirection(
     desired: TerrainPoint,
@@ -301,17 +307,57 @@ export abstract class Enemy {
     return { x: value.x / length, y: value.y / length };
   }
 
-  private moveToward(targetPos: { x: number; y: number }, dt: number, terrain?: TerrainGrid): boolean {
+  private moveToward(
+    targetPos: { x: number; y: number },
+    dt: number,
+    terrain?: TerrainGrid,
+    collisionPush?: TerrainPoint,
+  ): boolean {
     const dx = targetPos.x - this.x;
     const dy = targetPos.y - this.y;
     const dist = Math.hypot(dx, dy);
-    if (dist <= 0) return true;
+    if (dist <= 0) {
+      this.moveWithVelocity({ x: 0, y: 0 }, collisionPush, dt, terrain);
+      return true;
+    }
 
     const moveDistance = this.speed * dt;
     const requestedDistance = Math.min(dist, moveDistance);
-    this.moveAlong({ x: dx / dist, y: dy / dist }, requestedDistance, terrain);
+    const targetDirection = { x: dx / dist, y: dy / dist };
+    const startX = this.x;
+    const startY = this.y;
+    const baseVelocity = dt > 0
+      ? { x: targetDirection.x * (requestedDistance / dt), y: targetDirection.y * (requestedDistance / dt) }
+      : { x: 0, y: 0 };
+    this.moveWithVelocity(baseVelocity, collisionPush, dt, terrain);
     const safeProgress = this.lastMoveSafeProgress;
-    return requestedDistance >= dist - 1e-9 && safeProgress >= 1 - 1e-9;
+    const projectedDistance = (this.x - startX) * targetDirection.x
+      + (this.y - startY) * targetDirection.y;
+    return requestedDistance >= dist - 1e-9
+      && safeProgress >= 1 - 1e-9
+      && projectedDistance >= dist - 1e-9;
+  }
+
+  private moveWithVelocity(
+    baseVelocity: TerrainPoint,
+    collisionPush: TerrainPoint | undefined,
+    dt: number,
+    terrain?: TerrainGrid,
+  ): void {
+    const velocity = {
+      x: baseVelocity.x + (collisionPush?.x ?? 0),
+      y: baseVelocity.y + (collisionPush?.y ?? 0),
+    };
+    const velocityLength = Math.hypot(velocity.x, velocity.y);
+    if (velocityLength <= 1e-9 || dt <= 0) {
+      this.lastMoveSafeProgress = 1;
+      return;
+    }
+    this.moveAlong(
+      { x: velocity.x / velocityLength, y: velocity.y / velocityLength },
+      velocityLength * dt,
+      terrain,
+    );
   }
 
   private moveAlong(direction: TerrainPoint, distance: number, terrain?: TerrainGrid): void {

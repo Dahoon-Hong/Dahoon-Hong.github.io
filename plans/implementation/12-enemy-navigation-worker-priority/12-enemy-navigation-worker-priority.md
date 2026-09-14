@@ -331,10 +331,12 @@ DEV observer에 다음 값을 추가한다.
 - 필요 시 F3에는 aggregate 값만 추가하고, 적별 debug는 기존 DEV observer
   계약 안에서만 유지한다.
 
-### 12.5.1 적 충돌 보정 후속
+### 12.5.1 적 충돌 보정 후속 (중간 구현)
 
 스크린샷 QA에서 차량에 밀린 적이 벽에 끼이거나 spawn 군집이 겹치는 현상을
-확인해 다음 보정을 같은 plan의 후속 범위로 추가한다.
+확인해 추가했던 중간 보정은 12.7~12.9 구현으로 대체했다. 현재 적-적 충돌은
+위치를 직접 보정하지 않고 push intent를 통해 자연스럽게 이동하며, 차량 contact
+guard만 kinematic 안전 보정으로 유지한다.
 
 - `EnemyCollisionResolver`가 차량 충돌 보정 후보를 `TerrainGrid`의 enemy
   반경 기준 safe progress로 클리핑해 적이 벽 뒤로 이동하지 않게 한다.
@@ -349,6 +351,16 @@ DEV observer에 다음 값을 추가한다.
 - 차량이 적을 벽 방향으로 밀어도 최종 위치가 enemy terrain footprint를
   침범하지 않는다.
 - 같은 위치에서 생성된 적 군집이 보정 후 서로 겹치지 않고 모두 terrain-safe다.
+
+현재 구현의 자연스러운 동작·밀도·성능 문제는 다음 세 subplan으로 분리해
+재설계한다. 권장 순서는 `12.7 → 12.8 → 12.9`다.
+
+- [12.7 적 자연스러운 밀어내기와 spawn admission](12.7-enemy-natural-push-and-spawn-admission.md):
+  적-적 위치 강제 변경을 push intent로 바꾸고, 포화 spawn을 skip한다.
+- [12.8 적 collider 밀도 조정](12.8-enemy-collider-density.md): 기존 radius 계약을
+  유지하면서 standard/tanker footprint를 줄인다.
+- [12.9 적 collision 성능 예산과 frame drop 제거](12.9-enemy-collision-performance.md):
+  spatial snapshot 공유와 bounded query로 중복·반복 계산을 제거한다.
 
 ### 12.6 검증 명령과 runtime QA
 

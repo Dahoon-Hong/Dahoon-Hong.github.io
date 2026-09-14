@@ -24,6 +24,7 @@ export interface GameTestSnapshot {
   killedEnemies: number;
   spawnedEnemies: number;
   liveEnemies: number;
+  spawnSkippedEnemies?: number;
   vehicleWorldX: number;
   vehicleWorldY: number;
   cameraX: number;
@@ -39,6 +40,19 @@ export interface GameTestSnapshot {
   lastSpawnBatchSize: number;
   lastSpawnAt: number | null;
   lastSpawnTypes: readonly string[];
+  lastSpawnSkippedCount?: number;
+  lastSpawnSkipReason?: string | null;
+  collisionMainMs?: number;
+  collisionMainMsMax?: number;
+  collisionMainMsP95?: number;
+  collisionCandidatesTotal?: number;
+  collisionCandidatesMax?: number;
+  collisionPairsThisFrame?: number;
+  collisionPushesThisFrame?: number;
+  collisionBlockedPushesThisFrame?: number;
+  frameDeltaMs?: number;
+  frameDeltaMsMax?: number;
+  frameOverBudgetCount?: number;
   pathSearchesThisFrame?: number;
   cacheHits?: number;
   deduplicatedRequests?: number;

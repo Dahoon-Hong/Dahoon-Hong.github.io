@@ -75,6 +75,22 @@ describe('WaveManager', () => {
     expect(manager.lastSpawnAt).toBeCloseTo(0.11);
   });
 
+  it('skips saturated spawn attempts without inflating the spawned count', () => {
+    const manager = new WaveManager(region, enemyDefinitions, 2, {
+      terrain,
+      spawnCells: [{ x: 0, y: 0 }],
+      canSpawn: () => false,
+    });
+    const enemies: Array<StandardEnemy | TankerEnemy> = [];
+
+    manager.update(0.11, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
+
+    expect(enemies).toHaveLength(0);
+    expect(manager.spawnedEnemiesCount).toBe(0);
+    expect(manager.spawnSkippedCount).toBe(3);
+    expect(manager.lastSpawnSkippedCount).toBe(3);
+    expect(manager.lastSpawnSkipReason).toBe('admission');
+  });
   it('uses 18px tile centers when spawning enemies on a tile map', () => {
     const manager = new WaveManager(region, enemyDefinitions, 2, {
       terrain: tileTerrain,
