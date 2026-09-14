@@ -1,8 +1,12 @@
 # 90. Level 및 난이도 Design
 
+상태: 난이도 조정 진행 대상
+
+위협수치 기반 시스템은 이 plan의 구현 범위에서 분리한다. 맵 기본 위협값·시간 증가·위협수치 파생 계산은 [Plan 14: 위협수치 기반 난이도 시스템](../14-threat-based-difficulty/14-threat-based-difficulty.md)에서 구현 완료된 공통 시스템으로 취급하고, 이 plan은 플레이어가 선택하는 난이도와 난이도별 조정값을 정의·연결한다.
+
 ## 1. 목표
 
-스토리 모드와 무한 모드의 레벨 구조, 플레이어 선택형 난이도, 적 난이도 곡선, 모듈·무기 성장 수치를 하나의 밸런스 계약으로 정의한다.
+스토리 모드와 무한 모드의 레벨 구조, 플레이어 선택형 난이도, 적 난이도 조정, 모듈·무기 성장 수치를 하나의 밸런스 계약으로 정의한다.
 
 이 플랜의 핵심 목표는 두 가지다.
 
@@ -59,6 +63,7 @@
     {
       "id": "easy",
       "name": "쉬움",
+      "threatMultiplier": 0.85,
       "enemy": {
         "hpMultiplier": 0.85,
         "countMultiplier": 0.85,
@@ -70,6 +75,7 @@
     {
       "id": "normal",
       "name": "보통",
+      "threatMultiplier": 1.00,
       "enemy": {
         "hpMultiplier": 1.00,
         "countMultiplier": 1.00,
@@ -81,6 +87,7 @@
     {
       "id": "hard",
       "name": "어려움",
+      "threatMultiplier": 1.15,
       "enemy": {
         "hpMultiplier": 1.15,
         "countMultiplier": 1.15,
@@ -105,6 +112,7 @@
 
 ### 3.1 배수 의미
 
+- `threatMultiplier`: Plan 14의 ThreatManager에 전달하는 공통 난이도 배율
 - `hpMultiplier`: 적의 최대 HP
 - `countMultiplier`: 각 Wave의 적 수
 - `speedMultiplier`: 적의 이동 속도
@@ -112,6 +120,8 @@
 - `spawnIntervalMultiplier`: 적 생성 간격. 1보다 작으면 더 빠르게 생성된다.
 
 보상은 기본적으로 난이도 배수의 영향을 받지 않는다. Hard에서 보상만 증가시켜 적 압력을 상쇄하거나 Easy를 반복해 자원을 파밍하는 구조를 만들지 않는다. 보상 조정이 필요해지는 경우에도 별도의 명시적인 `rewardMultiplier`를 추가하고 기본값은 `1.0`으로 둔다.
+
+`spawnBatch`, `contactDamage`, Wave 제거 목표처럼 Plan 14가 위협수치로 제어하는 값에는 `threatMultiplier`를 사용한다. `enemy` 하위의 직접 난이도 배수와 위협 출력이 같은 속성에 함께 적용되는 경우에는 `기본값 × 난이도 직접 배수 × 위협 출력 배율`의 계층으로 각각 한 번만 적용한다.
 
 ### 3.2 정수와 안전 하한
 
@@ -284,12 +294,12 @@ interval × spawnIntervalPerTier ^ threatTier
 ### 신규 파일
 
 - `src/data/difficulty.json`: 플레이어 난이도와 무한 모드 배수
-- `src/core/DifficultyManager.ts`: 프로필 검증, 난이도 선택, 적/Wave 스케일 계산
+- `src/core/DifficultyManager.ts`: 프로필 검증, 난이도 선택, `threatMultiplier`를 포함한 런 설정 제공
 
 ### 수정 파일
 
 - `src/core/ProgressionManager.ts`: Stage 콘텐츠 배수와 Chapter/Stage 표시 정보
-- `src/core/WaveManager.ts`: 난이도·Stage·무한 위협 배수를 적용한 Wave 생성
+- `src/core/WaveManager.ts`: Plan 14의 ThreatProvider와 90번의 난이도·콘텐츠 설정을 연결한 Wave 생성
 - `src/entities/Enemy.ts`: 스케일된 적 정의를 받아 HP·속도·접촉 피해를 초기화
 - `src/core/Game.ts`: 모드·난이도 런 설정, 무한 모드 종료 조건과 기록
 - `src/ui/HUDManager.ts`: 모드/난이도 선택, 현재 Chapter·Stage·난이도 표시
@@ -300,8 +310,8 @@ interval × spawnIntervalPerTier ^ threatTier
 
 ## 10. 구현 순서
 
-1. `difficulty.json`의 타입과 유효성 규칙을 정의한다.
-2. `DifficultyManager`에서 `easy/normal/hard` 프로필을 읽고 선택 상태를 관리한다.
+1. Plan 14의 ThreatManager 계약이 제공하는 `threatMultiplier` 입력 경계를 사용한다.
+2. `difficulty.json`의 타입과 유효성 규칙을 정의하고 `DifficultyManager`에서 `easy/normal/hard` 프로필을 읽어 선택 상태를 관리한다.
 3. 적 정의를 복사해 HP·속도·접촉 피해 배수를 적용한다.
 4. Wave 적 수와 생성 간격에 난이도·Stage 배수를 적용한다.
 5. 기존 Planet/Region 진행을 Chapter/Stage 표시와 연결한다.

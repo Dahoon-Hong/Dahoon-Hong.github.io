@@ -10,6 +10,7 @@ const enemyDefinition: EnemyDefinition = {
   spawnInterval: 0.6,
   spawnBatchSize: 5,
   hp: 45,
+  armor: 0,
   speed: 95,
   radius: 12,
   reward: 10,
@@ -79,5 +80,81 @@ describe('combat terrain targeting', () => {
     expect(spent).toBe(0);
     expect(spawned).toBe(0);
     expect(weapon.getFireRate()).toBe(0.2);
+  });
+
+  it('fires a magazine, then reloads without reserving ammo', () => {
+    const definition: TankModuleDefinition = {
+      ...weaponDefinition,
+      baseStats: {
+        ...weaponDefinition.baseStats,
+        fireRate: 0.1,
+        magazineSize: 2,
+        reloadTime: 1,
+        penetration: 10,
+      },
+    };
+    const upgrades = new UpgradeManager({ 'magazine-test': definition });
+    upgrades.registerInstance('magazine-test#1', 'magazine-test');
+    const weapon = new DirectWeaponModule(definition, 'magazine-test#1', { x: 0, y: 0 }, upgrades);
+    const target = new StandardEnemy(100, 0, enemyDefinition);
+    let spent = 0;
+    let spawned = 0;
+    const fire = (dt: number) => weapon.update(
+      dt,
+      { x: 0, y: 0 },
+      0,
+      [target],
+      () => { spawned++; },
+      () => { spent++; return true; },
+      () => undefined,
+    );
+
+    fire(0.01);
+    expect(weapon.getLoadedShots()).toBe(1);
+    fire(0.1);
+    expect(weapon.getLoadedShots()).toBe(0);
+    expect(weapon.isReloading()).toBe(true);
+    expect(spent).toBe(2);
+    expect(spawned).toBe(2);
+    fire(0.5);
+    expect(spent).toBe(2);
+    fire(0.5);
+    expect(spent).toBe(3);
+    expect(weapon.getLoadedShots()).toBe(1);
+  });
+
+  it('does not fire a minimum-range weapon at a target inside its dead zone', () => {
+    const definition: TankModuleDefinition = {
+      ...weaponDefinition,
+      weaponClass: 'tank-gun',
+      size: { width: 1, height: 2 },
+      baseStats: {
+        ...weaponDefinition.baseStats,
+        minRange: 100,
+        magazineSize: 1,
+        reloadTime: 1,
+        penetration: 50,
+      },
+    };
+    const upgrades = new UpgradeManager({ 'minimum-range-test': definition });
+    upgrades.registerInstance('minimum-range-test#1', 'minimum-range-test');
+    const weapon = new DirectWeaponModule(definition, 'minimum-range-test#1', { x: 0, y: 0 }, upgrades);
+    const target = new StandardEnemy(50, 0, enemyDefinition);
+    let spent = 0;
+    let spawned = 0;
+
+    weapon.update(
+      1,
+      { x: 0, y: 0 },
+      0,
+      [target],
+      () => { spawned++; },
+      () => { spent++; return true; },
+      () => undefined,
+    );
+
+    expect(spent).toBe(0);
+    expect(spawned).toBe(0);
+    expect(weapon.getLoadedShots()).toBe(1);
   });
 });

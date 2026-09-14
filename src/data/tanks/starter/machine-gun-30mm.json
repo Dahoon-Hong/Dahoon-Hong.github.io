@@ -1,0 +1,23 @@
+{
+  "id": "machine-gun-30mm",
+  "kind": "combat",
+  "name": "30mm AA Cannon",
+  "behavior": "direct",
+  "size": { "width": 1, "height": 1 },
+  "installCost": { "matter": 95 },
+  "researchCost": { "matter": 70 },
+  "purchaseCost": { "matter": 95 },
+  "fireArcDegrees": 360,
+  "defaultOrientation": 0,
+  "weaponClass": "machine-gun",
+  "moduleAssetId": "tank.module.modern.aa-30",
+  "fireSoundId": "sfx.weapon.aa-30-fire",
+  "fireEffectId": "effect.projectile.direct-hit",
+  "baseStats": { "maxHp": 100, "range": 860, "damage": 58, "fireRate": 0.42, "projectileSpeed": 900, "maxDistance": 860, "minRange": 0, "penetration": 60, "magazineSize": 8, "reloadTime": 4 },
+  "upgradeTree": {
+    "rootId": "root",
+    "nodes": [
+      { "id": "root", "parentId": null, "cost": {}, "effects": [] }
+    ]
+  }
+}

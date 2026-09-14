@@ -3,6 +3,15 @@ import audioManifest from '../data/audio.json';
 export const SOUND_EFFECT_IDS = [
   'sfx.weapon.direct-fire',
   'sfx.weapon.arc-fire',
+  'sfx.weapon.hmg-12-7-fire',
+  'sfx.weapon.autocannon-20-fire',
+  'sfx.weapon.aa-30-fire',
+  'sfx.weapon.rifle-76-fire',
+  'sfx.weapon.rifle-90-fire',
+  'sfx.weapon.smoothbore-120-fire',
+  'sfx.weapon.mortar-60-fire',
+  'sfx.weapon.howitzer-105-fire',
+  'sfx.weapon.howitzer-155-fire',
   'sfx.weapon.impact',
   'sfx.weapon.explosion',
   'sfx.enemy.death',
@@ -60,6 +69,15 @@ const manifest = audioManifest as AudioManifest;
 const SOUND_POLICY: Record<SoundEffectId, SoundPolicy> = {
   'sfx.weapon.direct-fire': { cooldownMs: 35, maxVoices: 4, gain: 0.24 },
   'sfx.weapon.arc-fire': { cooldownMs: 120, maxVoices: 2, gain: 0.28 },
+  'sfx.weapon.hmg-12-7-fire': { cooldownMs: 35, maxVoices: 4, gain: 0.22 },
+  'sfx.weapon.autocannon-20-fire': { cooldownMs: 45, maxVoices: 4, gain: 0.24 },
+  'sfx.weapon.aa-30-fire': { cooldownMs: 60, maxVoices: 4, gain: 0.26 },
+  'sfx.weapon.rifle-76-fire': { cooldownMs: 80, maxVoices: 2, gain: 0.32 },
+  'sfx.weapon.rifle-90-fire': { cooldownMs: 90, maxVoices: 2, gain: 0.35 },
+  'sfx.weapon.smoothbore-120-fire': { cooldownMs: 110, maxVoices: 2, gain: 0.4 },
+  'sfx.weapon.mortar-60-fire': { cooldownMs: 100, maxVoices: 2, gain: 0.28 },
+  'sfx.weapon.howitzer-105-fire': { cooldownMs: 120, maxVoices: 2, gain: 0.34 },
+  'sfx.weapon.howitzer-155-fire': { cooldownMs: 140, maxVoices: 2, gain: 0.4 },
   'sfx.weapon.impact': { cooldownMs: 25, maxVoices: 6, gain: 0.2 },
   'sfx.weapon.explosion': { cooldownMs: 100, maxVoices: 3, gain: 0.34 },
   'sfx.enemy.death': { cooldownMs: 25, maxVoices: 6, gain: 0.2 },
@@ -397,6 +415,43 @@ export class AudioManager {
         this.addTone(target, now, 'square', 170, 95, 0.16, 0.55);
         this.addTone(target, now, 'triangle', 620, 340, 0.13, 0.35);
         return 0.18;
+      case 'sfx.weapon.hmg-12-7-fire':
+        this.addNoise(target, now, 0.06, 0.66, 2600);
+        this.addTone(target, now, 'sawtooth', 520, 260, 0.09, 0.58);
+        return 0.11;
+      case 'sfx.weapon.autocannon-20-fire':
+        this.addNoise(target, now, 0.08, 0.78, 2200);
+        this.addTone(target, now, 'square', 460, 180, 0.12, 0.64);
+        return 0.14;
+      case 'sfx.weapon.aa-30-fire':
+        this.addNoise(target, now, 0.1, 0.86, 1900);
+        this.addTone(target, now, 'sawtooth', 380, 125, 0.16, 0.7);
+        return 0.18;
+      case 'sfx.weapon.rifle-76-fire':
+        this.addNoise(target, now, 0.16, 0.92, 1400);
+        this.addTone(target, now, 'triangle', 180, 54, 0.25, 0.78);
+        return 0.28;
+      case 'sfx.weapon.rifle-90-fire':
+        this.addNoise(target, now, 0.19, 0.98, 1200);
+        this.addTone(target, now, 'triangle', 155, 42, 0.3, 0.84);
+        return 0.33;
+      case 'sfx.weapon.smoothbore-120-fire':
+        this.addNoise(target, now, 0.24, 1, 980);
+        this.addTone(target, now, 'sine', 128, 32, 0.4, 0.92);
+        return 0.43;
+      case 'sfx.weapon.mortar-60-fire':
+        this.addNoise(target, now, 0.1, 0.7, 1100);
+        this.addTone(target, now, 'square', 130, 64, 0.24, 0.58);
+        this.addTone(target, now, 'triangle', 560, 300, 0.18, 0.3);
+        return 0.28;
+      case 'sfx.weapon.howitzer-105-fire':
+        this.addNoise(target, now, 0.2, 0.9, 900);
+        this.addTone(target, now, 'triangle', 116, 30, 0.4, 0.8);
+        return 0.43;
+      case 'sfx.weapon.howitzer-155-fire':
+        this.addNoise(target, now, 0.3, 1, 720);
+        this.addTone(target, now, 'sine', 88, 22, 0.55, 0.96);
+        return 0.58;
       case 'sfx.weapon.impact':
         this.addNoise(target, now, 0.07, 0.85, 1800);
         this.addTone(target, now, 'sine', 210, 75, 0.08, 0.55);

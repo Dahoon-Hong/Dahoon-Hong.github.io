@@ -7,6 +7,7 @@ const definition: EnemyDefinition = {
   spawnInterval: 0.6,
   spawnBatchSize: 5,
   hp: 45,
+  armor: 0,
   speed: 95,
   radius: 12,
   reward: 10,
@@ -52,5 +53,16 @@ describe('EnemySpatialIndex', () => {
     index.build([first]);
 
     expect(index.query(first, 8)).toEqual([]);
+  });
+
+  it('returns enemies in a target circle and an expanded projectile segment', () => {
+    const index = new EnemySpatialIndex(72);
+    const inCircle = new StandardEnemy(120, 72, definition);
+    const inSegment = new StandardEnemy(190, 90, definition);
+    const outside = new StandardEnemy(400, 400, definition);
+    index.build([inCircle, inSegment, outside]);
+
+    expect(index.queryCircle({ x: 72, y: 72 }, 60)).toEqual([inCircle]);
+    expect(index.querySegment({ x: 0, y: 72 }, { x: 220, y: 72 }, 24)).toEqual([inCircle, inSegment]);
   });
 });

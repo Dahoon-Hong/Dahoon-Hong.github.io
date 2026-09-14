@@ -9,6 +9,7 @@ export interface EnemyDefinition {
   spawnInterval: number;
   spawnBatchSize: number;
   hp: number;
+  armor?: number;
   speed: number;
   radius: number;
   reward: number;
@@ -56,6 +57,7 @@ export abstract class Enemy {
   public y: number;
   public hp: number;
   public maxHp: number;
+  public readonly armor: number;
   public speed: number;
   public radius: number;
   public reward: number;
@@ -83,6 +85,7 @@ export abstract class Enemy {
     x: number,
     y: number,
     hp: number,
+    armor: number,
     speed: number,
     radius: number,
     reward: number,
@@ -95,6 +98,7 @@ export abstract class Enemy {
     this.y = y;
     this.hp = hp;
     this.maxHp = hp;
+    this.armor = Math.max(0, Number.isFinite(armor) ? armor : 0);
     this.speed = speed;
     this.radius = radius;
     this.reward = reward;
@@ -418,6 +422,7 @@ export class StandardEnemy extends Enemy {
       x,
       y,
       definition.hp,
+      definition.armor ?? 0,
       definition.speed,
       definition.radius,
       definition.reward,
@@ -441,6 +446,7 @@ export class TankerEnemy extends Enemy {
       x,
       y,
       definition.hp,
+      definition.armor ?? 0,
       definition.speed,
       definition.radius,
       definition.reward,

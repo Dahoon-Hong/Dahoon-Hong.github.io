@@ -16,6 +16,21 @@ export interface GameTestProductionSnapshot {
   status: string;
 }
 
+export interface GameTestCombatModuleSnapshot {
+  moduleId: string;
+  weaponClass: string;
+  loadedShots: number;
+  magazineSize: number;
+  reloading: boolean;
+}
+
+export interface GameTestCombatEnemySnapshot {
+  enemyType: string;
+  armor: number;
+  hp: number;
+  maxHp: number;
+}
+
 export interface GameTestSnapshot {
   screen: string;
   gameState: string;
@@ -88,6 +103,9 @@ export interface GameTestSnapshot {
   armoryStock: Record<string, number>;
   mapId?: string | null;
   vehicleArmor?: number;
+  combatModules?: readonly GameTestCombatModuleSnapshot[];
+  combatEnemies?: readonly GameTestCombatEnemySnapshot[];
+  liveProjectiles?: number;
 }
 
 type LegacyGameTestSnapshot = Omit<GameTestSnapshot, 'scenario' | 'resources' | 'production' | 'armoryStock'>;

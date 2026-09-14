@@ -1,0 +1,23 @@
+{
+  "id": "howitzer-105mm",
+  "kind": "combat",
+  "name": "105mm Howitzer",
+  "behavior": "arc",
+  "size": { "width": 2, "height": 2 },
+  "installCost": { "matter": 130 },
+  "researchCost": { "matter": 75 },
+  "purchaseCost": { "matter": 130 },
+  "fireArcDegrees": 45,
+  "defaultOrientation": 0,
+  "weaponClass": "howitzer",
+  "moduleAssetId": "tank.module.modern.howitzer-105",
+  "fireSoundId": "sfx.weapon.howitzer-105-fire",
+  "fireEffectId": "effect.explosion.arc",
+  "baseStats": { "maxHp": 100, "range": 840, "damage": 140, "fireRate": 0, "aoeRadius": 92, "flightTime": 1.4, "minRange": 180, "penetration": 65, "magazineSize": 1, "reloadTime": 4 },
+  "upgradeTree": {
+    "rootId": "root",
+    "nodes": [
+      { "id": "root", "parentId": null, "cost": {}, "effects": [] }
+    ]
+  }
+}

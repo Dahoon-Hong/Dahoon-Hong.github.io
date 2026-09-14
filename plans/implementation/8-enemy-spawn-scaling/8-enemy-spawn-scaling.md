@@ -147,7 +147,7 @@ batchSize = clamp(
 완료 조건:
 
 - `WaveManager`가 계산식의 일부를 중복 구현하지 않는다.
-- 향후 `ThreatMeter`가 `currentWave` 대신 숫자형 위협값을 전달할 수 있는 입력 경계가 보인다.
+- 후속 Plan 14가 `currentWave` 대신 맵·난이도·시간 기반 위협 snapshot을 전달할 수 있는 입력 경계가 보인다.
 
 ### 8.4 `WaveManager` batch 생성 연결
 
@@ -262,4 +262,4 @@ plan 구현이 끝나면 현재 worktree에서 실행한 dev runtime을 사용�
 - 기존 Wave 1 동작, 스폰 셀 순환, 적 종류 순서, wave clear 조건이 회귀하지 않는다.
 - `npm test`, `npm run qa:art`, `npm run build`, `git diff --check`가 통과한다.
 - plan 완료 runtime에서 변경 범위의 스폰·카운트·웨이브 진행이 확인되고, 범위 외 시나리오는 명시적으로 skip된다.
-- 처치 수·경과 시간 기반 `ThreatMeter`는 구현하지 않고 다음 backlog로 명시되어 있다.
+- 처치 수·경과 시간 기반 `ThreatMeter`는 [Plan 14: 위협수치 기반 난이도 시스템](../14-threat-based-difficulty/14-threat-based-difficulty.md)으로 승격되어 이 plan의 backlog에서 제거되었다.

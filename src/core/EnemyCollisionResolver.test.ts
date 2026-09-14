@@ -8,6 +8,7 @@ const definition: EnemyDefinition = {
   spawnInterval: 0.6,
   spawnBatchSize: 5,
   hp: 45,
+  armor: 0,
   speed: 95,
   radius: 12,
   reward: 10,

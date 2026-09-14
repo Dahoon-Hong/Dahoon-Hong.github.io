@@ -31,6 +31,7 @@ describe('enemy data contract', () => {
     expect(() => validateEnemyData({ standard: definition, tanker: definition })).toThrow('enemyData.spawn');
     expect(() => validateEnemyData({ ...validData, spawn: 1.5 })).toThrow('enemyData.spawn');
     expect(() => validateEnemyData({ ...validData, spawn: 0 })).toThrow('enemyData.spawn');
+    expect(() => validateEnemyData({ ...validData, standard: { ...definition, armor: -1 } })).toThrow('armor');
   });
 
   it('accepts zero weight to disable one enemy type', () => {

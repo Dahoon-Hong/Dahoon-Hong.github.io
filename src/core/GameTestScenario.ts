@@ -3,6 +3,8 @@ export const GAME_TEST_SCENARIOS = [
   'production-buffer-full',
   'production-storage-full',
   'armory-install',
+  'modern-firearms',
+  'modern-firearms-stress',
   'enemy-navigation',
   'enemy-navigation-fixtures',
   'enemy-navigation-worker',

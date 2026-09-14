@@ -1,6 +1,9 @@
 import { Enemy } from './Enemy';
 import type { RenderContext } from '../rendering/RenderContext';
 import type { TerrainCell, TerrainGrid } from '../core/TerrainGrid';
+import type { EnemySpatialQuery } from '../core/EnemySpatialIndex';
+
+const PROJECTILE_BROAD_PHASE_MARGIN = 32;
 
 function segmentHitProgress(
   pointX: number,
@@ -31,11 +34,35 @@ export type ProjectileSoundEvent =
   | { type: 'projectile-impact'; position: { x: number; y: number } }
   | { type: 'explosion'; position: { x: number; y: number } };
 
+export interface DirectProjectileOptions {
+  penetration?: number;
+  explosionRadius?: number;
+  targetPoint?: { x: number; y: number };
+  detonateOnEnd?: boolean;
+}
+
+export interface ArcProjectileOptions {
+  ignoreTerrain?: boolean;
+  maxArcHeight?: number;
+}
+
+export function canPenetrate( penetration: number, armor: number): boolean {
+  return Number.isFinite(penetration)
+    ? penetration > Math.max(0, armor)
+    : penetration === Number.POSITIVE_INFINITY;
+}
+
+export function applyArmoredDamage(enemy: Enemy, damage: number, penetration: number): number {
+  if (!canPenetrate(penetration, enemy.armor)) return penetration;
+  enemy.takeDamage(damage);
+  return Number.isFinite(penetration) ? penetration - enemy.armor : penetration;
+}
+
 export abstract class Projectile {
   public x: number;
   public y: number;
   public damage: number;
-  public dead: boolean = false;
+  public dead = false;
   public terrainHitCell: TerrainCell | null = null;
 
   constructor(x: number, y: number, damage: number) {
@@ -54,6 +81,7 @@ export abstract class Projectile {
     spawnEffect: (effect: VisualEffect) => void,
     emitSound: (event: ProjectileSoundEvent) => void,
     terrain?: TerrainGrid,
+    enemyQuery?: EnemySpatialQuery,
   ): void;
   public abstract render(render: RenderContext): void;
 }
@@ -68,9 +96,9 @@ export class VisualEffect {
   public color: string;
   public readonly assetId: string;
   public readonly priority: VisualEffectPriority;
-  public life: number = 0.3; // seconds
-  private timer: number = 0;
-  public dead: boolean = false;
+  public life = 0.3;
+  private timer = 0;
+  public dead = false;
 
   constructor(
     x: number,
@@ -97,9 +125,7 @@ export class VisualEffect {
     this.timer += dt;
     const progress = this.timer / this.life;
     this.radius = this.maxRadius * Math.sin(progress * Math.PI);
-    if (this.timer >= this.life) {
-      this.dead = true;
-    }
+    if (this.timer >= this.life) this.dead = true;
   }
 
   public render(render: RenderContext): void {
@@ -114,13 +140,17 @@ export class VisualEffect {
   }
 }
 
-// Direct Linear Projectile (Bullet)
 export class DirectProjectile extends Projectile {
   private dirX: number;
   private dirY: number;
   private speed: number;
   private maxDistance: number;
-  private traveled: number = 0;
+  private traveled = 0;
+  private remainingPenetration: number;
+  private readonly explosionRadius: number;
+  private readonly targetPoint: { x: number; y: number } | null;
+  private readonly detonateOnEnd: boolean;
+  private readonly hitEnemies = new Set<Enemy>();
 
   constructor(
     x: number,
@@ -129,63 +159,106 @@ export class DirectProjectile extends Projectile {
     dirY: number,
     speed: number,
     damage: number,
-    maxDistance: number = 600
+    maxDistance = 600,
+    options: DirectProjectileOptions = {},
   ) {
     super(x, y, damage);
     this.dirX = dirX;
     this.dirY = dirY;
-    this.speed = speed;
-    this.maxDistance = maxDistance;
+    this.speed = Math.max(0, speed);
+    this.maxDistance = Math.max(0, maxDistance);
+    this.remainingPenetration = options.penetration ?? Number.POSITIVE_INFINITY;
+    this.explosionRadius = Math.max(0, options.explosionRadius ?? 0);
+    this.targetPoint = options.targetPoint ? { ...options.targetPoint } : null;
+    this.detonateOnEnd = options.detonateOnEnd ?? false;
   }
 
   public update(
     dt: number,
     enemies: Enemy[],
-    spawnEffect: (e: VisualEffect) => void,
+    spawnEffect: (effect: VisualEffect) => void,
     emitSound: (event: ProjectileSoundEvent) => void,
     terrain?: TerrainGrid,
+    enemyQuery?: EnemySpatialQuery,
   ): void {
     if (this.dead) return;
 
     const previousX = this.x;
     const previousY = this.y;
-    const moveDist = Math.min(this.speed * dt, this.maxDistance - this.traveled);
+    const remainingDistance = Math.max(0, this.maxDistance - this.traveled);
+    const moveDist = Math.min(this.speed * Math.max(0, dt), remainingDistance);
     this.x += this.dirX * moveDist;
     this.y += this.dirY * moveDist;
     this.traveled += moveDist;
+    const segmentEndX = this.x;
+    const segmentEndY = this.y;
 
-    let enemyHit: { enemy: Enemy; progress: number } | null = null;
-    for (const enemy of enemies) {
-      if (enemy.isDead()) continue;
-      const hitRadius = enemy.radius + 5;
-      const progress = segmentHitProgress(enemy.x, enemy.y, hitRadius, previousX, previousY, this.x, this.y);
-      if (progress !== null && (!enemyHit || progress < enemyHit.progress)) {
-        enemyHit = { enemy, progress };
+    const candidates = enemyQuery?.querySegment(
+      { x: previousX, y: previousY },
+      { x: segmentEndX, y: segmentEndY },
+      PROJECTILE_BROAD_PHASE_MARGIN,
+    ) ?? enemies;
+    const enemyHits: Array<{ enemy: Enemy; progress: number }> = [];
+    for (const enemy of candidates) {
+      if (enemy.isDead() || this.hitEnemies.has(enemy)) continue;
+      const progress = segmentHitProgress(
+        enemy.x,
+        enemy.y,
+        enemy.radius + 5,
+        previousX,
+        previousY,
+        this.x,
+        this.y,
+      );
+      if (progress !== null) enemyHits.push({ enemy, progress });
+    }
+    enemyHits.sort((a, b) => a.progress - b.progress);
+
+    const terrainHit = terrain?.raycast({ x: previousX, y: previousY }, { x: segmentEndX, y: segmentEndY });
+    const terrainProgress = terrainHit?.progress ?? Number.POSITIVE_INFINITY;
+    for (const hit of enemyHits) {
+      if (hit.progress > terrainProgress + 1e-9) break;
+      this.x = previousX + (segmentEndX - previousX) * hit.progress;
+      this.y = previousY + (segmentEndY - previousY) * hit.progress;
+      this.hitEnemies.add(hit.enemy);
+      const penetrated = canPenetrate(this.remainingPenetration, hit.enemy.armor);
+      if (!penetrated) {
+        if (this.detonateOnEnd) {
+          this.detonate(this.x, this.y, enemies, spawnEffect, emitSound, enemyQuery);
+        } else {
+          this.impact(spawnEffect, emitSound);
+        }
+        this.dead = true;
+        return;
       }
+
+      this.remainingPenetration = applyArmoredDamage(hit.enemy, this.damage, this.remainingPenetration);
+      spawnEffect(new VisualEffect(this.x, this.y, 15, '#29b6f6', 'effect.projectile.direct-hit'));
     }
 
-    const terrainHit = terrain?.raycast({ x: previousX, y: previousY }, { x: this.x, y: this.y });
-    if (terrainHit && (!enemyHit || terrainHit.progress <= enemyHit.progress)) {
+    if (terrainHit) {
       this.terrainHitCell = terrainHit.cell;
       this.x = terrainHit.point.x;
       this.y = terrainHit.point.y;
-      spawnEffect(new VisualEffect(this.x, this.y, 15, '#90a4ae', 'effect.projectile.direct-hit'));
-      emitSound({ type: 'projectile-impact', position: { x: this.x, y: this.y } });
+      if (this.detonateOnEnd) {
+        this.detonate(this.x, this.y, enemies, spawnEffect, emitSound, enemyQuery);
+      } else {
+        this.impact(spawnEffect, emitSound);
+      }
       this.dead = true;
       return;
     }
 
-    if (enemyHit) {
-      this.x = previousX + (this.x - previousX) * enemyHit.progress;
-      this.y = previousY + (this.y - previousY) * enemyHit.progress;
-      enemyHit.enemy.takeDamage(this.damage);
-      spawnEffect(new VisualEffect(this.x, this.y, 15, '#29b6f6', 'effect.projectile.direct-hit'));
-      emitSound({ type: 'projectile-impact', position: { x: this.x, y: this.y } });
-      this.dead = true;
-      return;
-    }
+    this.x = segmentEndX;
+    this.y = segmentEndY;
 
-    if (this.traveled >= this.maxDistance) {
+    if (this.traveled >= this.maxDistance - 1e-9) {
+      if (this.detonateOnEnd) {
+        const point = this.targetPoint ?? { x: this.x, y: this.y };
+        this.x = point.x;
+        this.y = point.y;
+        this.detonate(this.x, this.y, enemies, spawnEffect, emitSound, enemyQuery);
+      }
       this.dead = true;
     }
   }
@@ -193,20 +266,54 @@ export class DirectProjectile extends Projectile {
   public render(render: RenderContext): void {
     render.renderer.drawSprite(render, 'effect.projectile.direct', this.x, this.y, {
       rotation: Math.atan2(this.dirY, this.dirX),
+      scale: this.detonateOnEnd ? 1.35 : 1,
     });
+  }
+
+  private impact(
+    spawnEffect: (effect: VisualEffect) => void,
+    emitSound: (event: ProjectileSoundEvent) => void,
+  ): void {
+    spawnEffect(new VisualEffect(this.x, this.y, 15, '#90a4ae', 'effect.projectile.direct-hit'));
+    emitSound({ type: 'projectile-impact', position: { x: this.x, y: this.y } });
+  }
+
+  private detonate(
+    x: number,
+    y: number,
+    enemies: Enemy[],
+    spawnEffect: (effect: VisualEffect) => void,
+    emitSound: (event: ProjectileSoundEvent) => void,
+    enemyQuery?: EnemySpatialQuery,
+  ): void {
+    const candidates = enemyQuery?.queryCircle({ x, y }, this.explosionRadius + PROJECTILE_BROAD_PHASE_MARGIN) ?? enemies;
+    for (const enemy of candidates) {
+      if (enemy.isDead()) continue;
+      const distance = Math.hypot(enemy.x - x, enemy.y - y);
+      const impactRadius = this.explosionRadius + enemy.radius;
+      if (distance > impactRadius) continue;
+      const factor = this.explosionRadius > 0
+        ? Math.max(0, 1 - distance / impactRadius)
+        : distance <= enemy.radius ? 1 : 0;
+      if (factor <= 0) continue;
+      applyArmoredDamage(enemy, this.damage * factor, this.remainingPenetration);
+    }
+    spawnEffect(new VisualEffect(x, y, Math.max(18, this.explosionRadius), '#ff8f00', 'effect.explosion.arc'));
+    emitSound({ type: 'explosion', position: { x, y } });
   }
 }
 
-// Arc Parabolic Projectile (Grenade / Mortar Shell)
 export class ArcProjectile extends Projectile {
   private startX: number;
   private startY: number;
   private targetX: number;
   private targetY: number;
   private totalTime: number;
-  private elapsedTime: number = 0;
-  private maxArcHeight: number = 80;
+  private elapsedTime = 0;
+  private readonly maxArcHeight: number;
   private aoeRadius: number;
+  private penetration: number;
+  private readonly ignoreTerrain: boolean;
 
   constructor(
     startX: number,
@@ -215,57 +322,64 @@ export class ArcProjectile extends Projectile {
     targetY: number,
     flightTime: number,
     damage: number,
-    aoeRadius: number
+    aoeRadius: number,
+    penetration = Number.POSITIVE_INFINITY,
+    options: ArcProjectileOptions = {},
   ) {
     super(startX, startY, damage);
     this.startX = startX;
     this.startY = startY;
     this.targetX = targetX;
     this.targetY = targetY;
-    this.totalTime = flightTime;
-    this.aoeRadius = aoeRadius;
+    this.totalTime = Math.max(0.001, flightTime);
+    this.aoeRadius = Math.max(0, aoeRadius);
+    this.penetration = penetration;
+    this.ignoreTerrain = options.ignoreTerrain ?? false;
+    this.maxArcHeight = Math.max(0, options.maxArcHeight ?? 80);
   }
 
   public update(
     dt: number,
     enemies: Enemy[],
-    spawnEffect: (e: VisualEffect) => void,
+    spawnEffect: (effect: VisualEffect) => void,
     emitSound: (event: ProjectileSoundEvent) => void,
     terrain?: TerrainGrid,
+    enemyQuery?: EnemySpatialQuery,
   ): void {
     if (this.dead) return;
 
-    this.elapsedTime = Math.min(this.totalTime, this.elapsedTime + dt);
+    this.elapsedTime = Math.min(this.totalTime, this.elapsedTime + Math.max(0, dt));
     const t = Math.min(1, this.elapsedTime / this.totalTime);
-
     const previousX = this.x;
     const previousY = this.y;
-
-    // Ground position interpolation
     this.x = this.startX + (this.targetX - this.startX) * t;
     this.y = this.startY + (this.targetY - this.startY) * t;
 
-    const terrainHit = terrain?.raycast({ x: previousX, y: previousY }, { x: this.x, y: this.y });
-    if (terrainHit) {
-      this.terrainHitCell = terrainHit.cell;
-      this.x = terrainHit.point.x;
-      this.y = terrainHit.point.y;
-      spawnEffect(new VisualEffect(this.x, this.y, 15, '#90a4ae', 'effect.projectile.direct-hit'));
-      emitSound({ type: 'projectile-impact', position: { x: this.x, y: this.y } });
-      this.dead = true;
-      return;
+    if (!this.ignoreTerrain) {
+      const terrainHit = terrain?.raycast({ x: previousX, y: previousY }, { x: this.x, y: this.y });
+      if (terrainHit) {
+        this.terrainHitCell = terrainHit.cell;
+        this.x = terrainHit.point.x;
+        this.y = terrainHit.point.y;
+        spawnEffect(new VisualEffect(this.x, this.y, 15, '#90a4ae', 'effect.projectile.direct-hit'));
+        emitSound({ type: 'projectile-impact', position: { x: this.x, y: this.y } });
+        this.dead = true;
+        return;
+      }
     }
 
     if (t >= 1) {
-      // Arrived at target: AOE Explosion!
-      for (const enemy of enemies) {
+      const candidates = enemyQuery?.queryCircle(
+        { x: this.targetX, y: this.targetY },
+        this.aoeRadius + PROJECTILE_BROAD_PHASE_MARGIN,
+      ) ?? enemies;
+      for (const enemy of candidates) {
         if (enemy.isDead()) continue;
-        const dist = Math.hypot(enemy.x - this.targetX, enemy.y - this.targetY);
-        if (dist <= this.aoeRadius + enemy.radius) {
-          // Full damage at center, falloff at edges
-          const damageFactor = Math.max(0, 1 - dist / (this.aoeRadius + enemy.radius));
-          enemy.takeDamage(this.damage * damageFactor);
-        }
+        const distance = Math.hypot(enemy.x - this.targetX, enemy.y - this.targetY);
+        const impactRadius = this.aoeRadius + enemy.radius;
+        if (distance > impactRadius) continue;
+        const damageFactor = Math.max(0, 1 - distance / impactRadius);
+        if (damageFactor > 0) applyArmoredDamage(enemy, this.damage * damageFactor, this.penetration);
       }
 
       spawnEffect(new VisualEffect(this.targetX, this.targetY, this.aoeRadius, '#ab47bc', 'effect.explosion.arc'));
@@ -277,9 +391,7 @@ export class ArcProjectile extends Projectile {
   public render(render: RenderContext): void {
     const ctx = render.ctx;
     const t = Math.min(1, this.elapsedTime / this.totalTime);
-    // Parabola height Z = 4 * H * t * (1 - t)
     const arcZ = 4 * this.maxArcHeight * t * (1 - t);
-
     const groundX = this.x;
     const groundY = this.y;
     const airX = groundX;
@@ -291,28 +403,21 @@ export class ArcProjectile extends Projectile {
     });
 
     ctx.save();
-
-    // 1. Landing Shadow on Ground
     ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
     ctx.beginPath();
     ctx.ellipse(groundX, groundY, 8 * (1 - t * 0.3), 4 * (1 - t * 0.3), 0, 0, Math.PI * 2);
     ctx.fill();
-
-    // Target reticle indicator
     ctx.strokeStyle = 'rgba(171, 71, 188, 0.5)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(this.targetX, this.targetY, this.aoeRadius, 0, Math.PI * 2);
     ctx.stroke();
-
-    // 2. Dotted line connecting shadow to shell in air
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
     ctx.setLineDash([2, 4]);
     ctx.beginPath();
     ctx.moveTo(groundX, groundY);
     ctx.lineTo(airX, airY);
     ctx.stroke();
-
     ctx.restore();
 
     render.renderer.drawSprite(render, 'effect.projectile.arc', airX, airY, {
