@@ -23,8 +23,9 @@ import { MapDefinition, mapDefinitionLoader } from './MapDefinitionLoader';
 import { TerrainGrid } from './TerrainGrid';
 import type { TerrainAabb, TerrainCell } from './TerrainGrid';
 import { TerrainPathfinder } from './TerrainPathfinder';
-import { EnemyNavigationCoordinator } from './EnemyNavigationCoordinator';
+import { ENEMY_NAVIGATION_POLICY, EnemyNavigationCoordinator } from './EnemyNavigationCoordinator';
 import type { EnemyNavigationTarget } from './EnemyNavigationCoordinator';
+import { EnemyCollisionResolver } from './EnemyCollisionResolver';
 import { SettingsScreen, StartMenu } from '../ui/StartMenu';
 import { CampaignProgress, EMPTY_CAMPAIGN_PROGRESS } from './CampaignProgressStore';
 import { LocalStorageCampaignProgressStore } from './LocalStorageCampaignProgressStore';
@@ -86,6 +87,7 @@ export class Game {
   private terrainGrid: TerrainGrid;
   private pathfinder: TerrainPathfinder;
   private readonly enemyNavigation: EnemyNavigationCoordinator;
+  private readonly enemyCollision: EnemyCollisionResolver;
 
   private screen: AppScreen = AppScreen.START_MENU;
   private state: GameState = GameState.PLAYING;
@@ -148,6 +150,10 @@ export class Game {
       this.pathfinder,
       undefined,
       { workerEnabled: getGameTestWorkerEnabled() },
+    );
+    this.enemyCollision = new EnemyCollisionResolver(
+      this.terrainGrid,
+      ENEMY_NAVIGATION_POLICY.spatialCellSize,
     );
     this.camera = new Camera(
       this.gameplayWidth,
@@ -724,6 +730,8 @@ export class Game {
       visibilityBounds: this.getNavigationVisibilityBounds(),
     };
     this.enemyNavigation.update(dt, this.enemies, navigationTarget);
+    const vehicleBounds = this.vehicle.getGridBounds();
+    this.enemyCollision.separate(this.enemies, vehicleBounds);
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const enemy = this.enemies[i];
       const previousPos = { x: enemy.x, y: enemy.y };
@@ -741,7 +749,7 @@ export class Game {
         directive: directive ?? undefined,
         nearbyEnemies: this.enemyNavigation.getNearbyEnemies(enemy),
       });
-      if (this.resolveEnemyAgainstGrid(enemy, this.vehicle.getGridBounds(), previousPos) && enemy.tryContactDamage()) {
+      if (this.enemyCollision.resolveAgainstVehicle(enemy, vehicleBounds, previousPos) && enemy.tryContactDamage()) {
         this.vehicle.takeDamage(enemy.contactDamage, 0, { x: enemy.x - corePos.x, y: enemy.y - corePos.y });
         this.addEffect(new VisualEffect(enemy.x, enemy.y, 25, '#ff1744', 'effect.contact-damage'));
         if (!this.vehicle.isCoreActive()) {
@@ -756,6 +764,8 @@ export class Game {
         this.enemies.splice(i, 1);
       }
     }
+
+    this.enemyCollision.separate(this.enemies, vehicleBounds);
 
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const projectile = this.projectiles[i];
@@ -1262,6 +1272,7 @@ export class Game {
     this.terrainGrid = new TerrainGrid(map);
     this.pathfinder = new TerrainPathfinder(this.terrainGrid);
     this.enemyNavigation.setContext(this.terrainGrid, this.pathfinder);
+    this.enemyCollision.setTerrain(this.terrainGrid);
     this.camera.setWorldSize(this.terrainGrid.width, this.terrainGrid.height);
   }
 
@@ -1336,40 +1347,6 @@ export class Game {
       this.ctx.stroke();
     }
     this.ctx.restore();
-  }
-
-  private resolveEnemyAgainstGrid(
-    enemy: Enemy,
-    bounds: { left: number; top: number; right: number; bottom: number },
-    previousPos: { x: number; y: number }
-  ): boolean {
-    const closestX = Math.max(bounds.left, Math.min(bounds.right, enemy.x));
-    const closestY = Math.max(bounds.top, Math.min(bounds.bottom, enemy.y));
-    const deltaX = enemy.x - closestX;
-    const deltaY = enemy.y - closestY;
-    if (deltaX * deltaX + deltaY * deltaY > enemy.radius * enemy.radius) return false;
-
-    const distance = Math.hypot(deltaX, deltaY);
-    if (distance > 0) {
-      enemy.x = closestX + (deltaX / distance) * (enemy.radius + 0.01);
-      enemy.y = closestY + (deltaY / distance) * (enemy.radius + 0.01);
-      return true;
-    }
-
-    if (previousPos.x < bounds.left) enemy.x = bounds.left - enemy.radius - 0.01;
-    else if (previousPos.x > bounds.right) enemy.x = bounds.right + enemy.radius + 0.01;
-    else if (previousPos.y < bounds.top) enemy.y = bounds.top - enemy.radius - 0.01;
-    else if (previousPos.y > bounds.bottom) enemy.y = bounds.bottom + enemy.radius + 0.01;
-    else {
-      const distances = [
-        { distance: enemy.x - bounds.left, set: () => { enemy.x = bounds.left - enemy.radius - 0.01; } },
-        { distance: bounds.right - enemy.x, set: () => { enemy.x = bounds.right + enemy.radius + 0.01; } },
-        { distance: enemy.y - bounds.top, set: () => { enemy.y = bounds.top - enemy.radius - 0.01; } },
-        { distance: bounds.bottom - enemy.y, set: () => { enemy.y = bounds.bottom + enemy.radius + 0.01; } },
-      ];
-      distances.sort((a, b) => a.distance - b.distance)[0].set();
-    }
-    return true;
   }
 
   private resizeCanvas(): void {
