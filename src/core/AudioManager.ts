@@ -68,6 +68,7 @@ const manifest = audioManifest as AudioManifest;
 
 const isProceduralSource = (src: string): boolean => src.indexOf('procedural://') === 0;
 const EXTERNAL_SFX_GAIN = 0.72;
+const VOLUME_STEPS = [0, 0.2, 0.4, 0.6, 0.8, 1];
 
 const SOUND_POLICY: Record<SoundEffectId, SoundPolicy> = {
   'sfx.weapon.direct-fire': { cooldownMs: 35, maxVoices: 4, gain: 0.24 },
@@ -216,15 +217,13 @@ export class AudioManager {
   }
 
   public cycleMusicVolume(): void {
-    const levels = [0, 0.2, 0.4];
-    const currentIndex = levels.findIndex((level) => Math.abs(level - this.musicVolume) < 0.01);
-    this.setMusicVolume(levels[currentIndex >= 0 ? (currentIndex + 1) % levels.length : 0]);
+    const currentIndex = VOLUME_STEPS.findIndex((level) => Math.abs(level - this.musicVolume) < 0.01);
+    this.setMusicVolume(VOLUME_STEPS[currentIndex >= 0 ? (currentIndex + 1) % VOLUME_STEPS.length : 0]);
   }
 
   public cycleSfxVolume(): void {
-    const levels = [0, 0.4, 0.8];
-    const currentIndex = levels.findIndex((level) => Math.abs(level - this.sfxVolume) < 0.01);
-    this.setSfxVolume(levels[currentIndex >= 0 ? (currentIndex + 1) % levels.length : 0]);
+    const currentIndex = VOLUME_STEPS.findIndex((level) => Math.abs(level - this.sfxVolume) < 0.01);
+    this.setSfxVolume(VOLUME_STEPS[currentIndex >= 0 ? (currentIndex + 1) % VOLUME_STEPS.length : 0]);
   }
 
   public setMusicDucked(ducked: boolean): void {

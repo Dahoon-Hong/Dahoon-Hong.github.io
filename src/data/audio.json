@@ -114,9 +114,9 @@
       "creator": "U.S. Army National Guard / DVIDS",
       "downloadedAt": "2026-09-15",
       "originalSha256": "cd75060f237057c8a8e5998d95004e43538d6f11a87facfbe82bb4da9904ebe3",
-      "runtimeSha256": "240455a38b05320a91130508437675b9568321cda94fe5d2bbc9a004201bf6c0",
+      "runtimeSha256": "dc460c3166aa2432d331d60d66ad0aeebc2fe847a257665b9b5f132f82f0009e",
       "modified": true,
-      "modificationSummary": "Reuses the approved 105mm howitzer firing clip as the 90mm gameplay surrogate per weapon-caliber mapping; extracted 00:00:41.2–00:00:43.7, then converted to mono 48 kHz WAV, low-end enhanced, compressed, normalized, limited, and faded.",
+      "modificationSummary": "Reuses the approved 105mm howitzer firing clip as the 90mm gameplay surrogate per weapon-caliber mapping; extracted 00:00:06.5–00:00:09.0, then converted to mono 48 kHz WAV, low-end enhanced, compressed, normalized, limited, and faded.",
       "attribution": "DVIDS public-domain source; retain source URL and license review URL.",
       "reviewNote": "DVIDS page marks the source PUBLIC DOMAIN; 90mm intentionally shares the 105mm firing-only clip per the project weapon mapping. No CC BY asset used."
     },
@@ -165,9 +165,9 @@
       "creator": "U.S. Army National Guard / DVIDS",
       "downloadedAt": "2026-09-15",
       "originalSha256": "cd75060f237057c8a8e5998d95004e43538d6f11a87facfbe82bb4da9904ebe3",
-      "runtimeSha256": "240455a38b05320a91130508437675b9568321cda94fe5d2bbc9a004201bf6c0",
+      "runtimeSha256": "dc460c3166aa2432d331d60d66ad0aeebc2fe847a257665b9b5f132f82f0009e",
       "modified": true,
-      "modificationSummary": "Extracted a 2.5-second 105mm howitzer firing clip at 00:00:41.2–00:00:43.7; converted to mono 48 kHz WAV, low-end enhanced, compressed, normalized, limited, and faded for runtime.",
+      "modificationSummary": "Extracted a 2.5-second 105mm howitzer firing clip at 00:00:06.5–00:00:09.0; converted to mono 48 kHz WAV, low-end enhanced, compressed, normalized, limited, and faded for runtime.",
       "attribution": "DVIDS public-domain source; retain source URL and license review URL.",
       "reviewNote": "DVIDS page marks the source PUBLIC DOMAIN; extracted a firing-only howitzer clip from the player MP4. No CC BY asset used."
     },

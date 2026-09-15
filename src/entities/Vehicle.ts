@@ -82,6 +82,14 @@ export class Vehicle {
     return this.combatGrid.getPlacements().map((placement) => placement.module);
   }
 
+  public getStoredCombatModuleCount(moduleId: string): number {
+    return this.combatGrid.getStoredCombatModuleCount(moduleId);
+  }
+
+  public hasStoredCombatModule(moduleId: string): boolean {
+    return this.combatGrid.hasStoredCombatModule(moduleId);
+  }
+
   public getCombatModuleDefinitions() {
     return this.combatGrid.getCombatModuleDefinitions();
   }
@@ -105,6 +113,10 @@ export class Vehicle {
 
   public installModule(moduleId: string, anchor: GridCell, orientation?: ModuleOrientation): CombatModule | null {
     return this.combatGrid.install(moduleId, anchor, orientation);
+  }
+
+  public removeModule(module: CombatModule): boolean {
+    return this.combatGrid.remove(module);
   }
 
   public getCombatModule(instanceId: string): CombatModule | null {

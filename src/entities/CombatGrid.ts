@@ -22,6 +22,7 @@ export class CombatGrid {
   private readonly modules: Readonly<Record<string, TankModuleDefinition>>;
   private readonly upgrades: UpgradeManager;
   private readonly placements: CombatPlacement[] = [];
+  private readonly storedModules: CombatModule[] = [];
   private readonly occupancy = new Map<string, CombatModule>();
   private nextInstanceNumber = 1;
 
@@ -53,6 +54,14 @@ export class CombatGrid {
 
   public getPlacements(): readonly CombatPlacement[] {
     return this.placements;
+  }
+
+  public getStoredCombatModuleCount(moduleId: string): number {
+    return this.storedModules.filter((module) => module.moduleId === moduleId).length;
+  }
+
+  public hasStoredCombatModule(moduleId: string): boolean {
+    return this.storedModules.some((module) => module.moduleId === moduleId);
   }
 
   public getModuleAtCell(x: number, y: number): CombatModule | null {
@@ -104,21 +113,42 @@ export class CombatGrid {
   public install(
     moduleId: string,
     anchor: GridCell,
-    orientation: ModuleOrientation = this.getDefaultOrientation(moduleId),
+    orientation?: ModuleOrientation,
   ): CombatModule | null {
-    if (!this.canInstall(moduleId, anchor, orientation)) return null;
+    const storedModule = this.storedModules.find((module) => module.moduleId === moduleId) ?? null;
+    const resolvedOrientation = orientation ?? storedModule?.orientation ?? this.getDefaultOrientation(moduleId);
+    if (!this.canInstall(moduleId, anchor, resolvedOrientation)) return null;
+
+    if (storedModule) {
+      this.storedModules.splice(this.storedModules.indexOf(storedModule), 1);
+      storedModule.setPlacement(anchor, resolvedOrientation);
+      const placement = { module: storedModule, anchor: { ...anchor }, orientation: storedModule.orientation };
+      this.placements.push(placement);
+      this.occupy(storedModule);
+      return storedModule;
+    }
 
     const definition = this.modules[moduleId];
     if (!definition) return null;
     const instanceId = `${moduleId}#${this.nextInstanceNumber++}`;
     this.upgrades.registerInstance(instanceId, moduleId);
-    const module = createCombatModule(definition, instanceId, anchor, this.upgrades, orientation);
+    const module = createCombatModule(definition, instanceId, anchor, this.upgrades, resolvedOrientation);
     if (!module) return null;
 
     const placement = { module, anchor: { ...anchor }, orientation: module.orientation };
     this.placements.push(placement);
     this.occupy(module);
     return module;
+  }
+
+  public remove(module: CombatModule): boolean {
+    const placementIndex = this.placements.findIndex((placement) => placement.module === module);
+    if (placementIndex < 0) return false;
+
+    this.clearOccupancy(module);
+    this.placements.splice(placementIndex, 1);
+    this.storedModules.push(module);
+    return true;
   }
 
   public move(
