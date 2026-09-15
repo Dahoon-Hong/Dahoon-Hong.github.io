@@ -7,14 +7,14 @@
   "upgradeTree": {
     "rootId": "root",
     "nodes": [
-      { "id": "root", "parentId": null, "cost": {}, "effects": [], "unlocksModuleId": "direct-weapon" },
+      { "id": "root", "parentId": null, "cost": {}, "effects": [], "unlocksModuleId": "machine-gun-12.7mm" },
       { "id": "research-machine-gun-20mm", "parentId": "root", "exclusiveGroup": null, "cost": { "matter": 45 }, "effects": [], "unlocksModuleId": "machine-gun-20mm" },
       { "id": "research-machine-gun-30mm", "parentId": "research-machine-gun-20mm", "cost": { "matter": 70 }, "effects": [], "unlocksModuleId": "machine-gun-30mm" },
       { "id": "research-tank-gun-76mm", "parentId": "root", "exclusiveGroup": null, "cost": { "matter": 60 }, "effects": [], "unlocksModuleId": "tank-gun-76mm" },
       { "id": "research-tank-gun-90mm", "parentId": "research-tank-gun-76mm", "cost": { "matter": 90 }, "effects": [], "unlocksModuleId": "tank-gun-90mm" },
       { "id": "research-tank-gun-120mm", "parentId": "research-tank-gun-90mm", "cost": { "matter": 130 }, "effects": [], "unlocksModuleId": "tank-gun-120mm" },
-      { "id": "research-arc-weapon", "parentId": "root", "exclusiveGroup": null, "cost": { "matter": 30 }, "effects": [], "unlocksModuleId": "arc-weapon" },
-      { "id": "research-howitzer-105mm", "parentId": "research-arc-weapon", "cost": { "matter": 75 }, "effects": [], "unlocksModuleId": "howitzer-105mm" },
+      { "id": "research-mortar-60mm", "parentId": "root", "exclusiveGroup": null, "cost": { "matter": 30 }, "effects": [], "unlocksModuleId": "mortar-60mm" },
+      { "id": "research-howitzer-105mm", "parentId": "research-mortar-60mm", "cost": { "matter": 75 }, "effects": [], "unlocksModuleId": "howitzer-105mm" },
       { "id": "research-howitzer-155mm", "parentId": "research-howitzer-105mm", "cost": { "matter": 130 }, "effects": [], "unlocksModuleId": "howitzer-155mm" }
     ]
   }

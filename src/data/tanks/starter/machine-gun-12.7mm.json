@@ -1,5 +1,5 @@
 {
-  "id": "direct-weapon",
+  "id": "machine-gun-12.7mm",
   "kind": "combat",
   "name": "12.7mm Heavy Machine Gun",
   "behavior": "direct",
@@ -12,14 +12,14 @@
   "moduleAssetId": "tank.module.modern.hmg-12-7",
   "fireSoundId": "sfx.weapon.hmg-12-7-fire",
   "fireEffectId": "effect.projectile.direct-hit",
-  "baseStats": { "maxHp": 100, "range": 620, "damage": 18, "fireRate": 0.15, "projectileSpeed": 1050, "maxDistance": 620, "minRange": 0, "penetration": 20, "magazineSize": 24, "reloadTime": 2.2 },
+  "baseStats": { "maxHp": 100, "maxRange": 620, "damage": 18, "fireRate": 0.15, "projectileSpeed": 1050, "minRange": 0, "penetration": 20, "magazineSize": 20, "reloadTime": 2.2 },
   "upgradeTree": {
     "rootId": "root",
     "nodes": [
       { "id": "root", "parentId": null, "cost": {}, "effects": [] },
       { "id": "rapid-fire", "parentId": "root", "cost": { "matter": 40 }, "effects": [{ "stat": "fireRate", "operation": "multiply", "value": 0.9 }] },
       { "id": "heavy-round", "parentId": "root", "cost": { "matter": 40 }, "effects": [{ "stat": "damage", "operation": "add", "value": 12 }] },
-      { "id": "rapid-fire-branch", "parentId": "rapid-fire", "cost": { "matter": 60 }, "effects": [{ "stat": "range", "operation": "add", "value": 80 }] },
+      { "id": "rapid-fire-branch", "parentId": "rapid-fire", "cost": { "matter": 60 }, "effects": [{ "stat": "maxRange", "operation": "add", "value": 80 }] },
       { "id": "heavy-round-branch", "parentId": "heavy-round", "cost": { "matter": 60 }, "effects": [{ "stat": "damage", "operation": "add", "value": 18 }] }
     ]
   }

@@ -18,8 +18,8 @@
 - 행동: 기존 `direct` 또는 `arc` 재사용인지, 새로운 발사 방식인지
 - 크기: 격자 너비와 높이, 기본 방향, 사격 가능 각도
 - 비용: 구매 비용, Armory 연구 비용, 시작 장비 여부
-- 전투 수치: 체력, 사거리, 피해량, 발사 간격
-- 투사체: 속도와 최대 거리 또는 비행 시간과 범위 피해 반경
+- 전투 수치: 체력, 최소 사거리, 최대 사거리, 피해량, 발사 간격
+- 투사체: 직사 속도 또는 곡사 비행 시간과 범위 피해 반경
 - 업그레이드: 노드 관계, 비용, 효과, 배타 분기
 - 표현: 차체 위 이미지, UI 아이콘, 투사체/피격 효과, 사운드 재사용 여부
 - 지형 상호작용: 시야 차단, 투사체 지형 충돌, 범위 피해 규칙
@@ -50,7 +50,7 @@
 
 ## 무기 JSON 계약
 
-가장 가까운 예제는 `src/data/tanks/starter/direct-weapon.json`과 `arc-weapon.json`이다.
+가장 가까운 예제는 `src/data/tanks/starter/machine-gun-12.7mm.json`과 `mortar-60mm.json`이다.
 
 ```json
 {
@@ -65,11 +65,11 @@
   "defaultOrientation": 0,
   "baseStats": {
     "maxHp": 100,
-    "range": 600,
+    "minRange": 0,
+    "maxRange": 600,
     "damage": 30,
     "fireRate": 0.2,
-    "projectileSpeed": 1000,
-    "maxDistance": 1000
+    "projectileSpeed": 1000
   },
   "upgradeTree": {
     "rootId": "root",
@@ -87,8 +87,10 @@
 - `size.width`와 `size.height`는 1 이상의 정수다.
 - `fireArcDegrees`는 0보다 크고 360 이하여야 한다.
 - `defaultOrientation`은 `0 | 1 | 2 | 3`이며 생략하면 0이다.
+- 모든 combat module은 `minRange`와 `maxRange`를 가지며 `0 <= minRange <= maxRange`여야 한다. 기관총류의 `minRange`는 0으로 설정한다.
+- 설치 미리보기는 같은 두 값을 사용해 `minRange` 안쪽의 안전구역과 `maxRange` 바깥 경계를 표시한다.
 - `fireRate`는 초당 발사 수가 아니라 발사 사이의 쿨다운 초다. 값이 작을수록 빠르다.
-- direct가 사용하는 추가 스탯은 `projectileSpeed`, `maxDistance`다.
+- direct가 사용하는 추가 스탯은 `projectileSpeed`이며, 전차포는 `aoeRadius`도 사용한다.
 - arc가 사용하는 추가 스탯은 `aoeRadius`, `flightTime`이다.
 
 정의 파일은 `TankDefinitionLoader`의 `import.meta.glob('../data/tanks/*/*.json')`로 자동 발견된다. 일반 무기 정의를 별도 목록에 등록할 필요는 없다.
@@ -129,9 +131,9 @@ UI는 `ui.icon.<module-id>`를 동적으로 찾으므로 다음 두 항목이 �
 - `public/assets/game/ui/icon-<module-id>.png`
 - `src/data/assets.json`의 `ui.icon.<module-id>` 항목
 
-현재 direct와 arc 모듈의 차체 이미지는 각각 `tank.module.direct-weapon`, `tank.module.arc-weapon`으로 코드에 고정되어 있다. 같은 행동을 재사용하는 새 무기에 고유한 차체 이미지를 넣으려면 정의 기반 asset ID를 지원하도록 코드를 바꾸거나 별도 행동 클래스를 만들어야 한다.
+현재 기본 기관총과 박격포 모듈의 차체 이미지는 각각 `tank.module.machine-gun-12.7mm`, `tank.module.mortar-60mm`으로 등록되어 있다. 같은 행동을 재사용하는 새 무기는 정의의 `moduleAssetId`에 고유한 차체 이미지를 지정한다.
 
-기존 direct/arc 발사음을 재사용하면 오디오 파일 수정이 필요 없다. 새 사운드 종류를 추가하면 `CombatSoundEvent`, `Game`의 매핑, `AudioManager`, `audio.json`, `qa-audio`와 `docs/audio/`의 라이선스 기록을 함께 갱신한다.
+기존 직사/곡사 발사음을 재사용하면 오디오 파일 수정이 필요 없다. 새 사운드 종류를 추가하면 `CombatSoundEvent`, `Game`의 매핑, `AudioManager`, `audio.json`, `qa-audio`와 `docs/audio/`의 라이선스 기록을 함께 갱신한다.
 
 ## 코드 확장이 필요한 경우
 

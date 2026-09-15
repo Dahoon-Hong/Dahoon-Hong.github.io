@@ -10,9 +10,9 @@
           "campaign": false,
           "name": "Landing Zone",
           "waves": [
-            { "targetKills": 12 },
-            { "targetKills": 12 },
-            { "targetKills": 12 }
+            { "targetKills": 100},
+            { "targetKills": 500},
+            { "targetKills": 1000}
           ]
         },
         {

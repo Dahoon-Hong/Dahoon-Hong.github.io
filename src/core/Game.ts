@@ -101,7 +101,7 @@ export class Game {
   private projectiles: Projectile[] = [];
   private effects: VisualEffect[] = [];
   private pickups: ResourcePickup[] = [];
-  private readonly resources = new ResourceStorage({ resource: 50 });
+  private readonly resources: ResourceStorage;
   private lastTime = 0;
   private lastFrameDeltaMs = 0;
   private maxFrameDeltaMs = 0;
@@ -208,6 +208,7 @@ export class Game {
     });
     this.hud = new HUDManager();
     this.tankDefinition = new TankDefinitionLoader().getDefault();
+    this.resources = new ResourceStorage({ resource: 50 }, this.tankDefinition.resourceCapacities);
     this.upgradeManager = new UpgradeManager(this.tankDefinition.modules);
     this.vehicle = this.createVehicle();
     this.armory = this.createArmory();
@@ -482,7 +483,7 @@ export class Game {
         break;
       case 'armory-install':
         this.setTestResource('matter', this.resources.getCapacity('matter'));
-        this.armory.purchase('direct-weapon', (cost) => this.resources.spendCost(cost));
+        this.armory.purchase('machine-gun-12.7mm', (cost) => this.resources.spendCost(cost));
         this.setTestResource('matter', this.resources.getCapacity('matter'));
         this.setState(GameState.PAUSED);
         break;
@@ -511,6 +512,7 @@ export class Game {
       case 'terminal-region':
         this.waveManager.currentWave = this.waveManager.totalWaves;
         this.waveManager.killedEnemiesCount = this.waveManager.targetKills;
+        this.waveManager.stageKilledEnemiesCount = this.waveManager.stageTargetKills;
         this.waveManager.waveCleared = true;
         break;
     }
@@ -952,6 +954,8 @@ export class Game {
       wave: this.waveManager.currentWave,
       targetKills: this.waveManager.targetKills,
       killedEnemies: this.waveManager.killedEnemiesCount,
+      stageTargetKills: this.waveManager.stageTargetKills,
+      stageKilledEnemies: this.waveManager.stageKilledEnemiesCount,
       spawnedEnemies: this.waveManager.spawnedEnemiesCount,
       spawnSkippedEnemies: this.waveManager.spawnSkippedCount,
       liveEnemies: liveEnemyCount,
@@ -1092,6 +1096,8 @@ export class Game {
       this.resources,
       this.waveManager.currentWave,
       killsRemaining,
+      this.waveManager.stageKilledEnemiesCount,
+      this.waveManager.stageTargetKills,
       this.state === GameState.PAUSED,
       this.camera,
     );

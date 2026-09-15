@@ -119,8 +119,13 @@ export abstract class CombatModule {
     return this.definition.weaponClass ?? (this.definition.behavior === 'arc' ? 'howitzer' : 'machine-gun');
   }
 
+  public getMaxRange(): number {
+    return this.getStat('maxRange', 600);
+  }
+
+  /** Compatibility alias for callers that used range as the maximum range. */
   public getRange(): number {
-    return this.getStat('range', 600);
+    return this.getMaxRange();
   }
 
   public getMinRange(): number {
@@ -195,24 +200,33 @@ export abstract class CombatModule {
   }
 
   protected spendShot(spendResource: (type: ResourceType, amount: number) => boolean): boolean {
+    const usesReloadAmmo = this.getWeaponClass() === 'machine-gun';
     if (this.loadedShots <= 0) {
-      this.startReload();
+      this.startReload(usesReloadAmmo ? spendResource : undefined);
       return false;
     }
-    if (!spendResource('ammo', 1)) return false;
+    if (!usesReloadAmmo && !spendResource('ammo', 1)) return false;
     this.loadedShots--;
-    if (this.loadedShots <= 0) this.startReload();
+    if (this.loadedShots <= 0) {
+      this.startReload(usesReloadAmmo ? spendResource : undefined);
+    }
     return true;
   }
 
-  protected startReload(): void {
+  protected startReload(
+    spendResource?: (type: ResourceType, amount: number) => boolean,
+  ): boolean {
+    if (this.getWeaponClass() === 'machine-gun' && (!spendResource || !spendResource('ammo', 1))) {
+      return false;
+    }
     const reloadTime = this.getReloadTime();
     if (reloadTime <= 0) {
       this.loadedShots = this.getMagazineSize();
       this.reloadTimer = 0;
-      return;
+      return true;
     }
     this.reloadTimer = reloadTime;
+    return true;
   }
 
   protected emitFire(
@@ -299,11 +313,11 @@ export class DirectWeaponModule extends CombatModule {
     if (this.cooldownTimer > 0) return;
 
     const weaponClass = this.getWeaponClass();
-    const candidates = enemyQuery?.queryCircle(modulePos, this.getRange()) ?? enemies;
+    const candidates = enemyQuery?.queryCircle(modulePos, this.getMaxRange()) ?? enemies;
     const target = findClosestEnemy(
       modulePos,
       candidates,
-      this.getRange(),
+      this.getMaxRange(),
       fireAngle,
       this.fireArcDegrees,
       weaponClass === 'machine-gun' ? hasLineOfSight : () => true,
@@ -324,7 +338,7 @@ export class DirectWeaponModule extends CombatModule {
         directionY,
         this.getStat('projectileSpeed', 1000),
         this.getDamage(),
-        tankGun ? Math.max(1, distance) : this.getStat('maxDistance', this.getRange()),
+        tankGun ? Math.max(1, distance) : this.getMaxRange(),
         {
           penetration: this.getPenetration(),
           explosionRadius: tankGun ? this.getStat('aoeRadius', 0) : 0,
@@ -342,7 +356,7 @@ export class DirectWeaponModule extends CombatModule {
   }
 
   public render(render: RenderContext, worldX: number, worldY: number, width: number, height: number): void {
-    const assetId = this.definition.moduleAssetId ?? 'tank.module.direct-weapon';
+    const assetId = this.definition.moduleAssetId ?? 'tank.module.machine-gun-12.7mm';
     this.renderBody(render, assetId, worldX, worldY, this.getWeaponClass() === 'tank-gun' ? 'GUN' : 'MG', width, height);
   }
 }
@@ -368,11 +382,11 @@ export class ArcWeaponModule extends CombatModule {
     this.cooldownTimer = Math.max(0, this.cooldownTimer - dt);
     if (this.cooldownTimer > 0) return;
 
-    const candidates = enemyQuery?.queryCircle(modulePos, this.getRange()) ?? enemies;
+    const candidates = enemyQuery?.queryCircle(modulePos, this.getMaxRange()) ?? enemies;
     const target = findClosestEnemy(
       modulePos,
       candidates,
-      this.getRange(),
+      this.getMaxRange(),
       fireAngle,
       this.fireArcDegrees,
       () => true,
@@ -403,7 +417,7 @@ export class ArcWeaponModule extends CombatModule {
   }
 
   public render(render: RenderContext, worldX: number, worldY: number, width: number, height: number): void {
-    const assetId = this.definition.moduleAssetId ?? 'tank.module.arc-weapon';
+    const assetId = this.definition.moduleAssetId ?? 'tank.module.mortar-60mm';
     this.renderBody(render, assetId, worldX, worldY, 'HOW', width, height);
   }
 }
@@ -411,7 +425,7 @@ export class ArcWeaponModule extends CombatModule {
 export function findClosestEnemy(
   position: { x: number; y: number },
   enemies: readonly Enemy[],
-  range: number,
+  maxRange: number,
   fireAngle: number,
   fireArcDegrees: number,
   hasLineOfSight: LineOfSightQuery = () => true,
@@ -425,7 +439,7 @@ export function findClosestEnemy(
     const deltaX = enemy.x - position.x;
     const deltaY = enemy.y - position.y;
     const distance = Math.hypot(deltaX, deltaY);
-    if (distance < minRange || distance > range || distance >= minDistance) continue;
+    if (distance < minRange || distance > maxRange || distance >= minDistance) continue;
     const targetAngle = Math.atan2(deltaY, deltaX);
     const angleDifference = Math.abs(Math.atan2(
       Math.sin(targetAngle - fireAngle),

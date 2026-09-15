@@ -2,18 +2,22 @@ export type ResourceType = 'resource' | 'matter' | 'ammo' | 'nano';
 
 export const RESOURCE_TYPES: ResourceType[] = ['resource', 'matter', 'ammo', 'nano'];
 
+export type ResourceCapacities = Record<ResourceType, number>;
+
 export class ResourceStorage {
-  private readonly capacities: Record<ResourceType, number>;
+  private readonly capacities: ResourceCapacities;
   private readonly initialAmounts: Record<ResourceType, number>;
   private readonly amounts: Record<ResourceType, number>;
 
-  constructor(initialResourceOrAmounts: number | Partial<Record<ResourceType, number>> = 50, capacity: number = 100) {
+  constructor(
+    initialResourceOrAmounts: number | Partial<Record<ResourceType, number>> = 50,
+    capacity: number | ResourceCapacities = 300,
+  ) {
     const initialAmounts = typeof initialResourceOrAmounts === 'number'
       ? { resource: initialResourceOrAmounts }
       : initialResourceOrAmounts;
-    const safeCapacity = Math.max(0, capacity);
 
-    this.capacities = this.createAmounts(safeCapacity);
+    this.capacities = this.createCapacities(capacity);
     this.initialAmounts = this.createAmounts(0);
     this.amounts = this.createAmounts(0);
 
@@ -85,5 +89,19 @@ export class ResourceStorage {
       ammo: value,
       nano: value,
     };
+  }
+
+  private createCapacities(value: number | ResourceCapacities): ResourceCapacities {
+    if (typeof value === 'number') return this.createAmounts(Math.max(0, value));
+
+    return Object.fromEntries(
+      RESOURCE_TYPES.map((type) => {
+        const capacity = value[type];
+        if (!Number.isFinite(capacity) || capacity < 0) {
+          throw new Error('[ResourceStorage] capacity for ' + type + ' must be a finite non-negative number');
+        }
+        return [type, capacity];
+      }),
+    ) as ResourceCapacities;
   }
 }

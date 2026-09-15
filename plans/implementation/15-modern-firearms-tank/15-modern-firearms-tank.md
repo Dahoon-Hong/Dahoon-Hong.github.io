@@ -10,8 +10,8 @@
 
 현재 `starter` 탱크에 현대 화기 9종을 추가한다.
 
-- 기존 `direct-weapon`을 12.7mm 중기관총으로 현대화한다.
-- 기존 `arc-weapon`을 60mm 박격포로 현대화한다.
+- 기존 `machine-gun-12.7mm`을 12.7mm 중기관총으로 현대화한다.
+- 기존 `mortar-60mm`을 60mm 박격포로 현대화한다.
 - 20mm 기관포, 30mm 대공포를 추가한다.
 - 76mm·90mm 강선포, 120mm 활강포를 추가한다.
 - 105mm·155mm 곡사포를 추가한다.
@@ -19,6 +19,8 @@
 - 기관총은 탄창 연사와 다중 적 관통을 사용한다.
 - 전차포는 최소 사거리, 직선 관통, 목표 지점 또는 차단 지점 폭발을 사용한다.
 - 곡사포는 최소 사거리, 곡사 탄도와 목표 지점 범위 폭발을 사용한다.
+- 기관총은 재장전 시 ammo 1개를 소비하고, 12.7mm/20mm/30mm 순서로 20발/15발/10발을 발사한다. 전차포·곡사포는 발사당 ammo 1개를 소비한다.
+- 자원별 최대 저장량은 `src/data/tanks/starter/resources.json`에서 탱크별로 설정하고 `Game`이 선택된 탱크의 설정을 `ResourceStorage`에 전달한다. starter의 `resource`, `matter`, `ammo`, `nano` 용량은 각각 300이다.
 - 적 Standard/Tanker에 장갑을 추가하고, `penetration > armor`일 때만 피해를 준다.
 - 관통 성공 후 남은 관통력은 대상 장갑만큼 줄어든다.
 - 모든 무기는 고유 module body와 발사 sound ID를 사용한다.
@@ -45,9 +47,10 @@
 
 ### 데이터·로더
 
+- `src/data/tanks/starter/resources.json`
 - `src/data/enemies.json`
-- `src/data/tanks/starter/direct-weapon.json`
-- `src/data/tanks/starter/arc-weapon.json`
+- `src/data/tanks/starter/machine-gun-12.7mm.json`
+- `src/data/tanks/starter/mortar-60mm.json`
 - `src/data/tanks/starter/machine-gun-20mm.json`
 - `src/data/tanks/starter/machine-gun-30mm.json`
 - `src/data/tanks/starter/tank-gun-76mm.json`
@@ -60,6 +63,7 @@
 
 ### 런타임·UI
 
+- `src/core/ResourceStorage.ts`
 - `src/core/UpgradeManager.ts`
 - `src/core/ArmoryManager.ts`
 - `src/entities/Enemy.ts`
@@ -82,9 +86,9 @@
 
 ## 데이터 및 밸런스 기준
 
-적 장갑은 Standard 10, Tanker 40이다. 승인된 1차 무기 기준값은 설계 문서의 표를 그대로 사용하며, 거리 px와 시간 초 단위를 유지한다.
+적 장갑은 Standard 10, Tanker 40이다. 승인된 1차 무기 기준값은 설계 문서의 표를 그대로 사용하며, 거리 px와 시간 초 단위를 유지한다. 기관총 탄창은 12.7mm 20발, 20mm 15발, 30mm 10발이며 재장전마다 ammo 1개를 사용한다.
 
-새 combat definition에는 `weaponClass`, `moduleAssetId`, `fireSoundId`, `fireEffectId`와 `minRange`, `penetration`, `magazineSize`, `reloadTime` stats를 추가한다. `fireRate`는 탄창 내 발사 간격이며 단발 무기는 0, `magazineSize`는 1이다.
+새 combat definition에는 `weaponClass`, `moduleAssetId`, `fireSoundId`, `fireEffectId`와 `minRange`, `maxRange`, `penetration`, `magazineSize`, `reloadTime` stats를 추가한다. 모든 무기는 `minRange <= distance <= maxRange`를 만족하는 목표만 조준하며 기관총류의 `minRange`는 0이다. `fireRate`는 탄창 내 발사 간격이며 단발 무기는 0, `magazineSize`는 1이다.
 
 ## 테스트 시나리오
 
@@ -120,7 +124,7 @@ runtime QA는 AGENTS.md의 `integration-tester` 계약에 따라 실제 URL, por
 ## 완료 기준
 
 - 모든 데이터가 로드·검증되고 9종이 Armory에 표시된다.
-- 9종의 점유 크기·사격각·최소거리·탄창/재장전·피해/사거리/폭발범위가 승인값과 일치한다.
+- 9종의 점유 크기·사격각·최소/최대거리·탄창/재장전·피해/폭발범위가 승인값과 일치한다.
 - armor/penetration 및 다중 관통이 승인 규칙대로 동작한다.
 - 고유 외형·발사음·계열별 FX·반동이 표시된다.
 - 단위 테스트, art/audio QA, build와 required runtime QA가 통과한다.

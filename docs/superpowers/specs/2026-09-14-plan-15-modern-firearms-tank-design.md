@@ -15,7 +15,7 @@
 
 ## 1. 목표
 
-현재 `starter` 탱크에 현대 화기 컨셉의 전투 모듈 9종을 제공한다. 기존 직사·곡사 모듈의 ID와 시작 흐름은 유지하되, 무기별 구경 차이, 사격각, 모듈 크기, 최소 사거리, 범위 공격, 관통력, 적 장갑, 탄창과 재장전, 고유 외형·발사음·발사 연출을 구현한다.
+현재 `starter` 탱크에 현대 화기 컨셉의 전투 모듈 9종을 제공한다. 기존 직사·곡사 모듈의 ID와 시작 흐름은 유지하되, 무기별 구경 차이, 사격각, 모듈 크기, 최소·최대 사거리, 범위 공격, 관통력, 적 장갑, 탄창과 재장전, 고유 외형·발사음·발사 연출을 구현한다.
 
 핵심 목표는 다음과 같다.
 
@@ -30,8 +30,8 @@
 ### 포함
 
 - `starter` 탱크의 현대 화기 9종
-- 기존 `direct-weapon`의 12.7mm 중기관총 현대화
-- 기존 `arc-weapon`의 60mm 박격포 현대화
+- 기존 `machine-gun-12.7mm`의 12.7mm 중기관총 현대화
+- 기존 `mortar-60mm`의 60mm 박격포 현대화
 - 20mm 기관포와 30mm 대공포
 - 76mm·90mm 강선포와 120mm 활강포
 - 105mm·155mm 곡사포
@@ -98,13 +98,14 @@ remainingPenetration = projectile.penetration
 - 곡사포는 비행 경로상의 적을 관통하지 않고, 목표 지점 폭발만 처리한다. 폭발 범위 안의 각 적은 장갑과 관통력을 독립적으로 비교한다.
 - 전차포의 직선 관통 피해와 착탄 폭발 피해는 별도 판정으로 취급한다. 같은 적이 두 판정에 모두 해당하면 두 피해가 적용될 수 있다.
 
-### 3.3 사격각과 최소 사거리
+### 3.3 사격각과 최소·최대 사거리
 
 - 실제 조준 방향은 탱크 방향과 모듈 orientation을 합산한다.
-- 목표 후보는 사거리 안, 사격각 안, 살아 있는 적으로 제한한다.
-- `distance >= minRange`만 유효하다.
+- 목표 후보는 `minRange`~`maxRange` 안, 사격각 안, 살아 있는 적으로 제한한다.
+- `minRange <= distance <= maxRange`인 목표만 유효하다.
 - 후보가 없거나 ammo가 부족하면 발사하지 않고 새 발사 cooldown도 시작하지 않는다.
 - 기관총류의 `minRange`는 0이다.
+- 설치·선택 미리보기는 사격각 부채꼴의 외곽에 `maxRange`, 내부에 `minRange` 안전구역 경계를 표시한다.
 - 직사 기관총·전차포는 지형에 의해 경로가 차단된다.
 - 전차포가 적보다 먼저 지형에 닿으면 지형 충돌 지점에서 폭발한다.
 - 곡사포·박격포는 곡사 탄도이므로 지면의 중간 장애물을 넘고 목표 지점에서 폭발한다.
@@ -114,23 +115,23 @@ remainingPenetration = projectile.penetration
 
 수치는 1차 기준값이며 JSON에서 조정한다. 거리 단위는 현재 게임의 월드 px, 시간 단위는 초다. 현재 구현의 `fireRate` 명칭은 유지하되, plan15에서는 탄창 안에서 다음 발까지의 간격으로 정의한다.
 
-| ID / 표시명 | 계열 | 피해 | 관통력 | 사거리 | 최소거리 | 탄창 | 발사 간격 | 재장전 | 폭발범위 |
+| ID / 표시명 | 계열 | 피해 | 관통력 | 최소거리 | 최대사거리 | 탄창 | 발사 간격 | 재장전 | 폭발범위 |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `direct-weapon` / 12.7mm 중기관총 | 기관총 | 18 | 20 | 620 | 0 | 24 | 0.15 | 2.2 | - |
-| `machine-gun-20mm` / 20mm 기관포 | 기관총 | 30 | 35 | 740 | 0 | 15 | 0.25 | 3.0 | - |
-| `machine-gun-30mm` / 30mm 대공포 | 기관총 | 58 | 60 | 860 | 0 | 8 | 0.42 | 4.0 | - |
-| `tank-gun-76mm` / 76mm 강선포 | 전차포 | 100 | 55 | 760 | 120 | 1 | 0 | 2.8 | 50 |
-| `tank-gun-90mm` / 90mm 강선포 | 전차포 | 145 | 85 | 880 | 150 | 1 | 0 | 3.8 | 72 |
-| `tank-gun-120mm` / 120mm 활강포 | 전차포 | 230 | 130 | 1000 | 190 | 1 | 0 | 5.2 | 96 |
-| `arc-weapon` / 60mm 박격포 | 곡사포 | 80 | 30 | 680 | 100 | 1 | 0 | 2.4 | 60 |
-| `howitzer-105mm` / 105mm 곡사포 | 곡사포 | 140 | 65 | 840 | 180 | 1 | 0 | 4.0 | 92 |
-| `howitzer-155mm` / 155mm 곡사포 | 곡사포 | 245 | 105 | 1000 | 280 | 1 | 0 | 6.0 | 130 |
+| `machine-gun-12.7mm` / 12.7mm 중기관총 | 기관총 | 18 | 20 | 0 | 620 | 20 | 0.15 | 2.2 | - |
+| `machine-gun-20mm` / 20mm 기관포 | 기관총 | 30 | 35 | 0 | 740 | 15 | 0.25 | 3.0 | - |
+| `machine-gun-30mm` / 30mm 대공포 | 기관총 | 58 | 60 | 0 | 860 | 10 | 0.42 | 4.0 | - |
+| `tank-gun-76mm` / 76mm 강선포 | 전차포 | 100 | 55 | 120 | 760 | 1 | 0 | 2.8 | 50 |
+| `tank-gun-90mm` / 90mm 강선포 | 전차포 | 145 | 85 | 150 | 880 | 1 | 0 | 3.8 | 72 |
+| `tank-gun-120mm` / 120mm 활강포 | 전차포 | 230 | 130 | 190 | 1000 | 1 | 0 | 5.2 | 96 |
+| `mortar-60mm` / 60mm 박격포 | 곡사포 | 80 | 30 | 100 | 680 | 1 | 0 | 2.4 | 60 |
+| `howitzer-105mm` / 105mm 곡사포 | 곡사포 | 140 | 65 | 180 | 840 | 1 | 0 | 4.0 | 92 |
+| `howitzer-155mm` / 155mm 곡사포 | 곡사포 | 245 | 105 | 280 | 1000 | 1 | 0 | 6.0 | 130 |
 
 추가 투사체 기준값은 다음과 같다.
 
 - 기관총 projectile speed: 12.7mm 1050, 20mm 950, 30mm 900
 - 전차포 projectile speed: 76mm 900, 90mm 850, 120mm 780
-- 전차포 `maxDistance`는 각 무기의 사거리와 같다.
+- JSON의 `maxRange`는 각 무기의 최대 조준 사거리이며, 전차포의 직선 발사체는 선택한 목표 지점까지 이동한다.
 - 곡사포 flight time: 60mm 1.0, 105mm 1.4, 155mm 1.8
 - 폭발 피해는 기존 `ArcProjectile`의 중심 최대·가장자리 감쇠 규칙을 유지한다.
 
@@ -141,12 +142,12 @@ remainingPenetration = projectile.penetration
 ### 5.1 탄약 상태
 
 - 전역 `ammo` 자원은 유지한다.
-- 유효한 발사 1회마다 ammo 1을 소비한다.
 - 모듈은 `loadedShots`를 가진다. 새 모듈과 런 재시작 시 탄창은 가득 찬 상태다.
-- 기관총은 탄창 잔량을 줄이며, 0이 되면 `reloadTime` 동안 재장전한다.
+- 기관총은 탄창 잔량을 줄이며, 0이 되면 재장전 시작 시 ammo 1을 소비하고 `reloadTime` 동안 재장전한다. ammo 1개로 12.7mm는 20발, 20mm는 15발, 30mm는 10발을 발사한다.
 - 전차포와 곡사포는 `magazineSize: 1`이므로 매 발사 후 재장전한다.
-- ammo를 재장전 시작 시 미리 예약하지 않는다. 발사 성공 시점에만 전역 ammo를 차감해 기존 자원 흐름과 호환한다.
-- 재장전 중에는 발사하지 않는다. 재장전 완료 후 탄창을 가득 채우지만, ammo가 없으면 실제 발사는 실패한다.
+- 전차포와 곡사포는 유효한 발사 1회마다 ammo 1을 소비한다.
+- 기관총은 재장전용 ammo가 없으면 재장전을 시작하지 않고 빈 탄창 상태로 대기한다. 전차포와 곡사포는 ammo가 없으면 발사하지 않는다.
+- 재장전 중에는 발사하지 않는다. 재장전 완료 후 기관총 탄창을 가득 채운다.
 - 모듈 파괴·수리와 런 재시작 시 탄창/재장전 상태를 초기화한다.
 - HUD는 탄창 잔량과 재장전 진행 상태를 표시한다.
 
@@ -200,15 +201,14 @@ Armory는 세 개의 독립 lane을 가진다.
   "fireEffectId": "effect.muzzle.machine-gun",
   "baseStats": {
     "maxHp": 100,
-    "range": 740,
     "minRange": 0,
+    "maxRange": 740,
     "damage": 30,
     "penetration": 35,
     "fireRate": 0.25,
     "magazineSize": 15,
     "reloadTime": 3.0,
-    "projectileSpeed": 950,
-    "maxDistance": 740
+    "projectileSpeed": 950
   },
   "upgradeTree": {
     "rootId": "root",
@@ -223,10 +223,10 @@ Armory는 세 개의 독립 lane을 가진다.
 
 - `weaponClass`는 `machine-gun`, `tank-gun`, `howitzer` 중 하나다.
 - `moduleAssetId`, `fireSoundId`, `fireEffectId`는 정의 기반 렌더링·사운드·FX 선택에 사용한다.
-- `minRange`는 0 이상, `penetration`은 0보다 커야 한다.
+- `minRange`는 0 이상, `maxRange`는 0보다 크고 `minRange <= maxRange`여야 하며, 기관총류의 `minRange`는 0이다. `penetration`은 0보다 커야 한다.
 - `fireRate`는 0 이상, `reloadTime`은 0보다 커야 한다.
 - `magazineSize`는 양의 정수이며, 단발 무기는 1이다.
-- `tank-gun`은 `behavior: "direct"`, `aoeRadius`, `projectileSpeed`, `maxDistance`를 가진다.
+- `tank-gun`은 `behavior: "direct"`, `aoeRadius`, `projectileSpeed`를 가진다.
 - `howitzer`는 `behavior: "arc"`, `aoeRadius`, `flightTime`을 가진다.
 - `machine-gun`은 `aoeRadius`를 사용하지 않는다.
 - 모든 combat module은 기존 `size`, `fireArcDegrees`, `defaultOrientation`, cost, upgrade tree 계약을 계속 만족한다.
@@ -234,8 +234,8 @@ Armory는 세 개의 독립 lane을 가진다.
 
 파일 배치는 다음을 따른다.
 
-- 수정: `src/data/tanks/starter/direct-weapon.json`
-- 수정: `src/data/tanks/starter/arc-weapon.json`
+- 수정: `src/data/tanks/starter/machine-gun-12.7mm.json`
+- 수정: `src/data/tanks/starter/mortar-60mm.json`
 - 신규: `src/data/tanks/starter/machine-gun-20mm.json`
 - 신규: `src/data/tanks/starter/machine-gun-30mm.json`
 - 신규: `src/data/tanks/starter/tank-gun-76mm.json`
@@ -249,7 +249,7 @@ Armory는 세 개의 독립 lane을 가진다.
 
 ### 7.1 전투 모듈
 
-`CombatModule`는 조준 후보 필터, 탄창, 재장전과 공통 발사 이벤트를 관리한다. 기존 direct/arc subclass는 다음 세 projectile mode를 선택한다.
+`CombatModule`는 조준 후보 필터, 탄창, 재장전과 공통 발사 이벤트를 관리한다. 기존 직사/곡사 subclass는 다음 세 projectile mode를 선택한다.
 
 - 기관총: 관통 직사탄
 - 전차포: 관통 직사 폭발탄
@@ -269,7 +269,7 @@ Armory는 세 개의 독립 lane을 가진다.
 
 현재 `EnemySpatialIndex`를 확장해 다음 질의를 제공한다.
 
-- `queryCircle(point, range)`: 조준 가능한 범위 후보
+- `queryCircle(point, maxRange)`: 최대 사거리 안의 조준 후보
 - `querySegment(start, end, radius)`: 관통 경로와 교차할 수 있는 후보
 
 Game update에서 살아 있는 적으로 combat index를 한 번 구축하고, target selection과 projectile update가 공유한다. `querySegment`는 선분의 확장 AABB에 포함되는 bucket만 순회한 뒤 정확한 선분-원 교차를 확인하고, 진행률 기준으로 정렬한다. 따라서 전체 적 수가 늘어도 실제 경로와 무관한 적은 관통 계산에 참여하지 않는다.
@@ -324,7 +324,7 @@ Game update에서 살아 있는 적으로 combat index를 한 번 구축하고, 
 | `src/data/assets.json` | module/icon/projectile/FX manifest |
 | `src/data/audio.json` | 9종 발사음과 라이선스 메타데이터 |
 
-기존 콘텐츠 추가 guide의 `direct/arc` 제한과 현재 hard-coded asset 계약이 달라지는 부분은 구현 후 가이드 갱신 대상으로 검토한다. 이번 설계 문서에는 승인된 plan15 규칙만 기록한다.
+기존 콘텐츠 추가 guide의 직사/곡사 제한과 현재 hard-coded asset 계약이 달라지는 부분은 구현 후 가이드 갱신 대상으로 검토한다. 이번 설계 문서에는 승인된 plan15 규칙만 기록한다.
 
 ## 10. 테스트와 runtime QA
 
@@ -367,7 +367,7 @@ npm run dev
 ## 11. 완료 기준
 
 - starter 탱크가 9종 현대 화기 정의를 오류 없이 로드한다.
-- direct-weapon은 12.7mm 중기관총, arc-weapon은 60mm 박격포로 표시된다.
+- machine-gun-12.7mm은 12.7mm 중기관총, mortar-60mm은 60mm 박격포로 표시된다.
 - 기관총 360°/1×1, 전차포 30°/1×2, 곡사포 45°/2×2, 박격포 1×1 규칙이 설치·조준·렌더링에 일치한다.
 - 적 장갑과 발사체 관통력이 승인된 수식대로 처리된다.
 - 기관총은 다중 적 관통과 탄창 연사를 수행한다.

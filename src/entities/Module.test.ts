@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TerrainGrid } from '../core/TerrainGrid';
 import { EnemyDefinition, StandardEnemy } from './Enemy';
-import { findClosestEnemy, DirectWeaponModule } from './Module';
+import { ArcWeaponModule, findClosestEnemy, DirectWeaponModule } from './Module';
 import { UpgradeManager } from '../core/UpgradeManager';
 import { TankModuleDefinition } from '../core/TankDefinitionLoader';
 
@@ -30,7 +30,7 @@ const terrain = new TerrainGrid({
 
 const tree = { rootId: 'root', nodes: [{ id: 'root', parentId: null, cost: {}, effects: [] }] };
 const weaponDefinition: TankModuleDefinition = {
-  id: 'direct-weapon',
+  id: 'machine-gun-12.7mm',
   kind: 'combat',
   name: 'Test Gun',
   behavior: 'direct',
@@ -38,7 +38,7 @@ const weaponDefinition: TankModuleDefinition = {
   installCost: {},
   fireArcDegrees: 360,
   defaultOrientation: 0,
-  baseStats: { range: 500, fireRate: 0.2, projectileSpeed: 100, damage: 10, maxDistance: 500 },
+  baseStats: { minRange: 0, maxRange: 500, fireRate: 0.2, projectileSpeed: 100, damage: 10 },
   upgradeTree: tree,
 };
 
@@ -59,9 +59,9 @@ describe('combat terrain targeting', () => {
   });
 
   it('does not spend ammo or start cooldown when every target is hidden', () => {
-    const upgrades = new UpgradeManager({ 'direct-weapon': weaponDefinition });
-    upgrades.registerInstance('direct-weapon#1', 'direct-weapon');
-    const weapon = new DirectWeaponModule(weaponDefinition, 'direct-weapon#1', { x: 0, y: 0 }, upgrades);
+    const upgrades = new UpgradeManager({ 'machine-gun-12.7mm': weaponDefinition });
+    upgrades.registerInstance('machine-gun-12.7mm#1', 'machine-gun-12.7mm');
+    const weapon = new DirectWeaponModule(weaponDefinition, 'machine-gun-12.7mm#1', { x: 0, y: 0 }, upgrades);
     const hidden = new StandardEnemy(90, 90, enemyDefinition);
     let spent = 0;
     let spawned = 0;
@@ -82,9 +82,10 @@ describe('combat terrain targeting', () => {
     expect(weapon.getFireRate()).toBe(0.2);
   });
 
-  it('fires a magazine, then reloads without reserving ammo', () => {
+  it('fires a magazine, then spends one ammo to reload', () => {
     const definition: TankModuleDefinition = {
       ...weaponDefinition,
+      weaponClass: 'machine-gun',
       baseStats: {
         ...weaponDefinition.baseStats,
         fireRate: 0.1,
@@ -111,16 +112,102 @@ describe('combat terrain targeting', () => {
 
     fire(0.01);
     expect(weapon.getLoadedShots()).toBe(1);
+    expect(spent).toBe(0);
     fire(0.1);
     expect(weapon.getLoadedShots()).toBe(0);
     expect(weapon.isReloading()).toBe(true);
-    expect(spent).toBe(2);
+    expect(spent).toBe(1);
     expect(spawned).toBe(2);
     fire(0.5);
-    expect(spent).toBe(2);
+    expect(spent).toBe(1);
     fire(0.5);
-    expect(spent).toBe(3);
+    expect(spent).toBe(1);
     expect(weapon.getLoadedShots()).toBe(1);
+  });
+
+  it('spends one ammo for each single-shot weapon round', () => {
+    const definition: TankModuleDefinition = {
+      ...weaponDefinition,
+      weaponClass: 'tank-gun',
+      baseStats: {
+        ...weaponDefinition.baseStats,
+        fireRate: 0,
+        magazineSize: 1,
+        reloadTime: 1,
+        penetration: 10,
+      },
+    };
+    const upgrades = new UpgradeManager({ 'single-shot-test': definition });
+    upgrades.registerInstance('single-shot-test#1', 'single-shot-test');
+    const weapon = new DirectWeaponModule(definition, 'single-shot-test#1', { x: 0, y: 0 }, upgrades);
+    const target = new StandardEnemy(100, 0, enemyDefinition);
+    let spent = 0;
+    let spawned = 0;
+
+    weapon.update(
+      0.01,
+      { x: 0, y: 0 },
+      0,
+      [target],
+      () => { spawned++; },
+      () => { spent++; return true; },
+      () => undefined,
+    );
+
+    expect(spent).toBe(1);
+    expect(spawned).toBe(1);
+    expect(weapon.getLoadedShots()).toBe(0);
+    expect(weapon.isReloading()).toBe(true);
+  });
+
+  it('keeps a machine-gun empty when reload ammo is unavailable', () => {
+    const definition: TankModuleDefinition = {
+      ...weaponDefinition,
+      weaponClass: 'machine-gun',
+      baseStats: {
+        ...weaponDefinition.baseStats,
+        fireRate: 0,
+        magazineSize: 1,
+        reloadTime: 1,
+        penetration: 10,
+      },
+    };
+    const upgrades = new UpgradeManager({ 'empty-magazine-test': definition });
+    upgrades.registerInstance('empty-magazine-test#1', 'empty-magazine-test');
+    const weapon = new DirectWeaponModule(definition, 'empty-magazine-test#1', { x: 0, y: 0 }, upgrades);
+    const target = new StandardEnemy(100, 0, enemyDefinition);
+    let ammoAvailable = false;
+    let reloadAttempts = 0;
+    let spawned = 0;
+    const fire = (dt: number) => weapon.update(
+      dt,
+      { x: 0, y: 0 },
+      0,
+      [target],
+      () => { spawned++; },
+      () => {
+        reloadAttempts++;
+        return ammoAvailable;
+      },
+      () => undefined,
+    );
+
+    fire(0.01);
+    expect(spawned).toBe(1);
+    expect(weapon.getLoadedShots()).toBe(0);
+    expect(weapon.isReloading()).toBe(false);
+    expect(reloadAttempts).toBe(1);
+
+    fire(0.01);
+    expect(spawned).toBe(1);
+    expect(reloadAttempts).toBe(2);
+
+    ammoAvailable = true;
+    fire(0.01);
+    expect(spawned).toBe(1);
+    expect(weapon.isReloading()).toBe(true);
+    fire(1);
+    expect(spawned).toBe(2);
   });
 
   it('does not fire a minimum-range weapon at a target inside its dead zone', () => {
@@ -156,5 +243,72 @@ describe('combat terrain targeting', () => {
     expect(spent).toBe(0);
     expect(spawned).toBe(0);
     expect(weapon.getLoadedShots()).toBe(1);
+
+    target.x = 150;
+    weapon.update(
+      0.01,
+      { x: 0, y: 0 },
+      0,
+      [target],
+      () => { spawned++; },
+      () => { spent++; return true; },
+      () => undefined,
+    );
+
+    expect(spent).toBe(1);
+    expect(spawned).toBe(1);
+  });
+
+  it('applies the same minimum and maximum range to indirect fire', () => {
+    const definition: TankModuleDefinition = {
+      ...weaponDefinition,
+      id: 'mortar-test',
+      behavior: 'arc',
+      weaponClass: 'howitzer',
+      baseStats: {
+        ...weaponDefinition.baseStats,
+        fireRate: 0,
+        minRange: 100,
+        maxRange: 500,
+        aoeRadius: 40,
+        flightTime: 1,
+        magazineSize: 1,
+        reloadTime: 1,
+        penetration: 10,
+      },
+    };
+    const upgrades = new UpgradeManager({ 'mortar-test': definition });
+    upgrades.registerInstance('mortar-test#1', 'mortar-test');
+    const weapon = new ArcWeaponModule(definition, 'mortar-test#1', { x: 0, y: 0 }, upgrades);
+    const target = new StandardEnemy(550, 0, enemyDefinition);
+    let spent = 0;
+    let spawned = 0;
+
+    weapon.update(
+      0.01,
+      { x: 0, y: 0 },
+      0,
+      [target],
+      () => { spawned++; },
+      () => { spent++; return true; },
+      () => undefined,
+    );
+
+    expect(spent).toBe(0);
+    expect(spawned).toBe(0);
+
+    target.x = 150;
+    weapon.update(
+      0.01,
+      { x: 0, y: 0 },
+      0,
+      [target],
+      () => { spawned++; },
+      () => { spent++; return true; },
+      () => undefined,
+    );
+
+    expect(spent).toBe(1);
+    expect(spawned).toBe(1);
   });
 });

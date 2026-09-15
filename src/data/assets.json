@@ -49,21 +49,21 @@
       "layer": "actors",
       "fallback": "shape.tank.grid.blocked"
     },
-    "tank.module.direct-weapon": {
-      "src": "/assets/game/tank/module-direct-weapon.png",
+    "tank.module.machine-gun-12.7mm": {
+      "src": "/assets/game/tank/module-machine-gun-12.7mm.png",
       "draw": { "width": 44, "height": 44 },
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "actors",
-      "fallback": "shape.tank.module.direct-weapon"
+      "fallback": "shape.tank.module.direct-fire"
     },
-    "tank.module.arc-weapon": {
-      "src": "/assets/game/tank/module-arc-weapon.png",
+    "tank.module.mortar-60mm": {
+      "src": "/assets/game/tank/module-mortar-60mm.png",
       "draw": { "width": 88, "height": 44 },
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "actors",
-      "fallback": "shape.tank.module.arc-weapon"
+      "fallback": "shape.tank.module.indirect-fire"
     },
     "tank.module.modern.hmg-12-7": {
       "src": "/assets/game/tank/module-modern-hmg-12-7.png",
@@ -71,7 +71,7 @@
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "actors",
-      "fallback": "shape.tank.module.direct-weapon"
+      "fallback": "shape.tank.module.direct-fire"
     },
     "tank.module.modern.autocannon-20": {
       "src": "/assets/game/tank/module-modern-autocannon-20.png",
@@ -79,7 +79,7 @@
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "actors",
-      "fallback": "shape.tank.module.direct-weapon"
+      "fallback": "shape.tank.module.direct-fire"
     },
     "tank.module.modern.aa-30": {
       "src": "/assets/game/tank/module-modern-aa-30.png",
@@ -87,7 +87,7 @@
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "actors",
-      "fallback": "shape.tank.module.direct-weapon"
+      "fallback": "shape.tank.module.direct-fire"
     },
     "tank.module.modern.rifle-76": {
       "src": "/assets/game/tank/module-modern-rifle-76.png",
@@ -95,7 +95,7 @@
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "actors",
-      "fallback": "shape.tank.module.direct-weapon"
+      "fallback": "shape.tank.module.direct-fire"
     },
     "tank.module.modern.rifle-90": {
       "src": "/assets/game/tank/module-modern-rifle-90.png",
@@ -103,7 +103,7 @@
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "actors",
-      "fallback": "shape.tank.module.direct-weapon"
+      "fallback": "shape.tank.module.direct-fire"
     },
     "tank.module.modern.smoothbore-120": {
       "src": "/assets/game/tank/module-modern-smoothbore-120.png",
@@ -111,7 +111,7 @@
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "actors",
-      "fallback": "shape.tank.module.direct-weapon"
+      "fallback": "shape.tank.module.direct-fire"
     },
     "tank.module.modern.mortar-60": {
       "src": "/assets/game/tank/module-modern-mortar-60.png",
@@ -119,7 +119,7 @@
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "actors",
-      "fallback": "shape.tank.module.arc-weapon"
+      "fallback": "shape.tank.module.indirect-fire"
     },
     "tank.module.modern.howitzer-105": {
       "src": "/assets/game/tank/module-modern-howitzer-105.png",
@@ -127,7 +127,7 @@
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "actors",
-      "fallback": "shape.tank.module.arc-weapon"
+      "fallback": "shape.tank.module.indirect-fire"
     },
     "tank.module.modern.howitzer-155": {
       "src": "/assets/game/tank/module-modern-howitzer-155.png",
@@ -135,7 +135,7 @@
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "actors",
-      "fallback": "shape.tank.module.arc-weapon"
+      "fallback": "shape.tank.module.indirect-fire"
     },
     "enemy.standard.idle": {
       "src": "/assets/game/enemies/standard-idle.png",
@@ -313,21 +313,21 @@
       "layer": "hud",
       "fallback": "shape.icon.armor-plate"
     },
-    "ui.icon.direct-weapon": {
+    "ui.icon.machine-gun-12.7mm": {
       "src": "/assets/game/ui/icon-modern-hmg-12-7.png",
       "draw": { "width": 20, "height": 20 },
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "hud",
-      "fallback": "shape.icon.direct-weapon"
+      "fallback": "shape.icon.direct-fire"
     },
-    "ui.icon.arc-weapon": {
+    "ui.icon.mortar-60mm": {
       "src": "/assets/game/ui/icon-modern-mortar-60.png",
       "draw": { "width": 20, "height": 20 },
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "hud",
-      "fallback": "shape.icon.arc-weapon"
+      "fallback": "shape.icon.indirect-fire"
     },
     "ui.icon.machine-gun-20mm": {
       "src": "/assets/game/ui/icon-modern-autocannon-20.png",
@@ -335,7 +335,7 @@
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "hud",
-      "fallback": "shape.icon.direct-weapon"
+      "fallback": "shape.icon.direct-fire"
     },
     "ui.icon.machine-gun-30mm": {
       "src": "/assets/game/ui/icon-modern-aa-30.png",
@@ -343,7 +343,7 @@
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "hud",
-      "fallback": "shape.icon.direct-weapon"
+      "fallback": "shape.icon.direct-fire"
     },
     "ui.icon.tank-gun-76mm": {
       "src": "/assets/game/ui/icon-modern-rifle-76.png",
@@ -351,7 +351,7 @@
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "hud",
-      "fallback": "shape.icon.direct-weapon"
+      "fallback": "shape.icon.direct-fire"
     },
     "ui.icon.tank-gun-90mm": {
       "src": "/assets/game/ui/icon-modern-rifle-90.png",
@@ -359,7 +359,7 @@
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "hud",
-      "fallback": "shape.icon.direct-weapon"
+      "fallback": "shape.icon.direct-fire"
     },
     "ui.icon.tank-gun-120mm": {
       "src": "/assets/game/ui/icon-modern-smoothbore-120.png",
@@ -367,7 +367,7 @@
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "hud",
-      "fallback": "shape.icon.direct-weapon"
+      "fallback": "shape.icon.direct-fire"
     },
     "ui.icon.howitzer-105mm": {
       "src": "/assets/game/ui/icon-modern-howitzer-105.png",
@@ -375,7 +375,7 @@
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "hud",
-      "fallback": "shape.icon.arc-weapon"
+      "fallback": "shape.icon.indirect-fire"
     },
     "ui.icon.howitzer-155mm": {
       "src": "/assets/game/ui/icon-modern-howitzer-155.png",
@@ -383,7 +383,7 @@
       "pivot": { "x": 0.5, "y": 0.5 },
       "frames": { "columns": 1, "rows": 1, "duration": 0 },
       "layer": "hud",
-      "fallback": "shape.icon.arc-weapon"
+      "fallback": "shape.icon.indirect-fire"
     },
     "resource.resource.collect": {
       "src": "/assets/game/resources/resource-collect.png",

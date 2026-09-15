@@ -13,7 +13,7 @@
   "moduleAssetId": "tank.module.modern.aa-30",
   "fireSoundId": "sfx.weapon.aa-30-fire",
   "fireEffectId": "effect.projectile.direct-hit",
-  "baseStats": { "maxHp": 100, "range": 860, "damage": 58, "fireRate": 0.42, "projectileSpeed": 900, "maxDistance": 860, "minRange": 0, "penetration": 60, "magazineSize": 8, "reloadTime": 4 },
+  "baseStats": { "maxHp": 100, "maxRange": 860, "damage": 58, "fireRate": 0.42, "projectileSpeed": 900, "minRange": 0, "penetration": 60, "magazineSize": 10, "reloadTime": 4 },
   "upgradeTree": {
     "rootId": "root",
     "nodes": [

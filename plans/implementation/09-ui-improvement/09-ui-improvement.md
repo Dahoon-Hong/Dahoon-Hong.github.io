@@ -171,7 +171,7 @@ interface ProductionSnapshot {
 - `production-wait-input`: 생산 입력 자원을 0으로 시작해 `WAIT INPUT`을 즉시 관측한다.
 - `production-buffer-full`: 출력 저장소를 가득 채우고 생산 buffer를 capacity로 시작해 `BUFFER FULL`을 즉시 관측한다.
 - `production-storage-full`: resource 저장소를 capacity로 시작해 `STORAGE FULL`을 관측한다.
-- `armory-install`: test-only matter와 direct-weapon stock을 준비해 purchase/install/drag/rotation 입력을 검증한다.
+- `armory-install`: test-only matter와 machine-gun-12.7mm stock을 준비해 purchase/install/drag/rotation 입력을 검증한다.
 - `terminal-game-over`: Core HP를 0으로 시작해 `GAME_OVER` overlay를 검증한다.
 - `terminal-region`: 마지막 wave가 clear된 상태로 시작해 실제 `REGION_CLEARED` 전환을 검증한다.
 - 모든 fixture는 development test runtime에서만 활성화하고 일반 production runtime에는 노출하지 않는다.

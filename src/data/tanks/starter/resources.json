@@ -1,0 +1,8 @@
+{
+  "capacities": {
+    "resource": 300,
+    "matter": 300,
+    "ammo": 300,
+    "nano": 300
+  }
+}
