@@ -30,8 +30,8 @@
 ### 포함
 
 - `starter` 탱크의 현대 화기 9종
-- 기존 `direct-weapon`의 12.7mm 중기관총 현대화
-- 기존 `arc-weapon`의 60mm 박격포 현대화
+- 기존 `machine-gun-12.7mm`의 12.7mm 중기관총 현대화
+- 기존 `mortar-60mm`의 60mm 박격포 현대화
 - 20mm 기관포와 30mm 대공포
 - 76mm·90mm 강선포와 120mm 활강포
 - 105mm·155mm 곡사포
@@ -116,13 +116,13 @@ remainingPenetration = projectile.penetration
 
 | ID / 표시명 | 계열 | 피해 | 관통력 | 사거리 | 최소거리 | 탄창 | 발사 간격 | 재장전 | 폭발범위 |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `direct-weapon` / 12.7mm 중기관총 | 기관총 | 18 | 20 | 620 | 0 | 20 | 0.15 | 2.2 | - |
+| `machine-gun-12.7mm` / 12.7mm 중기관총 | 기관총 | 18 | 20 | 620 | 0 | 20 | 0.15 | 2.2 | - |
 | `machine-gun-20mm` / 20mm 기관포 | 기관총 | 30 | 35 | 740 | 0 | 15 | 0.25 | 3.0 | - |
 | `machine-gun-30mm` / 30mm 대공포 | 기관총 | 58 | 60 | 860 | 0 | 10 | 0.42 | 4.0 | - |
 | `tank-gun-76mm` / 76mm 강선포 | 전차포 | 100 | 55 | 760 | 120 | 1 | 0 | 2.8 | 50 |
 | `tank-gun-90mm` / 90mm 강선포 | 전차포 | 145 | 85 | 880 | 150 | 1 | 0 | 3.8 | 72 |
 | `tank-gun-120mm` / 120mm 활강포 | 전차포 | 230 | 130 | 1000 | 190 | 1 | 0 | 5.2 | 96 |
-| `arc-weapon` / 60mm 박격포 | 곡사포 | 80 | 30 | 680 | 100 | 1 | 0 | 2.4 | 60 |
+| `mortar-60mm` / 60mm 박격포 | 곡사포 | 80 | 30 | 680 | 100 | 1 | 0 | 2.4 | 60 |
 | `howitzer-105mm` / 105mm 곡사포 | 곡사포 | 140 | 65 | 840 | 180 | 1 | 0 | 4.0 | 92 |
 | `howitzer-155mm` / 155mm 곡사포 | 곡사포 | 245 | 105 | 1000 | 280 | 1 | 0 | 6.0 | 130 |
 
@@ -234,8 +234,8 @@ Armory는 세 개의 독립 lane을 가진다.
 
 파일 배치는 다음을 따른다.
 
-- 수정: `src/data/tanks/starter/direct-weapon.json`
-- 수정: `src/data/tanks/starter/arc-weapon.json`
+- 수정: `src/data/tanks/starter/machine-gun-12.7mm.json`
+- 수정: `src/data/tanks/starter/mortar-60mm.json`
 - 신규: `src/data/tanks/starter/machine-gun-20mm.json`
 - 신규: `src/data/tanks/starter/machine-gun-30mm.json`
 - 신규: `src/data/tanks/starter/tank-gun-76mm.json`
@@ -249,7 +249,7 @@ Armory는 세 개의 독립 lane을 가진다.
 
 ### 7.1 전투 모듈
 
-`CombatModule`는 조준 후보 필터, 탄창, 재장전과 공통 발사 이벤트를 관리한다. 기존 direct/arc subclass는 다음 세 projectile mode를 선택한다.
+`CombatModule`는 조준 후보 필터, 탄창, 재장전과 공통 발사 이벤트를 관리한다. 기존 직사/곡사 subclass는 다음 세 projectile mode를 선택한다.
 
 - 기관총: 관통 직사탄
 - 전차포: 관통 직사 폭발탄
@@ -324,7 +324,7 @@ Game update에서 살아 있는 적으로 combat index를 한 번 구축하고, 
 | `src/data/assets.json` | module/icon/projectile/FX manifest |
 | `src/data/audio.json` | 9종 발사음과 라이선스 메타데이터 |
 
-기존 콘텐츠 추가 guide의 `direct/arc` 제한과 현재 hard-coded asset 계약이 달라지는 부분은 구현 후 가이드 갱신 대상으로 검토한다. 이번 설계 문서에는 승인된 plan15 규칙만 기록한다.
+기존 콘텐츠 추가 guide의 직사/곡사 제한과 현재 hard-coded asset 계약이 달라지는 부분은 구현 후 가이드 갱신 대상으로 검토한다. 이번 설계 문서에는 승인된 plan15 규칙만 기록한다.
 
 ## 10. 테스트와 runtime QA
 
@@ -367,7 +367,7 @@ npm run dev
 ## 11. 완료 기준
 
 - starter 탱크가 9종 현대 화기 정의를 오류 없이 로드한다.
-- direct-weapon은 12.7mm 중기관총, arc-weapon은 60mm 박격포로 표시된다.
+- machine-gun-12.7mm은 12.7mm 중기관총, mortar-60mm은 60mm 박격포로 표시된다.
 - 기관총 360°/1×1, 전차포 30°/1×2, 곡사포 45°/2×2, 박격포 1×1 규칙이 설치·조준·렌더링에 일치한다.
 - 적 장갑과 발사체 관통력이 승인된 수식대로 처리된다.
 - 기관총은 다중 적 관통과 탄창 연사를 수행한다.

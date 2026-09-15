@@ -50,7 +50,7 @@
 
 ## 무기 JSON 계약
 
-가장 가까운 예제는 `src/data/tanks/starter/direct-weapon.json`과 `arc-weapon.json`이다.
+가장 가까운 예제는 `src/data/tanks/starter/machine-gun-12.7mm.json`과 `mortar-60mm.json`이다.
 
 ```json
 {
@@ -129,9 +129,9 @@ UI는 `ui.icon.<module-id>`를 동적으로 찾으므로 다음 두 항목이 �
 - `public/assets/game/ui/icon-<module-id>.png`
 - `src/data/assets.json`의 `ui.icon.<module-id>` 항목
 
-현재 direct와 arc 모듈의 차체 이미지는 각각 `tank.module.direct-weapon`, `tank.module.arc-weapon`으로 코드에 고정되어 있다. 같은 행동을 재사용하는 새 무기에 고유한 차체 이미지를 넣으려면 정의 기반 asset ID를 지원하도록 코드를 바꾸거나 별도 행동 클래스를 만들어야 한다.
+현재 기본 기관총과 박격포 모듈의 차체 이미지는 각각 `tank.module.machine-gun-12.7mm`, `tank.module.mortar-60mm`으로 등록되어 있다. 같은 행동을 재사용하는 새 무기는 정의의 `moduleAssetId`에 고유한 차체 이미지를 지정한다.
 
-기존 direct/arc 발사음을 재사용하면 오디오 파일 수정이 필요 없다. 새 사운드 종류를 추가하면 `CombatSoundEvent`, `Game`의 매핑, `AudioManager`, `audio.json`, `qa-audio`와 `docs/audio/`의 라이선스 기록을 함께 갱신한다.
+기존 직사/곡사 발사음을 재사용하면 오디오 파일 수정이 필요 없다. 새 사운드 종류를 추가하면 `CombatSoundEvent`, `Game`의 매핑, `AudioManager`, `audio.json`, `qa-audio`와 `docs/audio/`의 라이선스 기록을 함께 갱신한다.
 
 ## 코드 확장이 필요한 경우
 

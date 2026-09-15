@@ -656,10 +656,10 @@ export class HUDManager {
     const screenCenter = camera.worldToScreen(center);
     const radius = Math.min(220, Math.max(70, range));
     const halfArc = Math.min(Math.PI, Math.max(0, fireArcDegrees) * Math.PI / 360);
-    const color = moduleId === 'arc-weapon' ? '#ab47bc' : '#29b6f6';
+    const color = moduleId === 'mortar-60mm' ? '#ab47bc' : '#29b6f6';
     const ctx = render.ctx;
     ctx.save();
-    ctx.fillStyle = moduleId === 'arc-weapon' ? 'rgba(171, 71, 188, 0.12)' : 'rgba(41, 182, 246, 0.12)';
+    ctx.fillStyle = moduleId === 'mortar-60mm' ? 'rgba(171, 71, 188, 0.12)' : 'rgba(41, 182, 246, 0.12)';
     ctx.strokeStyle = color;
     ctx.lineWidth = 1.5;
     ctx.beginPath();

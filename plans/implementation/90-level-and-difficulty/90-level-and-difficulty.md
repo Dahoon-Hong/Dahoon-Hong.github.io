@@ -231,8 +231,8 @@ interval × spawnIntervalPerTier ^ threatTier
 | Power Pack | `movementSpeed: 180` | 이동 속도 |
 | Caterpillar Track | `trackMaxSpeed: 180` | 최대 주행 속도 |
 | Armor Plate | `armorValue: 20` | 접촉 피해 완화 |
-| Direct Weapon | `damage: 30`, `fireRate: 0.2`, `range: 600` | 단일 대상 처리 |
-| Arc Weapon | `damage: 90`, `fireRate: 0.9`, `aoeRadius: 120`, `range: 800` | 군중 처리 |
+| Machine Gun | `damage: 30`, `fireRate: 0.2`, `range: 600` | 단일 대상 처리 |
+| Howitzer | `damage: 90`, `fireRate: 0.9`, `aoeRadius: 120`, `range: 800` | 군중 처리 |
 
 직사 무기의 이론상 단일 대상 DPS는 `30 / 0.2 = 150`이다. 곡사 무기는 단일 대상 DPS만 비교하지 않고, `90 / 0.9`에 동시 피격 수와 폭발 범위를 포함해 평가한다. 따라서 두 무기를 같은 DPS로 맞추지 않고 서로 다른 상황에서 선택 가치가 있도록 한다.
 

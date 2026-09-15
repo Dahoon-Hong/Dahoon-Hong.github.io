@@ -59,8 +59,8 @@ src/data/tanks/
     ├── power-pack.json
     ├── caterpillar-track.json
     ├── armor-plate.json
-    ├── direct-weapon.json
-    └── arc-weapon.json
+    ├── machine-gun-12.7mm.json
+    └── mortar-60mm.json
 ```
 
 `module.json`은 해당 디렉터리의 탱크 조립도이며, `<moduleId>.json`은 해당 탱크에서 사용하는 개별 모듈 정의다. 같은 `moduleId`라도 탱크 디렉터리가 다르면 다른 수치·업그레이드 트리를 가질 수 있다.
@@ -89,7 +89,7 @@ src/data/tanks/
     "armor-plate"
   ],
   "initialCombatModules": [
-    { "moduleId": "direct-weapon", "anchor": { "x": 1, "y": 0 } }
+    { "moduleId": "machine-gun-12.7mm", "anchor": { "x": 1, "y": 0 } }
   ]
 }
 ```
@@ -105,7 +105,7 @@ src/data/tanks/
 
 ```json
 {
-  "id": "direct-weapon",
+  "id": "machine-gun-12.7mm",
   "kind": "combat",
   "name": "Gatling Cannon",
   "behavior": "direct",

@@ -11,25 +11,25 @@ describe('modern firearms armory', () => {
     const armory = new ArmoryManager(tank, upgrades);
 
     expect(armory.getCombatModuleDefinitions().map((definition) => definition.id)).toEqual([
-      'direct-weapon',
+      'machine-gun-12.7mm',
       'machine-gun-20mm',
       'machine-gun-30mm',
       'tank-gun-76mm',
       'tank-gun-90mm',
       'tank-gun-120mm',
-      'arc-weapon',
+      'mortar-60mm',
       'howitzer-105mm',
       'howitzer-155mm',
     ]);
 
-    expect(armory.isResearched('direct-weapon')).toBe(true);
+    expect(armory.isResearched('machine-gun-12.7mm')).toBe(true);
     expect(armory.isResearched('machine-gun-20mm')).toBe(false);
     expect(upgrades.select('builtin:armory', 'research-machine-gun-20mm', () => true)).toBe(true);
     expect(upgrades.select('builtin:armory', 'research-tank-gun-76mm', () => true)).toBe(true);
-    expect(upgrades.select('builtin:armory', 'research-arc-weapon', () => true)).toBe(true);
+    expect(upgrades.select('builtin:armory', 'research-mortar-60mm', () => true)).toBe(true);
     expect(armory.isResearched('machine-gun-20mm')).toBe(true);
     expect(armory.isResearched('tank-gun-76mm')).toBe(true);
-    expect(armory.isResearched('arc-weapon')).toBe(true);
+    expect(armory.isResearched('mortar-60mm')).toBe(true);
     expect(armory.isResearched('machine-gun-30mm')).toBe(false);
 
     expect(upgrades.select('builtin:armory', 'research-machine-gun-30mm', () => true)).toBe(true);

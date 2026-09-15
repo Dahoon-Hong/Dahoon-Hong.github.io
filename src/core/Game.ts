@@ -482,7 +482,7 @@ export class Game {
         break;
       case 'armory-install':
         this.setTestResource('matter', this.resources.getCapacity('matter'));
-        this.armory.purchase('direct-weapon', (cost) => this.resources.spendCost(cost));
+        this.armory.purchase('machine-gun-12.7mm', (cost) => this.resources.spendCost(cost));
         this.setTestResource('matter', this.resources.getCapacity('matter'));
         this.setState(GameState.PAUSED);
         break;

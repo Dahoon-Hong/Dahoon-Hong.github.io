@@ -73,12 +73,12 @@ Asset-specific subject notes:
 
 | Logical ID | Accepted generated source | Runtime file | Logical draw box |
 | --- | --- | --- | ---: |
-| `tank.module.direct-weapon` | `exec-7c256317-f4c0-42fc-aa26-69509262baa6.png` | `public/assets/game/tank/module-direct-weapon.png` | 44x44 |
-| `tank.module.arc-weapon` | `exec-63d188e5-f752-43f7-b420-b0cc1198f1bd.png` | `public/assets/game/tank/module-arc-weapon.png` | 88x44 |
+| `tank.module.machine-gun-12.7mm` | `exec-7c256317-f4c0-42fc-aa26-69509262baa6.png` | `public/assets/game/tank/module-machine-gun-12.7mm.png` | 44x44 |
+| `tank.module.mortar-60mm` | `exec-63d188e5-f752-43f7-b420-b0cc1198f1bd.png` | `public/assets/game/tank/module-mortar-60mm.png` | 88x44 |
 
-첫 direct weapon 생성 결과 `exec-952f6e8a-fb0c-4cd5-9673-572a7de00d49.png`는 탱크 전체에 가까운 구성이어서 폐기했다. 최종 결과는 섀시가 없는 독립형 1x1 포탑으로 다시 생성했다.
+첫 12.7mm 기관총 생성 결과 `exec-952f6e8a-fb0c-4cd5-9673-572a7de00d49.png`는 탱크 전체에 가까운 구성이어서 폐기했다. 최종 결과는 섀시가 없는 독립형 1x1 포탑으로 다시 생성했다.
 
-공통 prompt set은 `stylized-concept`, top-down detached module, hard-edged pixel clusters, transparent background, no text/UI를 사용했고, direct weapon은 detached gatling turret, arc weapon은 2-cell horizontal mortar를 주제로 분리했다. Core Engine은 월드 grid asset을 사용하지 않는다.
+공통 prompt set은 `stylized-concept`, top-down detached module, hard-edged pixel clusters, transparent background, no text/UI를 사용했고, 12.7mm 기관총은 detached gatling turret, 60mm 박격포는 2-cell horizontal mortar를 주제로 분리했다. Core Engine은 월드 grid asset을 사용하지 않는다.
 
 ### Deterministic raster 결과
 
@@ -86,7 +86,7 @@ Asset-specific subject notes:
 
 - Tank assembly: `starter-frame-edge.png`, `starter-frame-corner.png`
 - Grid state: `grid-empty.png`, `grid-blocked.png`
-- Built-in and combat icons: `icon-core.png`, `icon-resource-generator.png`, `icon-gatherer.png`, `icon-recycler.png`, `icon-arsenal.png`, `icon-composer.png`, `icon-rail.png`, `icon-power-pack.png`, `icon-caterpillar-track.png`, `icon-armor-plate.png`, `icon-direct-weapon.png`, `icon-arc-weapon.png`
+- Built-in and combat icons: `icon-core.png`, `icon-resource-generator.png`, `icon-gatherer.png`, `icon-recycler.png`, `icon-arsenal.png`, `icon-composer.png`, `icon-rail.png`, `icon-power-pack.png`, `icon-caterpillar-track.png`, `icon-armor-plate.png`, `icon-modern-hmg-12-7.png`, `icon-modern-mortar-60.png`
 
 모든 산출물은 `public/assets/game/` 아래에 저장하고, `src/data/assets.json`에 logical ID와 runtime path, draw box, pivot, layer, fallback을 등록했다. 1x1 asset은 44x44, 2x1 asset은 88x44, UI icon은 20x20으로 확인했다.
 
@@ -94,7 +94,7 @@ Asset-specific subject notes:
 
 | Date | Change |
 | --- | --- |
-| 2026-09-05 | Added Core, direct weapon, arc weapon imagegen samples and normalized runtime files. |
+| 2026-09-05 | Added Core, 12.7mm machine gun, 60mm mortar imagegen samples and normalized runtime files. |
 | 2026-09-05 | Added tank frame/grid geometry and the built-in/combat UI icon set. |
 
 ## 13단계 assets

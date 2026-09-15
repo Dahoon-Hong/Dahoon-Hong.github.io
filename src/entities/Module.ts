@@ -351,7 +351,7 @@ export class DirectWeaponModule extends CombatModule {
   }
 
   public render(render: RenderContext, worldX: number, worldY: number, width: number, height: number): void {
-    const assetId = this.definition.moduleAssetId ?? 'tank.module.direct-weapon';
+    const assetId = this.definition.moduleAssetId ?? 'tank.module.machine-gun-12.7mm';
     this.renderBody(render, assetId, worldX, worldY, this.getWeaponClass() === 'tank-gun' ? 'GUN' : 'MG', width, height);
   }
 }
@@ -412,7 +412,7 @@ export class ArcWeaponModule extends CombatModule {
   }
 
   public render(render: RenderContext, worldX: number, worldY: number, width: number, height: number): void {
-    const assetId = this.definition.moduleAssetId ?? 'tank.module.arc-weapon';
+    const assetId = this.definition.moduleAssetId ?? 'tank.module.mortar-60mm';
     this.renderBody(render, assetId, worldX, worldY, 'HOW', width, height);
   }
 }

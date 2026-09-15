@@ -189,7 +189,7 @@ export class SpriteRenderer {
         ? '#ff3045'
         : fallback.includes('resource')
           ? '#f7c948'
-          : fallback.includes('arc')
+          : fallback.includes('indirect-fire')
             ? '#b783e8'
             : fallback.includes('nano')
               ? '#8b72df'
@@ -215,12 +215,12 @@ export class SpriteRenderer {
         ctx.lineTo(left + w * 0.25, top + h * 0.75);
         ctx.stroke();
       }
-    } else if (fallback.includes('module.direct-weapon')) {
+    } else if (fallback.includes('module.direct-fire')) {
       ctx.fillStyle = '#176b94';
       ctx.strokeStyle = '#29b6f6';
       ctx.fillRect(left + 4, top + 4, w - 8, h - 8);
       ctx.strokeRect(left + w * 0.38, top + h * 0.2, w * 0.24, h * 0.6);
-    } else if (fallback.includes('module.arc-weapon')) {
+    } else if (fallback.includes('module.indirect-fire')) {
       ctx.fillStyle = '#6a1b9a';
       ctx.strokeStyle = '#ab47bc';
       ctx.fillRect(left + 4, top + 4, w - 8, h - 8);

@@ -1,5 +1,5 @@
 {
-  "id": "direct-weapon",
+  "id": "machine-gun-12.7mm",
   "kind": "combat",
   "name": "12.7mm Heavy Machine Gun",
   "behavior": "direct",

@@ -16,7 +16,7 @@
 
 | Prefix | 사용 목적 | 예시 |
 | --- | --- | --- |
-| `feature/` | 새로운 기능이나 콘텐츠 | `feature/arc-weapon` |
+| `feature/` | 새로운 기능이나 콘텐츠 | `feature/mortar-60mm` |
 | `fix/` | 버그 수정 | `fix/tank-wall-slide` |
 | `chore/` | 의존성·도구·저위험 정리 | `chore/update-build-script` |
 | `docs/` | 문서와 가이드 변경 | `docs/contribution-guide` |

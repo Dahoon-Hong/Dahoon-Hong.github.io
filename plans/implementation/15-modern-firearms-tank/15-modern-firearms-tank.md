@@ -10,8 +10,8 @@
 
 현재 `starter` 탱크에 현대 화기 9종을 추가한다.
 
-- 기존 `direct-weapon`을 12.7mm 중기관총으로 현대화한다.
-- 기존 `arc-weapon`을 60mm 박격포로 현대화한다.
+- 기존 `machine-gun-12.7mm`을 12.7mm 중기관총으로 현대화한다.
+- 기존 `mortar-60mm`을 60mm 박격포로 현대화한다.
 - 20mm 기관포, 30mm 대공포를 추가한다.
 - 76mm·90mm 강선포, 120mm 활강포를 추가한다.
 - 105mm·155mm 곡사포를 추가한다.
@@ -49,8 +49,8 @@
 
 - `src/data/resources.json`
 - `src/data/enemies.json`
-- `src/data/tanks/starter/direct-weapon.json`
-- `src/data/tanks/starter/arc-weapon.json`
+- `src/data/tanks/starter/machine-gun-12.7mm.json`
+- `src/data/tanks/starter/mortar-60mm.json`
 - `src/data/tanks/starter/machine-gun-20mm.json`
 - `src/data/tanks/starter/machine-gun-30mm.json`
 - `src/data/tanks/starter/tank-gun-76mm.json`

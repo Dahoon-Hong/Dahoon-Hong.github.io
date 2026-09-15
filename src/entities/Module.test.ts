@@ -30,7 +30,7 @@ const terrain = new TerrainGrid({
 
 const tree = { rootId: 'root', nodes: [{ id: 'root', parentId: null, cost: {}, effects: [] }] };
 const weaponDefinition: TankModuleDefinition = {
-  id: 'direct-weapon',
+  id: 'machine-gun-12.7mm',
   kind: 'combat',
   name: 'Test Gun',
   behavior: 'direct',
@@ -59,9 +59,9 @@ describe('combat terrain targeting', () => {
   });
 
   it('does not spend ammo or start cooldown when every target is hidden', () => {
-    const upgrades = new UpgradeManager({ 'direct-weapon': weaponDefinition });
-    upgrades.registerInstance('direct-weapon#1', 'direct-weapon');
-    const weapon = new DirectWeaponModule(weaponDefinition, 'direct-weapon#1', { x: 0, y: 0 }, upgrades);
+    const upgrades = new UpgradeManager({ 'machine-gun-12.7mm': weaponDefinition });
+    upgrades.registerInstance('machine-gun-12.7mm#1', 'machine-gun-12.7mm');
+    const weapon = new DirectWeaponModule(weaponDefinition, 'machine-gun-12.7mm#1', { x: 0, y: 0 }, upgrades);
     const hidden = new StandardEnemy(90, 90, enemyDefinition);
     let spent = 0;
     let spawned = 0;
