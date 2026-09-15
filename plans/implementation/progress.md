@@ -34,3 +34,4 @@
 | 2026-09-15 | plans/implementation/15-modern-firearms-tank/ | 자원별 최대 저장량을 JSON으로 분리하고 `ResourceStorage`가 capacity map을 적용하도록 수정했다. 자원별 capacity와 기존 저장 상한 동작 테스트를 추가했다. |
 | 2026-09-15 | plans/implementation/15-modern-firearms-tank/ | 두 레거시 무기 ID를 `machine-gun-12.7mm`/`mortar-60mm`로 전환하고, 연구 노드·JSON 파일명·초기 배치·에셋·문서·테스트 참조를 일괄 정리했다. |
 | 2026-09-15 | plans/implementation/15-modern-firearms-tank/ | 모든 combat JSON의 사거리를 `minRange`/`maxRange`로 통일하고, 실제 조준 판정과 전차포·곡사포 설치 미리보기에 최소 안전거리와 최대 사거리를 반영했다. 로더 검증·직사/곡사 회귀 테스트와 관련 문서를 갱신했다. |
+| 2026-09-15 | plans/implementation/15-audio-track-integration/ | 사용자 제공 MP3 2개를 승인된 번들 음악으로 등록하고 main menu·canonical test map·기타 gameplay fallback 재생 경로를 연결했다. `npm run qa:release` 최종 확인과 `git diff --check`를 통과했으며, `http://127.0.0.1:5200/?test=1`에서 두 MP3 fetch·test map/기본 map 전환·PLAYING/PAUSED/PLAYING 상태·console errors/warnings 0을 수동 검증했다. 자동 integration-tester는 브라우저 자동화 timeout으로 BLOCKED되어 같은 원인 재시도 없이 수동 검증으로 대체했다. |

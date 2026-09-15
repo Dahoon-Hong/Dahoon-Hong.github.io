@@ -271,7 +271,8 @@ for (const [mapId, expectedCount] of Object.entries(expectedRegionCounts)) {
 }
 
 const publicAssetRoot = path.join(root, 'public', 'assets', 'game');
-for (const file of walk(publicAssetRoot)) {
+// Audio assets have their own manifest and QA gate in scripts/qa-audio.mjs.
+for (const file of walk(publicAssetRoot).filter((candidate) => !candidate.includes(`${path.sep}audio${path.sep}`))) {
   if (!manifestFiles.has(path.resolve(file))) warn(`unlisted runtime asset ${path.relative(root, file)}`);
 }
 

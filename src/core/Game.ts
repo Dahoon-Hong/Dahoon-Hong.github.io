@@ -16,6 +16,7 @@ import { RenderContext } from '../rendering/RenderContext';
 import { SpriteRenderer } from '../rendering/SpriteRenderer';
 import { VisualTheme } from '../rendering/VisualTheme';
 import { AudioManager } from './AudioManager';
+import type { MusicId } from './AudioManager';
 import { Camera } from './Camera';
 import { ArmoryManager } from './ArmoryManager';
 import type { ModuleOrientation } from './TankDefinitionLoader';
@@ -61,6 +62,9 @@ const MAP_TILE_POSITIONS = [[128, 112], [760, 132], [154, 526], [716, 570]] as c
 const MAP_PROP_POSITIONS = [[78, 174], [846, 176], [96, 626], [824, 614]] as const;
 const TEST_MAP_ID = 'aurelia/landing-zone';
 const TEST_MAP_ARMOR = 100;
+const MAIN_MENU_MUSIC_ID: MusicId = 'music.main-menu';
+const TEST_MAP_MUSIC_ID: MusicId = 'music.gameplay.test';
+const DEFAULT_GAMEPLAY_MUSIC_ID: MusicId = 'music.gameplay.default';
 const PAUSE_MENU_OPTIONS = ['RESUME', 'ABANDON RUN'] as const;
 
 export class Game {
@@ -142,6 +146,7 @@ export class Game {
       });
     this.audio.attachUserGestureListeners();
     void this.audio.preload();
+    this.audio.playMusic(MAIN_MENU_MUSIC_ID);
     this.resizeCanvas();
     const initialMap = mapDefinitionLoader.getByLocation(
       this.progression.currentPlanet.id,
@@ -270,7 +275,7 @@ export class Game {
     this.state = GameState.PLAYING;
     this.screen = AppScreen.GAMEPLAY;
     this.input.reset();
-    this.audio.playMusic();
+    this.audio.playMusic(this.getGameplayMusicId(map));
   }
 
   private openStartMenu(): void {
@@ -282,6 +287,7 @@ export class Game {
     this.screen = AppScreen.START_MENU;
     this.startMenu.reset();
     this.settingsScreen.reset();
+    this.audio.playMusic(MAIN_MENU_MUSIC_ID);
   }
 
   private openSettings(): void {
@@ -677,7 +683,9 @@ export class Game {
 
   private setState(nextState: GameState): void {
     if (this.state === nextState) {
-      if (nextState === GameState.PLAYING && this.screen === AppScreen.GAMEPLAY) this.audio.playMusic();
+      if (nextState === GameState.PLAYING && this.screen === AppScreen.GAMEPLAY) {
+        this.audio.playMusic(this.getGameplayMusicId());
+      }
       return;
     }
     this.state = nextState;
@@ -686,10 +694,14 @@ export class Game {
       this.audio.setMusicDucked(true);
     } else if (nextState === GameState.PLAYING) {
       this.audio.setMusicDucked(false);
-      this.audio.playMusic();
+      this.audio.playMusic(this.getGameplayMusicId());
     } else {
       this.audio.stopMusic();
     }
+  }
+
+  private getGameplayMusicId(map: MapDefinition | null = this.getCurrentMap()): MusicId {
+    return map?.mapId === TEST_MAP_ID ? TEST_MAP_MUSIC_ID : DEFAULT_GAMEPLAY_MUSIC_ID;
   }
 
   private restartGame(): void {

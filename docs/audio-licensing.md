@@ -1,12 +1,12 @@
 # Audio licensing policy
 
-The Plan 21 effects and Plan 22 gameplay loop are project-authored procedural sounds generated at runtime with the browser Web Audio API. No third-party recording, sample, loop, voice, AI-generated music, or ChatGPT Voice output is shipped.
+The Plan 21 effects and the existing default gameplay loop are project-authored procedural sounds generated at runtime with the browser Web Audio API. The main-menu and canonical test-map tracks are user-provided MP3 assets; the user confirmed permission to ship them in this project on 2026-09-15. No unapproved recording, sample, voice, AI-generated music, or ChatGPT Voice output is shipped.
 
 The release gate is fail-closed:
 
 - Every shipped sound must appear in src/data/audio.json.
-- Only entries with licenseStatus: approved and a procedural:// source may be used by the runtime.
-- Future external assets require a per-file provenance record, a stable source URL, the exact license, a hash, and a commercial-use review before they can be added.
+- Only entries with licenseStatus: approved and either a procedural:// source or a bundled `/assets/game/audio/` source may be used by the runtime.
+- Bundled user-provided assets require a per-file provenance record, a stable internal source record, the file hash, permission confirmation, and a commercial-use review before they can be added.
 - CC0 is the default acceptable external license. CC BY is allowed only when attribution text and the exact source record are committed. NC, ND, Sampling+, unknown, preview-only, or unclear terms are rejected.
 - ChatGPT Voice output is not used as a distributable game sound. API-generated audio would require a separate rights and provenance review before shipping.
 
