@@ -95,6 +95,15 @@ npm run qa:release
 
 작업 브랜치에서 GitHub PR을 만들고 base branch를 반드시 `defence`로 지정한다. PR 템플릿은 `.github/pull_request_template.md`를 사용한다.
 
+PR을 생성하기 전에는 최신 base branch를 작업 브랜치에 반영해 충돌을 사전에 확인한다. 반드시 작업 브랜치에서 다음을 실행한다.
+
+```bash
+git fetch --prune origin
+git pull --no-rebase origin defence
+```
+
+충돌이 발생하면 충돌 파일을 해결하고 `git add`와 commit을 완료한 뒤, 변경 범위에 맞는 테스트를 다시 통과시킨 후에만 push와 PR 생성을 진행한다.
+
 PR 제목은 다음 형식을 사용한다.
 
 ```text
