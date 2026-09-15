@@ -88,7 +88,7 @@
 
 적 장갑은 Standard 10, Tanker 40이다. 승인된 1차 무기 기준값은 설계 문서의 표를 그대로 사용하며, 거리 px와 시간 초 단위를 유지한다. 기관총 탄창은 12.7mm 20발, 20mm 15발, 30mm 10발이며 재장전마다 ammo 1개를 사용한다.
 
-새 combat definition에는 `weaponClass`, `moduleAssetId`, `fireSoundId`, `fireEffectId`와 `minRange`, `penetration`, `magazineSize`, `reloadTime` stats를 추가한다. `fireRate`는 탄창 내 발사 간격이며 단발 무기는 0, `magazineSize`는 1이다.
+새 combat definition에는 `weaponClass`, `moduleAssetId`, `fireSoundId`, `fireEffectId`와 `minRange`, `maxRange`, `penetration`, `magazineSize`, `reloadTime` stats를 추가한다. 모든 무기는 `minRange <= distance <= maxRange`를 만족하는 목표만 조준하며 기관총류의 `minRange`는 0이다. `fireRate`는 탄창 내 발사 간격이며 단발 무기는 0, `magazineSize`는 1이다.
 
 ## 테스트 시나리오
 
@@ -124,7 +124,7 @@ runtime QA는 AGENTS.md의 `integration-tester` 계약에 따라 실제 URL, por
 ## 완료 기준
 
 - 모든 데이터가 로드·검증되고 9종이 Armory에 표시된다.
-- 9종의 점유 크기·사격각·최소거리·탄창/재장전·피해/사거리/폭발범위가 승인값과 일치한다.
+- 9종의 점유 크기·사격각·최소/최대거리·탄창/재장전·피해/폭발범위가 승인값과 일치한다.
 - armor/penetration 및 다중 관통이 승인 규칙대로 동작한다.
 - 고유 외형·발사음·계열별 FX·반동이 표시된다.
 - 단위 테스트, art/audio QA, build와 required runtime QA가 통과한다.

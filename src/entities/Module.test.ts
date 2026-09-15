@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TerrainGrid } from '../core/TerrainGrid';
 import { EnemyDefinition, StandardEnemy } from './Enemy';
-import { findClosestEnemy, DirectWeaponModule } from './Module';
+import { ArcWeaponModule, findClosestEnemy, DirectWeaponModule } from './Module';
 import { UpgradeManager } from '../core/UpgradeManager';
 import { TankModuleDefinition } from '../core/TankDefinitionLoader';
 
@@ -38,7 +38,7 @@ const weaponDefinition: TankModuleDefinition = {
   installCost: {},
   fireArcDegrees: 360,
   defaultOrientation: 0,
-  baseStats: { range: 500, fireRate: 0.2, projectileSpeed: 100, damage: 10, maxDistance: 500 },
+  baseStats: { minRange: 0, maxRange: 500, fireRate: 0.2, projectileSpeed: 100, damage: 10 },
   upgradeTree: tree,
 };
 
@@ -243,5 +243,72 @@ describe('combat terrain targeting', () => {
     expect(spent).toBe(0);
     expect(spawned).toBe(0);
     expect(weapon.getLoadedShots()).toBe(1);
+
+    target.x = 150;
+    weapon.update(
+      0.01,
+      { x: 0, y: 0 },
+      0,
+      [target],
+      () => { spawned++; },
+      () => { spent++; return true; },
+      () => undefined,
+    );
+
+    expect(spent).toBe(1);
+    expect(spawned).toBe(1);
+  });
+
+  it('applies the same minimum and maximum range to indirect fire', () => {
+    const definition: TankModuleDefinition = {
+      ...weaponDefinition,
+      id: 'mortar-test',
+      behavior: 'arc',
+      weaponClass: 'howitzer',
+      baseStats: {
+        ...weaponDefinition.baseStats,
+        fireRate: 0,
+        minRange: 100,
+        maxRange: 500,
+        aoeRadius: 40,
+        flightTime: 1,
+        magazineSize: 1,
+        reloadTime: 1,
+        penetration: 10,
+      },
+    };
+    const upgrades = new UpgradeManager({ 'mortar-test': definition });
+    upgrades.registerInstance('mortar-test#1', 'mortar-test');
+    const weapon = new ArcWeaponModule(definition, 'mortar-test#1', { x: 0, y: 0 }, upgrades);
+    const target = new StandardEnemy(550, 0, enemyDefinition);
+    let spent = 0;
+    let spawned = 0;
+
+    weapon.update(
+      0.01,
+      { x: 0, y: 0 },
+      0,
+      [target],
+      () => { spawned++; },
+      () => { spent++; return true; },
+      () => undefined,
+    );
+
+    expect(spent).toBe(0);
+    expect(spawned).toBe(0);
+
+    target.x = 150;
+    weapon.update(
+      0.01,
+      { x: 0, y: 0 },
+      0,
+      [target],
+      () => { spawned++; },
+      () => { spent++; return true; },
+      () => undefined,
+    );
+
+    expect(spent).toBe(1);
+    expect(spawned).toBe(1);
   });
 });

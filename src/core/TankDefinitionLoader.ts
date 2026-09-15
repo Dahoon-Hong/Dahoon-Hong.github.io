@@ -92,11 +92,10 @@ const JSON_FILES: Record<string, unknown> = import.meta.glob('../data/tanks/*/*.
 
 const ALLOWED_STATS = new Set([
   'maxHp',
-  'range',
+  'maxRange',
   'damage',
   'fireRate',
   'projectileSpeed',
-  'maxDistance',
   'aoeRadius',
   'flightTime',
   'minRange',
@@ -347,8 +346,20 @@ function parseModuleDefinition(value: unknown, path: string, expectedId: string)
     if (definition.baseStats.reloadTime === undefined) {
       fail(`${path}.baseStats.reloadTime`, 'combat modules require reloadTime');
     }
-    if (definition.baseStats.minRange > definition.baseStats.range) {
-      fail(`${path}.baseStats.minRange`, 'must not exceed range');
+    if (definition.baseStats.range !== undefined) {
+      fail(`${path}.baseStats.range`, 'use maxRange');
+    }
+    if (definition.baseStats.maxDistance !== undefined) {
+      fail(`${path}.baseStats.maxDistance`, 'use maxRange');
+    }
+    if (definition.baseStats.maxRange === undefined) {
+      fail(`${path}.baseStats.maxRange`, 'combat modules require maxRange');
+    }
+    if (definition.baseStats.maxRange <= 0) {
+      fail(`${path}.baseStats.maxRange`, 'must be > 0');
+    }
+    if (definition.baseStats.minRange > definition.baseStats.maxRange) {
+      fail(`${path}.baseStats.minRange`, 'must not exceed maxRange');
     }
   }
 

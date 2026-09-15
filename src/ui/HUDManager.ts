@@ -592,9 +592,9 @@ export class HUDManager {
         const valid = vehicle.canMoveModule(drag.module, drag.previewAnchor, drag.orientation);
         this.drawPlacementGhost(render, vehicle, camera, drag.module.moduleId, drag.previewAnchor, drag.orientation, valid);
         const center = vehicle.getPlacementWorldCenter(drag.module.moduleId, drag.previewAnchor, drag.orientation);
-        if (center) this.drawFireArcPreview(render, camera, center, vehicle.getPlacementFireAngle(drag.orientation), drag.module.fireArcDegrees, drag.module.getStat('range', 240), drag.module.moduleId);
+        if (center) this.drawFireArcPreview(render, camera, center, vehicle.getPlacementFireAngle(drag.orientation), drag.module.fireArcDegrees, drag.module.getMinRange(), drag.module.getMaxRange(), drag.module.moduleId);
       } else {
-        this.drawFireArcPreview(render, camera, vehicle.getModuleWorldCenter(drag.module), vehicle.getModuleFireAngle(drag.module), drag.module.fireArcDegrees, drag.module.getStat('range', 240), drag.module.moduleId);
+        this.drawFireArcPreview(render, camera, vehicle.getModuleWorldCenter(drag.module), vehicle.getModuleFireAngle(drag.module), drag.module.fireArcDegrees, drag.module.getMinRange(), drag.module.getMaxRange(), drag.module.moduleId);
       }
     } else if (this.selectedInstallModuleId) {
       const anchor = this.getInstallPreviewAnchor(vehicle, gameplayWidth);
@@ -604,13 +604,13 @@ export class HUDManager {
         if (definition && center) {
           const valid = vehicle.canInstallModule(this.selectedInstallModuleId, anchor, this.selectedInstallOrientation);
           this.drawPlacementGhost(render, vehicle, camera, this.selectedInstallModuleId, anchor, this.selectedInstallOrientation, valid);
-          this.drawFireArcPreview(render, camera, center, vehicle.getPlacementFireAngle(this.selectedInstallOrientation), definition.fireArcDegrees ?? 360, definition.baseStats.range ?? 240, definition.id);
+          this.drawFireArcPreview(render, camera, center, vehicle.getPlacementFireAngle(this.selectedInstallOrientation), definition.fireArcDegrees ?? 360, definition.baseStats.minRange ?? 0, definition.baseStats.maxRange ?? 240, definition.id);
         }
       }
     } else if (this.selectedInstanceId && !this.selectedInstanceId.startsWith('builtin:')) {
       const module = vehicle.getCombatModule(this.selectedInstanceId);
       if (module) {
-        this.drawFireArcPreview(render, camera, vehicle.getModuleWorldCenter(module), vehicle.getModuleFireAngle(module), module.fireArcDegrees, module.getStat('range', 240), module.moduleId);
+        this.drawFireArcPreview(render, camera, vehicle.getModuleWorldCenter(module), vehicle.getModuleFireAngle(module), module.fireArcDegrees, module.getMinRange(), module.getMaxRange(), module.moduleId);
       }
     }
 
@@ -650,28 +650,45 @@ export class HUDManager {
     center: { x: number; y: number },
     fireAngle: number,
     fireArcDegrees: number,
-    range: number,
+    minRange: number,
+    maxRange: number,
     moduleId: string,
   ): void {
     const screenCenter = camera.worldToScreen(center);
-    const radius = Math.min(220, Math.max(70, range));
+    const rangeScale = Math.min(0.35, 220 / Math.max(1, maxRange));
+    const outerRadius = Math.max(70, maxRange * rangeScale);
+    const innerRadius = Math.min(Math.max(0, outerRadius - 2), Math.max(0, minRange) * rangeScale);
     const halfArc = Math.min(Math.PI, Math.max(0, fireArcDegrees) * Math.PI / 360);
-    const color = moduleId === 'mortar-60mm' ? '#ab47bc' : '#29b6f6';
+    const indirectFire = moduleId === 'mortar-60mm' || moduleId.startsWith('howitzer-');
+    const color = indirectFire ? '#ab47bc' : '#29b6f6';
     const ctx = render.ctx;
     ctx.save();
-    ctx.fillStyle = moduleId === 'mortar-60mm' ? 'rgba(171, 71, 188, 0.12)' : 'rgba(41, 182, 246, 0.12)';
+    ctx.fillStyle = indirectFire ? 'rgba(171, 71, 188, 0.12)' : 'rgba(41, 182, 246, 0.12)';
     ctx.strokeStyle = color;
     ctx.lineWidth = 1.5;
+    const startAngle = fireAngle - halfArc;
+    const endAngle = fireAngle + halfArc;
     ctx.beginPath();
-    ctx.moveTo(screenCenter.x, screenCenter.y);
-    ctx.arc(screenCenter.x, screenCenter.y, radius, fireAngle - halfArc, fireAngle + halfArc);
+    if (innerRadius > 0) {
+      ctx.moveTo(screenCenter.x + Math.cos(startAngle) * outerRadius, screenCenter.y + Math.sin(startAngle) * outerRadius);
+      ctx.arc(screenCenter.x, screenCenter.y, outerRadius, startAngle, endAngle);
+      ctx.lineTo(screenCenter.x + Math.cos(endAngle) * innerRadius, screenCenter.y + Math.sin(endAngle) * innerRadius);
+      ctx.arc(screenCenter.x, screenCenter.y, innerRadius, endAngle, startAngle, true);
+    } else {
+      ctx.moveTo(screenCenter.x, screenCenter.y);
+      ctx.arc(screenCenter.x, screenCenter.y, outerRadius, startAngle, endAngle);
+    }
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(screenCenter.x, screenCenter.y);
-    ctx.lineTo(screenCenter.x + Math.cos(fireAngle) * radius, screenCenter.y + Math.sin(fireAngle) * radius);
-    ctx.stroke();
+    if (innerRadius > 0) {
+      ctx.save();
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.arc(screenCenter.x, screenCenter.y, innerRadius, startAngle, endAngle);
+      ctx.stroke();
+      ctx.restore();
+    }
     ctx.restore();
   }
 

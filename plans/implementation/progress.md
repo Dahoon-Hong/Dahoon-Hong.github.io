@@ -33,3 +33,4 @@
 | 2026-09-15 | plans/implementation/15-modern-firearms-tank/ | 사용자 정정에 따라 기관총 ammo 소비를 발사당 차감에서 재장전당 1개 차감으로 수정하고, 12.7mm/20mm/30mm 탄창을 20/15/10발로 정정했다. 기관총 재장전 자원 부족 대기와 단발 무기 발사당 ammo 소비 회귀 테스트를 추가했다. |
 | 2026-09-15 | plans/implementation/15-modern-firearms-tank/ | 자원별 최대 저장량을 `src/data/resources.json`으로 분리하고 `ResourceStorage`가 JSON capacity map을 기본 적용하도록 수정했다. 자원별 capacity와 기존 저장 상한 동작 테스트를 추가했다. |
 | 2026-09-15 | plans/implementation/15-modern-firearms-tank/ | 두 레거시 무기 ID를 `machine-gun-12.7mm`/`mortar-60mm`로 전환하고, 연구 노드·JSON 파일명·초기 배치·에셋·문서·테스트 참조를 일괄 정리했다. |
+| 2026-09-15 | plans/implementation/15-modern-firearms-tank/ | 모든 combat JSON의 사거리를 `minRange`/`maxRange`로 통일하고, 실제 조준 판정과 전차포·곡사포 설치 미리보기에 최소 안전거리와 최대 사거리를 반영했다. 로더 검증·직사/곡사 회귀 테스트와 관련 문서를 갱신했다. |

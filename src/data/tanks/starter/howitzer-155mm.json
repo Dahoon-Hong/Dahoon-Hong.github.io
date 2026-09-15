@@ -13,7 +13,7 @@
   "moduleAssetId": "tank.module.modern.howitzer-155",
   "fireSoundId": "sfx.weapon.howitzer-155-fire",
   "fireEffectId": "effect.explosion.arc",
-  "baseStats": { "maxHp": 100, "range": 1000, "damage": 245, "fireRate": 0, "aoeRadius": 130, "flightTime": 1.8, "minRange": 280, "penetration": 105, "magazineSize": 1, "reloadTime": 6 },
+  "baseStats": { "maxHp": 100, "maxRange": 1000, "damage": 245, "fireRate": 0, "aoeRadius": 130, "flightTime": 1.8, "minRange": 280, "penetration": 105, "magazineSize": 1, "reloadTime": 6 },
   "upgradeTree": {
     "rootId": "root",
     "nodes": [

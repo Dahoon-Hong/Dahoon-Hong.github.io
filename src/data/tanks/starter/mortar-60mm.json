@@ -13,7 +13,7 @@
   "moduleAssetId": "tank.module.modern.mortar-60",
   "fireSoundId": "sfx.weapon.mortar-60-fire",
   "fireEffectId": "effect.explosion.arc",
-  "baseStats": { "maxHp": 100, "range": 680, "damage": 80, "fireRate": 0, "aoeRadius": 60, "flightTime": 1, "minRange": 100, "penetration": 30, "magazineSize": 1, "reloadTime": 2.4 },
+  "baseStats": { "maxHp": 100, "maxRange": 680, "damage": 80, "fireRate": 0, "aoeRadius": 60, "flightTime": 1, "minRange": 100, "penetration": 30, "magazineSize": 1, "reloadTime": 2.4 },
   "upgradeTree": {
     "rootId": "root",
     "nodes": [
@@ -21,7 +21,7 @@
       { "id": "blast-radius", "parentId": "root", "cost": { "matter": 60 }, "effects": [{ "stat": "aoeRadius", "operation": "add", "value": 25 }] },
       { "id": "siege-shell", "parentId": "root", "cost": { "matter": 60 }, "effects": [{ "stat": "damage", "operation": "add", "value": 35 }] },
       { "id": "blast-radius-branch", "parentId": "blast-radius", "cost": { "matter": 80 }, "effects": [{ "stat": "fireRate", "operation": "multiply", "value": 0.9 }] },
-      { "id": "siege-shell-branch", "parentId": "siege-shell", "cost": { "matter": 80 }, "effects": [{ "stat": "range", "operation": "add", "value": 100 }] }
+      { "id": "siege-shell-branch", "parentId": "siege-shell", "cost": { "matter": 80 }, "effects": [{ "stat": "maxRange", "operation": "add", "value": 100 }] }
     ]
   }
 }

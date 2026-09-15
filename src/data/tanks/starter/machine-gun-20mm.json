@@ -13,7 +13,7 @@
   "moduleAssetId": "tank.module.modern.autocannon-20",
   "fireSoundId": "sfx.weapon.autocannon-20-fire",
   "fireEffectId": "effect.projectile.direct-hit",
-  "baseStats": { "maxHp": 100, "range": 740, "damage": 30, "fireRate": 0.25, "projectileSpeed": 950, "maxDistance": 740, "minRange": 0, "penetration": 35, "magazineSize": 15, "reloadTime": 3 },
+  "baseStats": { "maxHp": 100, "maxRange": 740, "damage": 30, "fireRate": 0.25, "projectileSpeed": 950, "minRange": 0, "penetration": 35, "magazineSize": 15, "reloadTime": 3 },
   "upgradeTree": {
     "rootId": "root",
     "nodes": [

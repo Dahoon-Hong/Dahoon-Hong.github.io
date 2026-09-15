@@ -13,7 +13,7 @@
   "moduleAssetId": "tank.module.modern.smoothbore-120",
   "fireSoundId": "sfx.weapon.smoothbore-120-fire",
   "fireEffectId": "effect.projectile.direct-hit",
-  "baseStats": { "maxHp": 100, "range": 1000, "damage": 230, "fireRate": 0, "projectileSpeed": 780, "maxDistance": 1000, "minRange": 190, "penetration": 130, "magazineSize": 1, "reloadTime": 5.2, "aoeRadius": 96 },
+  "baseStats": { "maxHp": 100, "maxRange": 1000, "damage": 230, "fireRate": 0, "projectileSpeed": 780, "minRange": 190, "penetration": 130, "magazineSize": 1, "reloadTime": 5.2, "aoeRadius": 96 },
   "upgradeTree": {
     "rootId": "root",
     "nodes": [
