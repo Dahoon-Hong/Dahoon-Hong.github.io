@@ -17,6 +17,8 @@ interface HUDCallbacks {
   onUpgradeSuccess: () => void;
   getMusicVolume: () => number;
   onMusicControl: () => void;
+  getSfxVolume: () => number;
+  onSfxControl: () => void;
   screenToWorld: (point: { x: number; y: number }) => { x: number; y: number };
   getArmory: () => ArmoryManager;
   isActive: () => boolean;
@@ -24,6 +26,7 @@ interface HUDCallbacks {
   onArmoryResearchSuccess: () => void;
   onArmoryPurchaseSuccess: () => void;
   installPurchasedModule: (moduleId: string, anchor: GridCell, orientation: ModuleOrientation) => CombatModule | null;
+  removeCombatModule: (instanceId: string) => boolean;
 }
 
 interface Rect {
@@ -91,11 +94,15 @@ export class HUDManager {
   private subjectHitboxes: Array<Rect & { instanceId: string }> = [];
   private productionHitboxes: Array<Rect & { snapshot: ProductionSnapshot }> = [];
   private coreHealthHitbox: Rect | null = null;
+  private removeModuleHitbox: Rect | null = null;
   private tooltipTarget: TooltipTarget | null = null;
   private getUpgradeManager: (() => UpgradeManager) | null = null;
   private getArmory: (() => ArmoryManager) | null = null;
   private getMusicVolume: (() => number) | null = null;
   private onMusicControl: (() => void) | null = null;
+  private getSfxVolume: (() => number) | null = null;
+  private onSfxControl: (() => void) | null = null;
+  private sfxControlRect: Rect | null = null;
   private musicControlRect: Rect | null = null;
   private pointer: { x: number; y: number } | null = null;
   private screenToWorld: ((point: { x: number; y: number }) => { x: number; y: number }) | null = null;
@@ -111,6 +118,8 @@ export class HUDManager {
     this.getArmory = callbacks.getArmory;
     this.getMusicVolume = callbacks.getMusicVolume;
     this.onMusicControl = callbacks.onMusicControl;
+    this.getSfxVolume = callbacks.getSfxVolume;
+    this.onSfxControl = callbacks.onSfxControl;
     this.screenToWorld = callbacks.screenToWorld;
     canvas.addEventListener('mousemove', (event) => {
       const point = this.toCanvasPoint(canvas, event, viewport);
@@ -166,6 +175,11 @@ export class HUDManager {
         return;
       }
 
+      if (this.sfxControlRect && this.contains(this.sfxControlRect, mouseX, mouseY)) {
+        this.onSfxControl?.();
+        return;
+      }
+
       const worldPoint = callbacks.screenToWorld(point);
       const cell = vehicle.getGridCellAtWorldPoint(worldPoint);
       if (cell) {
@@ -213,6 +227,7 @@ export class HUDManager {
     this.subjectHitboxes = [];
     this.productionHitboxes = [];
     this.coreHealthHitbox = null;
+    this.removeModuleHitbox = null;
     this.tooltipTarget = null;
     this.armoryScroll = 0;
     this.armoryMaxScroll = 0;
@@ -273,6 +288,21 @@ export class HUDManager {
       }
     }
 
+    if (this.removeModuleHitbox && this.contains(this.removeModuleHitbox, mouseX, mouseY)
+      && this.selectedInstanceId && !this.selectedInstanceId.startsWith('builtin:')) {
+      const removed = callbacks.removeCombatModule(this.selectedInstanceId);
+      if (removed) {
+        this.selectedCell = null;
+        this.selectedInstallModuleId = null;
+        this.selectedInstallOrientation = 0;
+        this.selectedInstanceId = vehicle.systems.getInstanceId('armory');
+        this.setFeedback('Combat module returned to stock.', VisualTheme.color.success);
+      } else {
+        this.setFeedback('Combat module removal failed.');
+      }
+      return true;
+    }
+
     for (const hitbox of this.nodeHitboxes) {
       if (!this.contains(hitbox, mouseX, mouseY)) continue;
       const manager = callbacks.getUpgradeManager();
@@ -292,7 +322,7 @@ export class HUDManager {
         const purchased = callbacks.getArmory().purchase(hitbox.moduleId, callbacks.spendCost);
         if (purchased) callbacks.onArmoryPurchaseSuccess();
         this.setFeedback(purchased ? 'Combat module purchased.' : 'Purchase unavailable or too expensive.', purchased ? VisualTheme.color.success : VisualTheme.color.danger);
-      } else if (callbacks.getArmory().getStock(hitbox.moduleId) > 0) {
+      } else if (this.getAvailableModuleCount(hitbox.moduleId, vehicle) > 0) {
         this.selectedInstallModuleId = hitbox.moduleId;
         this.selectedInstallOrientation = vehicle.getCombatModuleDefinitions()
           .find((module) => module.id === hitbox.moduleId)?.defaultOrientation ?? 0;
@@ -451,22 +481,30 @@ export class HUDManager {
     const controlsX = Math.max(waveX + 98, gameplayWidth - 178);
     ctx.fillStyle = theme.textMuted;
     ctx.font = '10px sans-serif';
-    const musicRect = { x: gameplayWidth - 88, y: 5, width: 84, height: 36 };
+    const sfxRect = { x: gameplayWidth - 88, y: 2, width: 84, height: 20 };
+    const musicRect = { x: gameplayWidth - 88, y: 25, width: 84, height: 20 };
+    this.sfxControlRect = sfxRect;
     this.musicControlRect = musicRect;
+    const sfxVolume = this.getSfxVolume?.() ?? 0;
     const musicVolume = this.getMusicVolume?.() ?? 0;
-    ctx.fillStyle = musicVolume > 0 ? theme.surfaceSelected : theme.surfaceDisabled;
-    ctx.fillRect(musicRect.x, musicRect.y, musicRect.width, musicRect.height);
-    ctx.strokeStyle = musicVolume > 0 ? theme.accent : theme.borderMuted;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(musicRect.x, musicRect.y, musicRect.width, musicRect.height);
-    ctx.fillStyle = musicVolume > 0 ? theme.textPrimary : theme.textDisabled;
-    ctx.font = 'bold 10px monospace';
+    const drawVolumeControl = (rect: Rect, label: string, volume: number): void => {
+      ctx.fillStyle = volume > 0 ? theme.surfaceSelected : theme.surfaceDisabled;
+      ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+      ctx.strokeStyle = volume > 0 ? theme.accent : theme.borderMuted;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+      ctx.fillStyle = volume > 0 ? theme.textPrimary : theme.textDisabled;
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(
+        volume > 0 ? label + ' ' + Math.round(volume * 100) + '%' : label + ' OFF',
+        rect.x + rect.width / 2,
+        rect.y + 14
+      );
+    };
+    drawVolumeControl(sfxRect, 'SFX', sfxVolume);
+    drawVolumeControl(musicRect, 'MUSIC', musicVolume);
     ctx.textAlign = 'center';
-    ctx.fillText(
-      musicVolume > 0 ? 'MUSIC ' + Math.round(musicVolume * 100) + '%' : 'MUSIC OFF',
-      musicRect.x + musicRect.width / 2,
-      musicRect.y + 22
-    );
     ctx.textAlign = 'left';
     ctx.fillStyle = isPaused ? theme.warning : theme.success;
     ctx.font = 'bold 10px monospace';
@@ -759,6 +797,7 @@ export class HUDManager {
 
     this.renderSubjectList(render, panelX, vehicle);
     const contentTop = this.getPanelContentTop(vehicle);
+    this.removeModuleHitbox = null;
     if (this.selectedCell && !vehicle.getModuleAt(this.selectedCell.gx, this.selectedCell.gy)) {
       this.renderInstallPanel(render, panelX, canvasHeight, vehicle, contentTop);
     } else if (this.selectedInstanceId === vehicle.systems.getInstanceId('armory')) {
@@ -865,7 +904,19 @@ export class HUDManager {
     ctx.fillStyle = theme.textSecondary;
     ctx.font = '11px sans-serif';
     ctx.fillText(subject.combatModule ? `HP ${Math.ceil(subject.combatModule.currentHp)} / ${Math.ceil(subject.combatModule.maxHp)}` : 'BUILT-IN / ACTIVE', panelX + 12, top + 22);
-    this.renderUpgradeWeb(render, panelX, top + 34, canvasHeight - 32, this.selectedInstanceId, storage);
+    const upgradeTop = subject.combatModule ? top + 54 : top + 34;
+    if (subject.combatModule) {
+      this.removeModuleHitbox = { x: panelX + 12, y: top + 30, width: HUDManager.PANEL_WIDTH - 24, height: 14 };
+      this.drawArmoryActionButton(
+        ctx,
+        this.removeModuleHitbox.x,
+        this.removeModuleHitbox.y,
+        this.removeModuleHitbox.width,
+        'REMOVE FROM GRID',
+        true,
+      );
+    }
+    this.renderUpgradeWeb(render, panelX, upgradeTop, canvasHeight - 32, this.selectedInstanceId, storage);
   }
 
   private renderInstallPanel(
@@ -886,10 +937,9 @@ export class HUDManager {
     ctx.fillText(`INSTALL AT [${this.selectedCell.gx}, ${this.selectedCell.gy}]`, panelX + 12, top);
     ctx.fillStyle = theme.textSecondary;
     ctx.font = '11px sans-serif';
-    ctx.fillText('Purchased combat modules only · footprint anchor is top-left', panelX + 12, top + 16);
+    ctx.fillText('Available combat modules · footprint anchor is top-left', panelX + 12, top + 16);
 
-    const armory = this.getArmory?.();
-    const modules = vehicle.getCombatModuleDefinitions().filter((module) => (armory?.getStock(module.id) ?? 0) > 0);
+    const modules = vehicle.getCombatModuleDefinitions().filter((module) => this.getAvailableModuleCount(module.id, vehicle) > 0);
     if (modules.length === 0) {
       ctx.fillStyle = theme.textMuted;
       ctx.fillText('Purchase a module from ARMORY first.', panelX + 12, top + 48);
@@ -898,6 +948,7 @@ export class HUDManager {
     for (let index = 0; index < modules.length; index++) {
       const definition = modules[index];
       const y = top + 33 + index * 38;
+      const availableStock = this.getAvailableModuleCount(definition.id, vehicle);
       const canFit = vehicle.canInstallModule(definition.id, { x: this.selectedCell.gx, y: this.selectedCell.gy });
       const enabled = canFit;
       ctx.fillStyle = enabled ? theme.surfaceAvailable : theme.surfaceDisabled;
@@ -912,7 +963,7 @@ export class HUDManager {
       ctx.font = 'bold 11px sans-serif';
       ctx.fillText(`${this.truncate(definition.name, 17)} ${definition.size?.width}x${definition.size?.height}`, panelX + 42, y + 13);
       ctx.font = '10px sans-serif';
-      ctx.fillText(`Owned ${armory?.getStock(definition.id) ?? 0}`, panelX + 42, y + 24);
+      ctx.fillText(`Owned ${availableStock}`, panelX + 42, y + 24);
       this.installHitboxes.push({ x: panelX + 12, y, width: HUDManager.PANEL_WIDTH - 24, height: 30, moduleId: definition.id });
     }
 
@@ -960,7 +1011,7 @@ export class HUDManager {
       vehicle.systems.getInstanceId('armory'),
       storage,
     );
-    this.renderArmoryModuleCards(render, panelX, cardsTop - this.armoryScroll, storage);
+    this.renderArmoryModuleCards(render, panelX, cardsTop - this.armoryScroll, storage, vehicle);
     ctx.restore();
     if (this.armoryMaxScroll > 0) {
       ctx.fillStyle = theme.textMuted;
@@ -976,6 +1027,7 @@ export class HUDManager {
     panelX: number,
     top: number,
     storage: ResourceStorage,
+    vehicle: Vehicle,
   ): void {
     const ctx = render.ctx;
     const theme = VisualTheme.color;
@@ -1000,7 +1052,8 @@ export class HUDManager {
       const stock = armory.getStock(definition.id);
       const purchaseCost = armory.getPurchaseCost(definition.id);
       const purchaseEnabled = researched && storage.canAfford(purchaseCost);
-      const installEnabled = researched && stock > 0;
+      const availableStock = stock + vehicle.getStoredCombatModuleCount(definition.id);
+      const installEnabled = researched && availableStock > 0;
       const rowEnabled = purchaseEnabled || installEnabled;
       ctx.fillStyle = rowEnabled ? theme.surfaceAvailable : theme.surfaceDisabled;
       ctx.fillRect(x, y, cardWidth, cardHeight);
@@ -1012,7 +1065,7 @@ export class HUDManager {
       ctx.font = 'bold 9px sans-serif';
       ctx.fillText(this.truncate(definition.name, 13), x + 26, y + 11);
       ctx.font = '8px monospace';
-      ctx.fillText(researched ? `OWN ${stock} · ${this.formatCost(purchaseCost)}` : 'RESEARCH REQUIRED', x + 26, y + 21);
+      ctx.fillText(researched ? `OWN ${availableStock} · ${this.formatCost(purchaseCost)}` : 'RESEARCH REQUIRED', x + 26, y + 21);
       const purchaseButtonX = x + 4;
       const installButtonX = purchaseButtonX + compactButtonWidth + actionButtonGap;
       this.drawArmoryActionButton(ctx, purchaseButtonX, y + 24, compactButtonWidth, 'BUY', purchaseEnabled);
@@ -1289,6 +1342,11 @@ export class HUDManager {
 
   private moduleIcon(moduleId: string): string {
     return `ui.icon.${moduleId}`;
+  }
+
+  private getAvailableModuleCount(moduleId: string, vehicle: Vehicle): number {
+    const armory = this.getArmory?.();
+    return (armory?.getStock(moduleId) ?? 0) + vehicle.getStoredCombatModuleCount(moduleId);
   }
 
   private resourceIcon(resource: ProductionSnapshot['output']): string {

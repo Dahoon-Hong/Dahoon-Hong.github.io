@@ -71,6 +71,10 @@ type AudioWindow = Window & {
 const manifest = audioManifest as AudioManifest;
 const BUNDLED_MUSIC_PREFIX = '/assets/game/audio/';
 
+const isProceduralSource = (src: string): boolean => src.indexOf('procedural://') === 0;
+const EXTERNAL_SFX_GAIN = 0.72;
+const VOLUME_STEPS = [0, 0.2, 0.4, 0.6, 0.8, 1];
+
 const SOUND_POLICY: Record<SoundEffectId, SoundPolicy> = {
   'sfx.weapon.direct-fire': { cooldownMs: 35, maxVoices: 4, gain: 0.24 },
   'sfx.weapon.arc-fire': { cooldownMs: 120, maxVoices: 2, gain: 0.28 },
@@ -99,6 +103,8 @@ export class AudioManager {
   private readonly musicBuffers = new Map<MusicId, AudioBuffer>();
   private readonly musicLoading = new Map<MusicId, Promise<AudioBuffer | null>>();
   private musicSource: AudioBufferSourceNode | null = null;
+  private readonly externalBuffers = new Map<SoundEffectId, AudioBuffer>();
+  private readonly externalLoads = new Map<SoundEffectId, Promise<AudioBuffer | null>>();
   private readonly activeSources = new Set<AudioScheduledSourceNode>();
   private readonly activeVoices = new Map<SoundEffectId, number>();
   private readonly cooldowns = new Map<string, number>();
@@ -118,6 +124,7 @@ export class AudioManager {
   private readonly unlockAudio = (): void => {
     this.userGestureSeen = true;
     void this.ensureReady();
+    void this.preload();
   };
 
   public constructor() {
@@ -138,11 +145,12 @@ export class AudioManager {
       if (entry.licenseStatus !== 'approved') {
         this.validationErrors.push('Audio entry is not approved: ' + id);
       }
-      const sourceIsAllowed = expectedKind === 'music'
-        ? entry.src.indexOf('procedural://') === 0 || entry.src.indexOf(BUNDLED_MUSIC_PREFIX) === 0
-        : entry.src.indexOf('procedural://') === 0;
-      if (!sourceIsAllowed) {
-        this.validationErrors.push('Audio entry has an invalid runtime source: ' + id);
+      if (isProceduralSource(entry.src)) continue;
+      if (entry.src.indexOf('/assets/') !== 0) {
+        this.validationErrors.push('External audio entry must use a public asset path: ' + id);
+      }
+      if (!entry.sourceUrl || !entry.licenseUrl || !entry.originalSha256 || !entry.runtimeSha256) {
+        this.validationErrors.push('External audio entry is missing provenance: ' + id);
       }
     }
   }
@@ -154,7 +162,19 @@ export class AudioManager {
   public async preload(): Promise<void> {
     if (this.validationErrors.length > 0) {
       console.warn('[Audio] preload blocked by manifest validation', this.validationErrors);
+      return;
     }
+
+    if (!this.userGestureSeen) return;
+
+    const context = this.ensureReady();
+    if (!context) return;
+
+    const externalIds = SOUND_EFFECT_IDS.filter((id) => {
+      const entry = manifest.sounds?.[id];
+      return Boolean(entry && !isProceduralSource(entry.src));
+    });
+    await Promise.all(externalIds.map((id) => this.loadExternalBuffer(id, context)));
   }
 
   public attachUserGestureListeners(target?: Window): void {
@@ -205,15 +225,13 @@ export class AudioManager {
   }
 
   public cycleMusicVolume(): void {
-    const levels = [0, 0.2, 0.4];
-    const currentIndex = levels.findIndex((level) => Math.abs(level - this.musicVolume) < 0.01);
-    this.setMusicVolume(levels[currentIndex >= 0 ? (currentIndex + 1) % levels.length : 0]);
+    const currentIndex = VOLUME_STEPS.findIndex((level) => Math.abs(level - this.musicVolume) < 0.01);
+    this.setMusicVolume(VOLUME_STEPS[currentIndex >= 0 ? (currentIndex + 1) % VOLUME_STEPS.length : 0]);
   }
 
   public cycleSfxVolume(): void {
-    const levels = [0, 0.4, 0.8];
-    const currentIndex = levels.findIndex((level) => Math.abs(level - this.sfxVolume) < 0.01);
-    this.setSfxVolume(levels[currentIndex >= 0 ? (currentIndex + 1) % levels.length : 0]);
+    const currentIndex = VOLUME_STEPS.findIndex((level) => Math.abs(level - this.sfxVolume) < 0.01);
+    this.setSfxVolume(VOLUME_STEPS[currentIndex >= 0 ? (currentIndex + 1) % VOLUME_STEPS.length : 0]);
   }
 
   public setMusicDucked(ducked: boolean): void {
@@ -238,10 +256,14 @@ export class AudioManager {
 
   public ensureReady(): AudioContext | null {
     if (!this.userGestureSeen) return null;
-    if (this.context) {
-      this.resumeIfNeeded();
-      return this.context;
-    }
+    const context = this.getOrCreateContext();
+    if (!context) return null;
+    this.resumeIfNeeded();
+    return context;
+  }
+
+  private getOrCreateContext(): AudioContext | null {
+    if (this.context) return this.context;
 
     if (typeof window === 'undefined') return null;
 
@@ -264,7 +286,6 @@ export class AudioManager {
       this.masterGain = masterGain;
       this.sfxGain = sfxGain;
       this.musicGain = musicGain;
-      this.resumeIfNeeded();
       return context;
     } catch {
       return null;
@@ -300,11 +321,18 @@ export class AudioManager {
     } = {}
   ): void {
     const entry = manifest.sounds?.[id];
-    if (!entry || entry.licenseStatus !== 'approved' || entry.src.indexOf('procedural://') !== 0) return;
+    if (!entry || entry.licenseStatus !== 'approved') return;
 
     const context = this.ensureReady();
     if (!context || this.muted) return;
     if (context.state === 'suspended') return;
+
+    const isProcedural = isProceduralSource(entry.src);
+    const externalBuffer = isProcedural ? null : this.externalBuffers.get(id);
+    if (!isProcedural && !externalBuffer) {
+      void this.loadExternalBuffer(id, context);
+      return;
+    }
 
     const policy = SOUND_POLICY[id];
     const now = context.currentTime;
@@ -318,8 +346,14 @@ export class AudioManager {
     if (!voice) return;
 
     this.cooldowns.set(group, now);
-    voice.gain.gain.setValueAtTime(Math.max(0, options.gain ?? policy.gain), now);
-    const duration = this.synthesize(id, voice.gain, now);
+    const requestedGain = options.gain ?? policy.gain;
+    const effectiveGain = !isProcedural && options.gain === undefined
+      ? Math.max(requestedGain, EXTERNAL_SFX_GAIN)
+      : requestedGain;
+    voice.gain.gain.setValueAtTime(Math.max(0, effectiveGain), now);
+    const duration = externalBuffer
+      ? this.playBuffer(externalBuffer, voice.gain, now)
+      : this.synthesize(id, voice.gain, now);
     this.scheduleRelease(voice.release, duration);
   }
 
@@ -457,6 +491,55 @@ export class AudioManager {
 
   private scheduleRelease(release: () => void, duration: number): void {
     globalThis.setTimeout(release, Math.ceil((duration + 0.08) * 1000));
+  }
+
+  private loadExternalBuffer(id: SoundEffectId, context: AudioContext): Promise<AudioBuffer | null> {
+    const cached = this.externalBuffers.get(id);
+    if (cached) return Promise.resolve(cached);
+
+    const pending = this.externalLoads.get(id);
+    if (pending) return pending;
+
+    const entry = manifest.sounds?.[id];
+    if (!entry || isProceduralSource(entry.src)) return Promise.resolve(null);
+
+    const load = globalThis.fetch(entry.src)
+      .then((response) => {
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return response.arrayBuffer();
+      })
+      .then((data) => context.decodeAudioData(data))
+      .then((buffer) => {
+        this.externalBuffers.set(id, buffer);
+        return buffer;
+      })
+      .catch((error: unknown) => {
+        console.warn('[Audio] external asset failed to load: ' + id, error);
+        return null;
+      })
+      .finally(() => {
+        this.externalLoads.delete(id);
+      });
+    this.externalLoads.set(id, load);
+    return load;
+  }
+
+  private playBuffer(buffer: AudioBuffer, target: GainNode, now: number): number {
+    const context = this.context;
+    if (!context) return 0;
+
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.connect(target);
+    this.trackSource(source);
+    try {
+      source.start(now);
+    } catch {
+      source.disconnect();
+      this.activeSources.delete(source);
+      return 0;
+    }
+    return buffer.duration;
   }
 
   private synthesize(id: SoundEffectId, target: GainNode, now: number): number {

@@ -14,8 +14,8 @@ describe('Canvas menus', () => {
   it('returns to the start menu from settings with Escape', () => {
     const settings = new SettingsScreen();
     expect(settings.handleKey('Escape')).toBe('back');
-    expect(settings.handleKey('Enter')).toBe('music');
+    expect(settings.handleKey('Enter')).toBeNull();
     expect(settings.handleKey('ArrowDown')).toBeNull();
-    expect(settings.handleKey('Enter')).toBe('sfx');
+    expect(settings.handleKey('Enter')).toBeNull();
   });
 });

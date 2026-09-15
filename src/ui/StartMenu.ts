@@ -151,7 +151,7 @@ export class SettingsScreen {
     });
     ctx.fillStyle = VisualTheme.color.textMuted;
     ctx.font = '11px monospace';
-    ctx.fillText('ARROW KEYS / WASD SELECT  ·  ENTER CHANGE  ·  ESC BACK', width / 2, height - 36);
+    ctx.fillText('ARROW KEYS / WASD SELECT  ·  CLICK VOLUME  ·  ENTER OTHER  ·  ESC BACK', width / 2, height - 36);
     ctx.restore();
   }
 
@@ -166,7 +166,11 @@ export class SettingsScreen {
     if (code === 'Escape') return 'back';
     if (code === 'ArrowUp' || code === 'KeyW') this.selectedIndex = this.wrap(this.selectedIndex - 1, SETTINGS_ACTIONS.length);
     else if (code === 'ArrowDown' || code === 'KeyS') this.selectedIndex = this.wrap(this.selectedIndex + 1, SETTINGS_ACTIONS.length);
-    else if (code === 'Enter' || code === 'Space') return SETTINGS_ACTIONS[this.selectedIndex].action;
+    else if (code === 'Enter' || code === 'Space') {
+      const action = SETTINGS_ACTIONS[this.selectedIndex].action;
+      if (action === 'music' || action === 'sfx') return null;
+      return action;
+    }
     else return null;
     return null;
   }

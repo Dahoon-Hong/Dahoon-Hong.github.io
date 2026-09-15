@@ -229,6 +229,8 @@ export class Game {
       onUpgradeSuccess: () => this.audio.playSfx('sfx.ui.upgrade-confirm'),
       getMusicVolume: () => this.audio.getMusicVolume(),
       onMusicControl: () => this.audio.cycleMusicVolume(),
+      getSfxVolume: () => this.audio.getSfxVolume(),
+      onSfxControl: () => this.audio.cycleSfxVolume(),
       screenToWorld: (point) => this.camera.screenToWorld(point),
       getArmory: () => this.armory,
       isActive: () => this.screen === AppScreen.GAMEPLAY && !this.pauseMenuVisible,
@@ -236,6 +238,7 @@ export class Game {
       onArmoryResearchSuccess: () => this.audio.playSfx('sfx.ui.upgrade-confirm'),
       onArmoryPurchaseSuccess: () => this.audio.playSfx('sfx.ui.upgrade-confirm'),
       installPurchasedModule: (moduleId, anchor, orientation) => this.installPurchasedModule(moduleId, anchor, orientation),
+      removeCombatModule: (instanceId) => this.removeCombatModule(instanceId),
     }, { width: this.logicalWidth, height: this.logicalHeight });
 
     this.applyTestScenario();
@@ -744,11 +747,17 @@ export class Game {
     anchor: { x: number; y: number },
     orientation: ModuleOrientation,
   ): import('../entities/Module').CombatModule | null {
-    if (this.armory.getStock(moduleId) <= 0) return null;
+    const reusesStoredModule = this.vehicle.hasStoredCombatModule(moduleId);
+    if (!reusesStoredModule && this.armory.getStock(moduleId) <= 0) return null;
     const installed = this.vehicle.installModule(moduleId, anchor, orientation);
     if (!installed) return null;
-    this.armory.consume(moduleId);
+    if (!reusesStoredModule) this.armory.consume(moduleId);
     return installed;
+  }
+
+  private removeCombatModule(instanceId: string): boolean {
+    const module = this.vehicle.getCombatModule(instanceId);
+    return module ? this.vehicle.removeModule(module) : false;
   }
 
   private gameLoop(time: number): void {

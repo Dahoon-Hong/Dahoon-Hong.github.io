@@ -1,22 +1,23 @@
 # Audio licensing policy
 
-The Plan 21 effects and the existing default gameplay loop are project-authored procedural sounds generated at runtime with the browser Web Audio API. The main-menu and canonical test-map tracks are user-provided MP3 assets; the user confirmed permission to ship them in this project on 2026-09-15. No unapproved recording, sample, voice, AI-generated music, or ChatGPT Voice output is shipped.
+The game ships project-authored Web Audio synthesis for non-weapon effects, approved public-domain DVIDS clips for weapon firing effects, and two user-provided music files whose distribution permission was confirmed on 2026-09-15. No CC BY, including CC BY 4.0, is used for the shipped weapon sounds.
 
 The release gate is fail-closed:
 
-- Every shipped sound must appear in src/data/audio.json.
-- Only entries with licenseStatus: approved and either a procedural:// source or a bundled `/assets/game/audio/` source may be used by the runtime.
-- Bundled user-provided assets require a per-file provenance record, a stable internal source record, the file hash, permission confirmation, and a commercial-use review before they can be added.
-- CC0 is the default acceptable external license. CC BY is allowed only when attribution text and the exact source record are committed. NC, ND, Sampling+, unknown, preview-only, or unclear terms are rejected.
-- ChatGPT Voice output is not used as a distributable game sound. API-generated audio would require a separate rights and provenance review before shipping.
+- Every shipped sound must appear in `src/data/audio.json`.
+- Procedural entries must use `procedural://` and the project-authored license record.
+- External entries must use a `/assets/` path, include a stable source URL, the exact license review URL, original and runtime SHA-256 hashes, and a modification summary; extracted clips must also record timing.
+- Bundled user-provided assets require a per-file provenance record, permission confirmation, and a commercial-use review before they can be added.
+- Only project-authored, CC0, clearly public-domain, or explicitly user-authorized assets are acceptable. CC BY, NC, ND, Sampling+, unknown, preview-only, or unclear terms are rejected for this project.
+- DVIDS assets are accepted only when the source page marks the media `PUBLIC DOMAIN` and the record retains the DVIDS copyright restrictions page.
+- ChatGPT Voice output is not used as a distributable game sound.
 
-Reference material used for the policy:
+The manifest is the source of record. `npm run qa:audio` verifies the manifest, approved license category, asset existence, and runtime SHA-256 values.
 
-- Creative Commons CC0: https://creativecommons.org/publicdomain/zero/1.0/
-- Creative Commons Attribution 4.0: https://creativecommons.org/licenses/by/4.0/
-- Freesound license FAQ: https://freesound.org/help/faq/
-- OpenGameArt FAQ: https://opengameart.org/node/5571
-- OpenAI text-to-speech guide: https://developers.openai.com/api/docs/guides/text-to-speech
-- OpenAI Service Terms: https://openai.com/policies/service-terms/
+Reference material:
+
+- [Creative Commons CC0](https://creativecommons.org/publicdomain/zero/1.0/)
+- [DVIDS copyright and restrictions](https://www.dvidshub.net/about/copyright)
+- [OpenGameArt FAQ](https://opengameart.org/node/5571)
 
 This policy documents the project decision and is not a substitute for jurisdiction-specific legal advice.
