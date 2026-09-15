@@ -13,6 +13,8 @@ describe('GameTestObserver', () => {
       wave: 1,
       targetKills: 0,
       killedEnemies: 0,
+      stageTargetKills: 0,
+      stageKilledEnemies: 0,
       spawnedEnemies: 0,
       liveEnemies: 0,
       vehicleWorldX: 0,

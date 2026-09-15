@@ -512,6 +512,7 @@ export class Game {
       case 'terminal-region':
         this.waveManager.currentWave = this.waveManager.totalWaves;
         this.waveManager.killedEnemiesCount = this.waveManager.targetKills;
+        this.waveManager.stageKilledEnemiesCount = this.waveManager.stageTargetKills;
         this.waveManager.waveCleared = true;
         break;
     }
@@ -953,6 +954,8 @@ export class Game {
       wave: this.waveManager.currentWave,
       targetKills: this.waveManager.targetKills,
       killedEnemies: this.waveManager.killedEnemiesCount,
+      stageTargetKills: this.waveManager.stageTargetKills,
+      stageKilledEnemies: this.waveManager.stageKilledEnemiesCount,
       spawnedEnemies: this.waveManager.spawnedEnemiesCount,
       spawnSkippedEnemies: this.waveManager.spawnSkippedCount,
       liveEnemies: liveEnemyCount,
@@ -1093,6 +1096,8 @@ export class Game {
       this.resources,
       this.waveManager.currentWave,
       killsRemaining,
+      this.waveManager.stageKilledEnemiesCount,
+      this.waveManager.stageTargetKills,
       this.state === GameState.PAUSED,
       this.camera,
     );

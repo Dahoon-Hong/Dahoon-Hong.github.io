@@ -30,9 +30,11 @@ export function calculateEnemySpawnCount(
 
 export class WaveManager {
   public readonly totalWaves: number;
+  public readonly stageTargetKills: number;
   public currentWave = 1;
   public targetKills = 0;
   public killedEnemiesCount = 0;
+  public stageKilledEnemiesCount = 0;
   public spawnedEnemiesCount = 0;
   public spawnSkippedCount = 0;
   public waveCleared = false;
@@ -62,6 +64,7 @@ export class WaveManager {
     this.baseEnemySpawn = baseEnemySpawn;
     this.spawnContext = spawnContext;
     this.totalWaves = region.waves.length;
+    this.stageTargetKills = region.waves.reduce((total, wave) => total + wave.targetKills, 0);
     this.prepareWave();
   }
 
@@ -130,6 +133,7 @@ export class WaveManager {
       if (!enemy.isDead()) continue;
       this.activeWaveEnemies.delete(enemy);
       this.killedEnemiesCount++;
+      this.stageKilledEnemiesCount++;
     }
   }
 

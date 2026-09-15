@@ -69,6 +69,8 @@ describe('WaveManager', () => {
     ]);
     expect(manager.targetKills).toBe(10);
     expect(manager.killedEnemiesCount).toBe(0);
+    expect(manager.stageTargetKills).toBe(22);
+    expect(manager.stageKilledEnemiesCount).toBe(0);
     expect(manager.spawnedEnemiesCount).toBe(3);
     expect(manager.lastSpawnBatchSize).toBe(3);
     expect(manager.lastSpawnTypes).toEqual(['standard', 'standard', 'tanker']);
@@ -160,6 +162,8 @@ describe('WaveManager', () => {
 
     expect(manager.killedEnemiesCount).toBe(2);
     expect(manager.targetKills).toBe(2);
+    expect(manager.stageTargetKills).toBe(2);
+    expect(manager.stageKilledEnemiesCount).toBe(2);
     expect(manager.waveCleared).toBe(true);
     expect(manager.spawnedEnemiesCount).toBe(3);
   });
@@ -179,6 +183,7 @@ describe('WaveManager', () => {
     expect(manager.currentWave).toBe(2);
     expect(manager.targetKills).toBe(12);
     expect(manager.killedEnemiesCount).toBe(0);
+    expect(manager.stageKilledEnemiesCount).toBe(2);
     expect(manager.spawnedEnemiesCount).toBe(0);
     expect(manager.waveCleared).toBe(false);
   });

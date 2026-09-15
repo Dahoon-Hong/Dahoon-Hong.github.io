@@ -226,6 +226,8 @@ export class HUDManager {
     storage: ResourceStorage,
     wave: number,
     enemiesRemaining: number,
+    stageKilledEnemies: number,
+    stageTargetKills: number,
     isPaused: boolean,
     camera: Camera,
   ): void {
@@ -234,7 +236,18 @@ export class HUDManager {
     this.ensureSelectedSubject(vehicle);
 
     ctx.save();
-    this.renderTopBar(render, canvasWidth, vehicle, storage, wave, enemiesRemaining, isPaused, gameplayWidth);
+    this.renderTopBar(
+      render,
+      canvasWidth,
+      vehicle,
+      storage,
+      wave,
+      enemiesRemaining,
+      stageKilledEnemies,
+      stageTargetKills,
+      isPaused,
+      gameplayWidth,
+    );
     this.renderSelection(ctx, vehicle, camera);
     this.renderModulePreviews(render, vehicle, camera, gameplayWidth, canvasHeight);
     this.renderTankHealth(render, vehicle, camera);
@@ -409,6 +422,8 @@ export class HUDManager {
     storage: ResourceStorage,
     wave: number,
     enemiesRemaining: number,
+    stageKilledEnemies: number,
+    stageTargetKills: number,
     isPaused: boolean,
     gameplayWidth: number
   ): void {
@@ -431,6 +446,7 @@ export class HUDManager {
     ctx.fillStyle = theme.textSecondary;
     ctx.font = '10px monospace';
     ctx.fillText(`${enemiesRemaining} HOSTILES`, waveX + 20, 35);
+    ctx.fillText(`KILLS ${stageKilledEnemies}/${stageTargetKills}`, waveX + 20, 47);
 
     const controlsX = Math.max(waveX + 98, gameplayWidth - 178);
     ctx.fillStyle = theme.textMuted;

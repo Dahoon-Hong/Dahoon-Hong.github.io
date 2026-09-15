@@ -37,6 +37,8 @@ export interface GameTestSnapshot {
   wave: number;
   targetKills: number;
   killedEnemies: number;
+  stageTargetKills: number;
+  stageKilledEnemies: number;
   spawnedEnemies: number;
   liveEnemies: number;
   spawnSkippedEnemies?: number;
