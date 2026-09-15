@@ -256,6 +256,23 @@
       "attribution": "No third-party asset",
       "reviewNote": "No external recording or sample is used."
     },
+    "music.main-menu": {
+      "src": "/assets/game/audio/breach_in_the_hull.mp3",
+      "kind": "music",
+      "bus": "music",
+      "licenseStatus": "approved",
+      "licenseName": "User-provided with distribution permission",
+      "sourceUrl": "internal://user-provided/breach_in_the_hull.mp3",
+      "licenseUrl": "internal://user-provided-permission",
+      "creator": "User-provided",
+      "downloadedAt": null,
+      "originalSha256": "B8C165C78854CA28208812E8708A7C23C12E432BA0872870407F1EEA0C09C10C",
+      "runtimeSha256": "B8C165C78854CA28208812E8708A7C23C12E432BA0872870407F1EEA0C09C10C",
+      "modified": false,
+      "modificationSummary": "Copied without modification into the public asset bundle",
+      "attribution": "User-provided music",
+      "reviewNote": "User confirmed permission to ship this asset in the project on 2026-09-15."
+    },
     "music.gameplay.default": {
       "src": "procedural://music-gameplay-default",
       "kind": "music",
@@ -272,6 +289,23 @@
       "modificationSummary": "Eight-second Web Audio synthesis buffer generated at runtime",
       "attribution": "No third-party asset",
       "reviewNote": "No external recording, loop, sample, or AI-generated music is used."
+    },
+    "music.gameplay.test": {
+      "src": "/assets/game/audio/locked_inside_the_shell.mp3",
+      "kind": "music",
+      "bus": "music",
+      "licenseStatus": "approved",
+      "licenseName": "User-provided with distribution permission",
+      "sourceUrl": "internal://user-provided/locked_inside_the_shell.mp3",
+      "licenseUrl": "internal://user-provided-permission",
+      "creator": "User-provided",
+      "downloadedAt": null,
+      "originalSha256": "40582087952FB708EDE96965069DB2CF70F8000C6BEFB0A19AED7F5B35CC142C",
+      "runtimeSha256": "40582087952FB708EDE96965069DB2CF70F8000C6BEFB0A19AED7F5B35CC142C",
+      "modified": false,
+      "modificationSummary": "Copied without modification into the public asset bundle",
+      "attribution": "User-provided music",
+      "reviewNote": "User confirmed permission to ship this asset in the project on 2026-09-15."
     }
   }
 }
