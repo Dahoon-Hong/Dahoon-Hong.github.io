@@ -20,6 +20,7 @@
 - 전차포는 최소 사거리, 직선 관통, 목표 지점 또는 차단 지점 폭발을 사용한다.
 - 곡사포는 최소 사거리, 곡사 탄도와 목표 지점 범위 폭발을 사용한다.
 - 기관총은 재장전 시 ammo 1개를 소비하고, 12.7mm/20mm/30mm 순서로 20발/15발/10발을 발사한다. 전차포·곡사포는 발사당 ammo 1개를 소비한다.
+- 자원별 최대 저장량은 `src/data/resources.json`에서 설정하고 `ResourceStorage`가 기본 설정으로 읽는다.
 - 적 Standard/Tanker에 장갑을 추가하고, `penetration > armor`일 때만 피해를 준다.
 - 관통 성공 후 남은 관통력은 대상 장갑만큼 줄어든다.
 - 모든 무기는 고유 module body와 발사 sound ID를 사용한다.
@@ -46,6 +47,7 @@
 
 ### 데이터·로더
 
+- `src/data/resources.json`
 - `src/data/enemies.json`
 - `src/data/tanks/starter/direct-weapon.json`
 - `src/data/tanks/starter/arc-weapon.json`
@@ -61,6 +63,7 @@
 
 ### 런타임·UI
 
+- `src/core/ResourceStorage.ts`
 - `src/core/UpgradeManager.ts`
 - `src/core/ArmoryManager.ts`
 - `src/entities/Enemy.ts`
