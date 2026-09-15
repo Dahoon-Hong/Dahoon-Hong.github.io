@@ -2,7 +2,7 @@
 
 Review date: 2026-09-15
 
-The manifest of record is `src/data/audio.json`. Detailed source URLs, extraction windows, and hashes for the external clips are recorded in [`docs/audio-licenses/dvids-weapon-fire.md`](audio-licenses/dvids-weapon-fire.md).
+The manifest of record is `src/data/audio.json`. Detailed source URLs, extraction windows, and hashes for external weapon clips are recorded in [`docs/audio-licenses/dvids-weapon-fire.md`](audio-licenses/dvids-weapon-fire.md).
 
 | ID | Runtime asset | Source/license | Notes |
 | --- | --- | --- | --- |
@@ -16,6 +16,14 @@ The manifest of record is `src/data/audio.json`. Detailed source URLs, extractio
 | sfx.weapon.smoothbore-120-fire | `weapon-smoothbore-120-fire.wav` | DVIDS public domain | Abrams 120mm firing clip |
 | sfx.weapon.howitzer-155-fire | `weapon-howitzer-155-fire.wav` | DVIDS public domain | 155mm howitzer firing clip |
 
-The remaining entries (`direct-fire`, `arc-fire`, `impact`, `explosion`, `enemy.death`, `ui.upgrade-confirm`, and gameplay music) remain project-authored procedural synthesis with no third-party source file.
+The two bundled music entries are user-provided MP3 files copied without modification after the user confirmed permission to ship them on 2026-09-15.
 
-`npm run qa:audio` rejects missing, unapproved, unprovenanced, or hash-mismatched entries.
+| ID | Runtime asset | License status | Commercial-use check | Runtime SHA-256 | Attribution |
+| --- | --- | --- | --- | --- | --- |
+| music.main-menu | `/assets/game/audio/breach_in_the_hull.mp3` | approved | User confirmed distribution permission on 2026-09-15 | `B8C165C78854CA28208812E8708A7C23C12E432BA0872870407F1EEA0C09C10C` | User-provided music |
+| music.gameplay.default | `procedural://music-gameplay-default` | approved | Project-authored synthesis | None | No third-party asset |
+| music.gameplay.test | `/assets/game/audio/locked_inside_the_shell.mp3` | approved | User confirmed distribution permission on 2026-09-15 | `40582087952FB708EDE96965069DB2CF70F8000C6BEFB0A19AED7F5B35CC142C` | User-provided music |
+
+The remaining entries (`direct-fire`, `arc-fire`, `impact`, `explosion`, `enemy.death`, and `ui.upgrade-confirm`) remain project-authored procedural synthesis with no third-party source file.
+
+`npm run qa:audio` rejects missing, unapproved, unprovenanced, or hash-mismatched entries; bundled music must remain under `/assets/game/audio/`.

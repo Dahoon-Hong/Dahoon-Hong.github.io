@@ -20,7 +20,11 @@ export const SOUND_EFFECT_IDS = [
 
 export type SoundEffectId = (typeof SOUND_EFFECT_IDS)[number];
 
-export const MUSIC_IDS = ['music.gameplay.default'] as const;
+export const MUSIC_IDS = [
+  'music.main-menu',
+  'music.gameplay.default',
+  'music.gameplay.test',
+] as const;
 
 export type MusicId = (typeof MUSIC_IDS)[number];
 
@@ -65,6 +69,7 @@ type AudioWindow = Window & {
 };
 
 const manifest = audioManifest as AudioManifest;
+const BUNDLED_MUSIC_PREFIX = '/assets/game/audio/';
 
 const isProceduralSource = (src: string): boolean => src.indexOf('procedural://') === 0;
 const EXTERNAL_SFX_GAIN = 0.72;
@@ -94,7 +99,9 @@ export class AudioManager {
   private sfxGain: GainNode | null = null;
   private musicGain: GainNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
-  private musicBuffer: AudioBuffer | null = null;
+  private proceduralMusicBuffer: AudioBuffer | null = null;
+  private readonly musicBuffers = new Map<MusicId, AudioBuffer>();
+  private readonly musicLoading = new Map<MusicId, Promise<AudioBuffer | null>>();
   private musicSource: AudioBufferSourceNode | null = null;
   private readonly externalBuffers = new Map<SoundEffectId, AudioBuffer>();
   private readonly externalLoads = new Map<SoundEffectId, Promise<AudioBuffer | null>>();
@@ -109,6 +116,7 @@ export class AudioManager {
   private musicRequested = false;
   private requestedMusicId: MusicId = 'music.gameplay.default';
   private musicDucked = false;
+  private musicStartPending = false;
   private userGestureSeen = false;
   private resumePending = false;
   private gestureTarget: Window | null = null;
@@ -233,12 +241,12 @@ export class AudioManager {
 
   public playMusic(id: MusicId = 'music.gameplay.default'): void {
     const entry = manifest.sounds?.[id];
-    if (!entry || entry.kind !== 'music' || entry.bus !== 'music' ||
-      entry.licenseStatus !== 'approved' || !isProceduralSource(entry.src)) return;
+    if (!this.isPlayableMusicEntry(entry)) return;
 
+    if (this.requestedMusicId !== id) this.stopMusicSource();
     this.requestedMusicId = id;
     this.musicRequested = true;
-    this.startMusicIfReady();
+    void this.startMusicIfReady();
   }
 
   public stopMusic(): void {
@@ -288,7 +296,7 @@ export class AudioManager {
     const context = this.context;
     if (!context) return;
     if (context.state !== 'suspended') {
-      this.startMusicIfReady();
+      void this.startMusicIfReady();
       return;
     }
     if (this.resumePending) return;
@@ -296,7 +304,7 @@ export class AudioManager {
     void context.resume()
       .then(() => {
         this.resumePending = false;
-        this.startMusicIfReady();
+        void this.startMusicIfReady();
       })
       .catch(() => {
         this.resumePending = false;
@@ -374,14 +382,20 @@ export class AudioManager {
     gain.gain.setTargetAtTime(target, now, Math.max(0.01, fadeSeconds));
   }
 
-  private startMusicIfReady(): void {
+  private async startMusicIfReady(): Promise<void> {
     const context = this.context;
     const musicGain = this.musicGain;
-    if (!context || !musicGain || context.state !== 'running' || !this.musicRequested || this.musicSource) return;
-    const entry = manifest.sounds?.[this.requestedMusicId];
-    if (!entry || entry.licenseStatus !== 'approved' || !isProceduralSource(entry.src)) return;
+    const id = this.requestedMusicId;
+    if (!context || !musicGain || context.state !== 'running' || !this.musicRequested || this.musicSource || this.musicStartPending) return;
 
-    const buffer = this.getMusicBuffer(context);
+    this.musicStartPending = true;
+    const buffer = await this.getMusicBuffer(context, id);
+    this.musicStartPending = false;
+    if (!buffer || !this.musicRequested || this.requestedMusicId !== id || this.musicSource || context.state !== 'running') {
+      if (this.musicRequested && this.requestedMusicId !== id) void this.startMusicIfReady();
+      return;
+    }
+
     const source = context.createBufferSource();
     source.buffer = buffer;
     source.loop = true;
@@ -396,6 +410,42 @@ export class AudioManager {
     } catch {
       source.disconnect();
     }
+  }
+
+  private isPlayableMusicEntry(entry: AudioManifestEntry | undefined): entry is AudioManifestEntry {
+    if (!entry) return false;
+    return entry.kind === 'music' && entry.bus === 'music'
+      && entry.licenseStatus === 'approved'
+      && (entry.src.indexOf('procedural://') === 0 || entry.src.indexOf(BUNDLED_MUSIC_PREFIX) === 0);
+  }
+
+  private async getMusicBuffer(context: AudioContext, id: MusicId): Promise<AudioBuffer | null> {
+    const entry = manifest.sounds?.[id];
+    if (!this.isPlayableMusicEntry(entry)) return null;
+    if (entry.src.indexOf('procedural://') === 0) return this.getProceduralMusicBuffer(context);
+
+    const cached = this.musicBuffers.get(id);
+    if (cached) return cached;
+    const loading = this.musicLoading.get(id);
+    if (loading) return loading;
+
+    const request = fetch(entry.src)
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.arrayBuffer();
+      })
+      .then((data) => context.decodeAudioData(data))
+      .then((buffer) => {
+        this.musicBuffers.set(id, buffer);
+        return buffer;
+      })
+      .catch((error: unknown) => {
+        console.warn('[Audio] music load failed', id, error);
+        return null;
+      })
+      .finally(() => this.musicLoading.delete(id));
+    this.musicLoading.set(id, request);
+    return request;
   }
 
   private stopMusicSource(): void {
@@ -613,9 +663,9 @@ export class AudioManager {
     source.stop(now + duration);
   }
 
-  private getMusicBuffer(context: AudioContext): AudioBuffer {
-    if (this.musicBuffer && this.musicBuffer.sampleRate === context.sampleRate) {
-      return this.musicBuffer;
+  private getProceduralMusicBuffer(context: AudioContext): AudioBuffer {
+    if (this.proceduralMusicBuffer && this.proceduralMusicBuffer.sampleRate === context.sampleRate) {
+      return this.proceduralMusicBuffer;
     }
 
     const duration = 8;
@@ -652,7 +702,7 @@ export class AudioManager {
       right[index] = signal * (0.97 + pan);
     }
 
-    this.musicBuffer = buffer;
+    this.proceduralMusicBuffer = buffer;
     return buffer;
   }
 
