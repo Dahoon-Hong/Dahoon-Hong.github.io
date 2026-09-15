@@ -272,7 +272,11 @@ for (const [mapId, expectedCount] of Object.entries(expectedRegionCounts)) {
 
 const publicAssetRoot = path.join(root, 'public', 'assets', 'game');
 for (const file of walk(publicAssetRoot)) {
-  if (!manifestFiles.has(path.resolve(file))) warn(`unlisted runtime asset ${path.relative(root, file)}`);
+  const relativeGameAssetPath = path.relative(publicAssetRoot, file);
+  const isAudioAsset = relativeGameAssetPath.startsWith(`audio${path.sep}`);
+  if (!isAudioAsset && !manifestFiles.has(path.resolve(file))) {
+    warn(`unlisted runtime asset ${path.relative(root, file)}`);
+  }
 }
 
 const report = {

@@ -1,5 +1,5 @@
 # Audio license records
 
-No third-party audio license records are required for Plan 21 because every effect is direct project-authored Web Audio synthesis.
+External weapon-fire records are maintained in [`dvids-weapon-fire.md`](dvids-weapon-fire.md). Each record keeps the source page, DVIDS copyright/restrictions page, public-domain review, retrieval date, source hash, runtime hash, extraction window, and modification summary.
 
-When an external asset is proposed, add one record here before adding the file to the game. The record must include the asset ID, creator, source URL, license URL, exact license text or identifier, commercial-use result, attribution text, retrieval date, original SHA-256, modification summary, and reviewer.
+Project-authored procedural entries do not need a downloaded license record. Any future external asset must be documented here before it is added to the manifest or runtime.
