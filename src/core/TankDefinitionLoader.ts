@@ -1,4 +1,4 @@
-import { RESOURCE_TYPES, ResourceType } from './ResourceStorage';
+import { RESOURCE_TYPES, ResourceCapacities, ResourceType } from './ResourceStorage';
 
 export type ModuleKind = 'builtin' | 'combat';
 export type UpgradeOperation = 'add' | 'multiply';
@@ -82,6 +82,7 @@ export interface TankDefinition {
   grid: GridDefinition;
   builtinModuleIds: string[];
   initialCombatModules: InitialCombatModule[];
+  resourceCapacities: ResourceCapacities;
   modules: Readonly<Record<string, TankModuleDefinition>>;
 }
 
@@ -178,6 +179,22 @@ function parseCost(value: unknown, path: string): ResourceCost {
   }
 
   return cost;
+}
+
+function parseResourceConfig(value: unknown, path: string): ResourceCapacities {
+  const record = requiredRecord(value, path);
+  for (const key of Object.keys(record)) {
+    if (key !== 'capacities') fail(`${path}.${key}`, 'unknown resource config field');
+  }
+
+  const capacities = requiredRecord(record.capacities, `${path}.capacities`);
+  for (const key of Object.keys(capacities)) {
+    if (!(RESOURCE_TYPES as string[]).includes(key)) fail(`${path}.capacities.${key}`, 'unknown resource type');
+  }
+
+  return Object.fromEntries(
+    RESOURCE_TYPES.map((type) => [type, requiredNumber(capacities[type], `${path}.capacities.${type}`)])
+  ) as ResourceCapacities;
 }
 
 function parseEffects(value: unknown, path: string): UpgradeEffect[] {
@@ -373,7 +390,7 @@ function parseModuleDefinition(value: unknown, path: string, expectedId: string)
   return definition;
 }
 
-function parseManifest(value: unknown, path: string): Omit<TankDefinition, 'modules'> {
+function parseManifest(value: unknown, path: string): Omit<TankDefinition, 'modules' | 'resourceCapacities'> {
   const record = requiredRecord(value, path);
   const builtinModuleIds = requiredArray(record.builtinModuleIds, `${path}.builtinModuleIds`).map((id, index) =>
     requiredString(id, `${path}.builtinModuleIds[${index}]`)
@@ -415,7 +432,7 @@ function getModuleIdFromPath(modulePath: string, directory: string): string {
 }
 
 function validateManifestReferences(
-  manifest: Omit<TankDefinition, 'modules'>,
+  manifest: Omit<TankDefinition, 'modules' | 'resourceCapacities'>,
   modules: Readonly<Record<string, TankModuleDefinition>>,
   path: string
 ): void {
@@ -496,8 +513,12 @@ export class TankDefinitionLoader {
 
       const modules: Record<string, TankModuleDefinition> = {};
       const directory = manifestPath.slice(0, manifestPath.lastIndexOf('/'));
+      const resourcePath = `${directory}/resources.json`;
+      const rawResourceConfig = JSON_FILES[resourcePath];
+      if (rawResourceConfig === undefined) fail(resourcePath, 'tank requires resources.json');
+      const resourceCapacities = parseResourceConfig(rawResourceConfig, resourcePath);
       const moduleFiles = Object.entries(JSON_FILES).filter(
-        ([path]) => path !== manifestPath && path.startsWith(`${directory}/`) && path.endsWith('.json')
+        ([path]) => path !== manifestPath && path !== resourcePath && path.startsWith(`${directory}/`) && path.endsWith('.json')
       );
       for (const [modulePath, rawModule] of moduleFiles) {
         const moduleId = getModuleIdFromPath(modulePath, directory);
@@ -506,7 +527,7 @@ export class TankDefinitionLoader {
       }
 
       validateManifestReferences(manifest, modules, manifestPath);
-      return { ...manifest, modules };
+      return { ...manifest, modules, resourceCapacities };
     });
   }
 }

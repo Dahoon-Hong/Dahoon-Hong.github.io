@@ -1,5 +1,3 @@
-import resourceConfig from '../data/resources.json';
-
 export type ResourceType = 'resource' | 'matter' | 'ammo' | 'nano';
 
 export const RESOURCE_TYPES: ResourceType[] = ['resource', 'matter', 'ammo', 'nano'];
@@ -13,7 +11,7 @@ export class ResourceStorage {
 
   constructor(
     initialResourceOrAmounts: number | Partial<Record<ResourceType, number>> = 50,
-    capacity: number | ResourceCapacities = resourceConfig.capacities,
+    capacity: number | ResourceCapacities = 300,
   ) {
     const initialAmounts = typeof initialResourceOrAmounts === 'number'
       ? { resource: initialResourceOrAmounts }

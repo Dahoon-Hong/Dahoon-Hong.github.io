@@ -13,6 +13,7 @@ const definition: TankDefinition = {
   grid: { columns: 3, rows: 3, blockedCells: [] },
   builtinModuleIds: ['core', 'power-pack', 'caterpillar-track'],
   initialCombatModules: [],
+  resourceCapacities: { resource: 300, matter: 300, ammo: 300, nano: 300 },
   modules: {
     core: { id: 'core', kind: 'builtin', name: 'Core', behavior: 'core', baseStats: { maxHp: 100 }, upgradeTree: tree },
     'power-pack': { id: 'power-pack', kind: 'builtin', name: 'Power', behavior: 'power-pack', baseStats: { movementSpeed: 180 }, upgradeTree: tree },

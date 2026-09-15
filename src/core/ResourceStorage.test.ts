@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import resourceConfig from '../data/resources.json';
+import { TankDefinitionLoader } from './TankDefinitionLoader';
 import { ResourceStorage } from './ResourceStorage';
 
 describe('resource storage capacities', () => {
-  it('uses capacities from the JSON configuration by default', () => {
-    const storage = new ResourceStorage();
+  it('uses capacities from the starter tank JSON configuration', () => {
+    const tank = new TankDefinitionLoader().getDefault();
+    const storage = new ResourceStorage({ resource: 50 }, tank.resourceCapacities);
 
-    expect(storage.getCapacity('resource')).toBe(resourceConfig.capacities.resource);
-    expect(storage.getCapacity('matter')).toBe(resourceConfig.capacities.matter);
-    expect(storage.getCapacity('ammo')).toBe(resourceConfig.capacities.ammo);
-    expect(storage.getCapacity('nano')).toBe(resourceConfig.capacities.nano);
+    expect(tank.resourceCapacities).toEqual({ resource: 300, matter: 300, ammo: 300, nano: 300 });
+    for (const type of ['resource', 'matter', 'ammo', 'nano'] as const) {
+      expect(storage.getCapacity(type)).toBe(300);
+    }
   });
 
   it('applies a separate capacity to each resource type', () => {

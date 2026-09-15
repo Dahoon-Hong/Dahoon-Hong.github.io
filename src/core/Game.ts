@@ -101,7 +101,7 @@ export class Game {
   private projectiles: Projectile[] = [];
   private effects: VisualEffect[] = [];
   private pickups: ResourcePickup[] = [];
-  private readonly resources = new ResourceStorage({ resource: 50 });
+  private readonly resources: ResourceStorage;
   private lastTime = 0;
   private lastFrameDeltaMs = 0;
   private maxFrameDeltaMs = 0;
@@ -208,6 +208,7 @@ export class Game {
     });
     this.hud = new HUDManager();
     this.tankDefinition = new TankDefinitionLoader().getDefault();
+    this.resources = new ResourceStorage({ resource: 50 }, this.tankDefinition.resourceCapacities);
     this.upgradeManager = new UpgradeManager(this.tankDefinition.modules);
     this.vehicle = this.createVehicle();
     this.armory = this.createArmory();

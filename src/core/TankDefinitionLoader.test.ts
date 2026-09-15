@@ -17,6 +17,7 @@ describe('modern firearms tank data', () => {
     } as const;
 
     expect(Object.keys(expected)).toHaveLength(9);
+    expect(tank.resourceCapacities).toEqual({ resource: 300, matter: 300, ammo: 300, nano: 300 });
     for (const [id, [weaponClass, width, height, arc, minRange, maxRange, magazineSize]] of Object.entries(expected)) {
       const definition = tank.modules[id];
       expect(definition).toBeDefined();
