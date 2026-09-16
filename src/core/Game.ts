@@ -116,6 +116,7 @@ export class Game {
   private reducedMotionOverride: boolean | null = null;
   private campaignProgress: CampaignProgress = { ...EMPTY_CAMPAIGN_PROGRESS, clearedMapIds: [] };
   private progressReady = false;
+  private audioReady = false;
   private pauseMenuVisible = false;
   private pauseMenuSelection = 0;
   private movementInput = { x: 0, y: 0 };
@@ -145,7 +146,6 @@ export class Game {
         this.progressReady = true;
       });
     this.audio.attachUserGestureListeners();
-    void this.audio.preload();
     this.audio.playMusic(MAIN_MENU_MUSIC_ID);
     this.resizeCanvas();
     const initialMap = mapDefinitionLoader.getByLocation(
@@ -198,6 +198,12 @@ export class Game {
       }
     }
     window.addEventListener('resize', () => this.resizeCanvas());
+    void this.audio.preload()
+      .then(() => this.finishAudioLoading())
+      .catch((error) => {
+        console.warn('[Game] audio preload failed; continuing without bundled music', error);
+        this.finishAudioLoading();
+      });
     void this.assets.preload().then((report) => {
       if (report.failed.length || report.missing.length || this.assets.getValidationErrors().length) {
         console.warn('[Game] art preload completed with fallback assets', report, this.assets.getValidationErrors());
@@ -209,7 +215,7 @@ export class Game {
       height: this.logicalHeight,
       gameplayWidth: this.gameplayWidth,
       top: VisualTheme.spacing.topBarHeight,
-      isActive: () => this.screen === AppScreen.GAMEPLAY && this.state === GameState.PLAYING && !this.pauseMenuVisible,
+      isActive: () => this.audioReady && this.screen === AppScreen.GAMEPLAY && this.state === GameState.PLAYING && !this.pauseMenuVisible,
     });
     this.hud = new HUDManager();
     this.tankDefinition = new TankDefinitionLoader().getDefault();
@@ -233,7 +239,7 @@ export class Game {
       onSfxControl: () => this.audio.cycleSfxVolume(),
       screenToWorld: (point) => this.camera.screenToWorld(point),
       getArmory: () => this.armory,
-      isActive: () => this.screen === AppScreen.GAMEPLAY && !this.pauseMenuVisible,
+      isActive: () => this.audioReady && this.screen === AppScreen.GAMEPLAY && !this.pauseMenuVisible,
       isPaused: () => this.state === GameState.PAUSED,
       onArmoryResearchSuccess: () => this.audio.playSfx('sfx.ui.upgrade-confirm'),
       onArmoryPurchaseSuccess: () => this.audio.playSfx('sfx.ui.upgrade-confirm'),
@@ -244,6 +250,7 @@ export class Game {
     this.applyTestScenario();
     window.addEventListener('keydown', (event) => this.handleScreenKey(event));
     this.canvas.addEventListener('click', (event) => {
+      if (!this.audioReady) return;
       this.canvas.focus({ preventScroll: true });
       this.handleCanvasClick(event);
     });
@@ -253,6 +260,13 @@ export class Game {
   public start(): void {
     this.lastTime = performance.now();
     requestAnimationFrame((time) => this.gameLoop(time));
+  }
+
+  private finishAudioLoading(): void {
+    this.audioReady = true;
+    this.audio.playMusic(this.screen === AppScreen.GAMEPLAY
+      ? this.getGameplayMusicId()
+      : MAIN_MENU_MUSIC_ID);
   }
 
   private beginFreshRun(): void {
@@ -312,7 +326,7 @@ export class Game {
   }
 
   private openWorldMap(): void {
-    this.audio.stopAll();
+    this.audio.stopAll({ preserveMusic: true });
     this.resetArtState();
     this.input.reset();
     this.state = GameState.PLAYING;
@@ -334,6 +348,10 @@ export class Game {
   }
 
   private handleScreenKey(event: KeyboardEvent): void {
+    if (!this.audioReady) {
+      event.preventDefault();
+      return;
+    }
     if (this.screen === AppScreen.START_MENU) {
       const action = this.startMenu.handleKey(event.code);
       if (action) this.handleStartMenuAction(action);
@@ -773,6 +791,11 @@ export class Game {
   }
 
   private update(dt: number): void {
+    if (!this.audioReady) {
+      this.input.reset();
+      this.publishTestSnapshot();
+      return;
+    }
     if (this.screen !== AppScreen.GAMEPLAY) {
       this.movementInput = { x: 0, y: 0 };
       this.input.consumePauseRequest();
@@ -1068,6 +1091,11 @@ export class Game {
     const gameplayWidth = this.gameplayWidth;
     this.ctx.clearRect(0, 0, this.logicalWidth, this.logicalHeight);
     this.ctx.imageSmoothingEnabled = false;
+
+    if (!this.audioReady) {
+      this.renderAudioLoadingScreen();
+      return;
+    }
 
     if (this.screen !== AppScreen.GAMEPLAY) {
       if (this.screen === AppScreen.START_MENU) {
@@ -1452,6 +1480,33 @@ export class Game {
     this.ctx.fillStyle = VisualTheme.color.textMuted;
     this.ctx.font = '12px monospace';
     this.ctx.fillText('CAMPAIGN NAVIGATION IS LOADING', this.logicalWidth / 2, this.logicalHeight / 2 + 16);
+    this.ctx.textAlign = 'left';
+  }
+
+  private renderAudioLoadingScreen(): void {
+    this.ctx.fillStyle = '#0c111c';
+    this.ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
+    this.ctx.strokeStyle = 'rgba(77, 234, 234, 0.14)';
+    this.ctx.lineWidth = 1;
+    for (let x = 0; x <= this.logicalWidth; x += 48) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, 0);
+      this.ctx.lineTo(x, this.logicalHeight);
+      this.ctx.stroke();
+    }
+    for (let y = 0; y <= this.logicalHeight; y += 48) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(0, y);
+      this.ctx.lineTo(this.logicalWidth, y);
+      this.ctx.stroke();
+    }
+    this.ctx.textAlign = 'center';
+    this.ctx.fillStyle = VisualTheme.color.accent;
+    this.ctx.font = 'bold 32px monospace';
+    this.ctx.fillText('LOADING AUDIO', this.logicalWidth / 2, this.logicalHeight / 2 - 16);
+    this.ctx.fillStyle = VisualTheme.color.textMuted;
+    this.ctx.font = '12px monospace';
+    this.ctx.fillText('PREPARING MISSION SOUNDTRACK', this.logicalWidth / 2, this.logicalHeight / 2 + 16);
     this.ctx.textAlign = 'left';
   }
 
