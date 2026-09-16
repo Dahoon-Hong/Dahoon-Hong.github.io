@@ -92,10 +92,43 @@ describe('WaveManager', () => {
     expect(manager.targetKills).toBe(15);
     manager.update(0.11, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
 
-    expect(enemies).toHaveLength(5);
-    expect(manager.lastSpawnBatchSize).toBe(5);
+    expect(enemies).toHaveLength(4);
+    expect(manager.lastSpawnBatchSize).toBe(4);
     expect(manager.lastSpawnContactDamage).toBe(3);
     expect(enemies[0].contactDamage).toBe(1.5);
+  });
+
+  it('lets floor-scaled Tanker batches remain zero until the threat ramp crosses one', () => {
+    const rampConfig = {
+      ...THREAT_CONFIG,
+      time: {
+        ...THREAT_CONFIG.time,
+        stepSeconds: 60,
+        initialMultiplier: 0.25,
+        growthMultiplier: 1.32,
+      },
+      outputs: {
+        ...THREAT_CONFIG.outputs,
+        spawnBatch: { ...THREAT_CONFIG.outputs.spawnBatch, minMultiplier: 0.25, minValue: 0, rounding: 'floor' as const },
+      },
+    };
+    const threatManager = new ThreatManager(1, 1, rampConfig);
+    const definitions = {
+      standard: { ...enemyDefinitions.standard, spawnWeight: 2, spawnBatchSize: 5 },
+      tanker: { ...enemyDefinitions.tanker, spawnWeight: 3, spawnBatchSize: 2 },
+    } as const;
+    const manager = new WaveManager(region, definitions, 20, {
+      terrain,
+      spawnCells: [{ x: 0, y: 0 }],
+    }, threatManager);
+    const enemies: Array<StandardEnemy | TankerEnemy> = [];
+
+    manager.update(0.11, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
+    expect(enemies.map((enemy) => enemy.enemyType)).toEqual(['standard']);
+
+    threatManager.advance(180);
+    manager.update(0.11, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
+    expect(enemies.map((enemy) => enemy.enemyType)).toEqual(['standard', 'standard', 'standard', 'tanker']);
   });
 
   it('skips saturated spawn attempts without inflating the spawned count', () => {

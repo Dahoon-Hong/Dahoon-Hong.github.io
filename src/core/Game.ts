@@ -487,7 +487,7 @@ export class Game {
   }
 
   private createThreatManager(map: MapDefinition): ThreatManager {
-    if (this.testScenario === 'threat-scaling') {
+    if (this.testScenario === 'threat-scaling' || this.testScenario === 'tanker-batch-floor') {
       return new ThreatManager(map.threat.baseMultiplier, this.difficultyMultiplier, GAME_TEST_THREAT_CONFIG);
     }
     return new ThreatManager(map.threat.baseMultiplier, this.difficultyMultiplier);
@@ -563,6 +563,8 @@ export class Game {
         break;
       case 'threat-scaling':
         this.waveManager.killedEnemiesCount = this.waveManager.targetKills;
+        break;
+      case 'tanker-batch-floor':
         break;
       case 'terminal-game-over':
         this.vehicle.takeDamage(9999, 0, { x: 0, y: 0 });

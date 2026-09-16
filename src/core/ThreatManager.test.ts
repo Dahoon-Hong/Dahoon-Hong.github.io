@@ -23,9 +23,9 @@ const config: ThreatConfig = {
       threatWeight: 1,
       minMultiplier: 0.5,
       maxMultiplier: 3,
-      minValue: 1,
+      minValue: 0,
       maxValue: 20,
-      rounding: 'nearest',
+      rounding: 'floor',
     },
     attack: {
       threatWeight: 1,
@@ -82,6 +82,20 @@ describe('ThreatManager configuration', () => {
       ...config,
       formula: { ...config.formula, outputMode: 'script' },
     })).toThrow(/outputMode/);
+    expect(() => parseThreatConfig({
+      ...config,
+      outputs: {
+        ...config.outputs,
+        spawnBatch: { ...config.outputs.spawnBatch, minValue: -1 },
+      },
+    })).toThrow(/spawnBatch.minValue/);
+    expect(() => parseThreatConfig({
+      ...config,
+      outputs: {
+        ...config.outputs,
+        targetKills: { ...config.outputs.targetKills, minValue: 0 },
+      },
+    })).toThrow(/targetKills.minValue/);
   });
 });
 
@@ -113,6 +127,16 @@ describe('ThreatManager', () => {
     expect(calculateThreatMultiplier(1, 1, 300, rampConfig)).toBeCloseTo(1, 2);
     expect(calculateThreatMultiplier(1, 1, 360, rampConfig)).toBeGreaterThan(1);
     expect(manager.getSpawnBatch(20, { spawnWeight: 2, spawnBatchSize: 5 })).toBe(1);
+    const tankerManager = new ThreatManager(1, 1, rampConfig);
+    expect(tankerManager.getSpawnBatch(20, { spawnWeight: 3, spawnBatchSize: 2 })).toBe(0);
+    tankerManager.advance(60);
+    expect(tankerManager.getSpawnBatch(20, { spawnWeight: 3, spawnBatchSize: 2 })).toBe(0);
+    tankerManager.advance(60);
+    expect(tankerManager.getSpawnBatch(20, { spawnWeight: 3, spawnBatchSize: 2 })).toBe(0);
+    tankerManager.advance(60);
+    expect(tankerManager.getSpawnBatch(20, { spawnWeight: 3, spawnBatchSize: 2 })).toBe(1);
+    tankerManager.advance(120);
+    expect(tankerManager.getSpawnBatch(20, { spawnWeight: 3, spawnBatchSize: 2 })).toBe(2);
 
     manager.advance(300);
     expect(manager.getSpawnBatch(20, { spawnWeight: 2, spawnBatchSize: 5 })).toBe(5);
@@ -164,7 +188,8 @@ describe('ThreatManager', () => {
       maxValue: 20,
       rounding: 'nearest',
     })).toBe(5);
-    expect(scaleIntegerThreatValue(1, 0.1, config.outputs.spawnBatch)).toBe(1);
+    expect(scaleIntegerThreatValue(2, 0.25, config.outputs.spawnBatch)).toBe(0);
+    expect(scaleIntegerThreatValue(2, 0.5, config.outputs.spawnBatch)).toBe(1);
   });
 
   it('scales batch, target, and contact damage without mutating definitions', () => {

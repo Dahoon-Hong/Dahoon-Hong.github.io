@@ -16,7 +16,7 @@
   "tanker": {
     "spawnWeight": 3,
     "spawnInterval": 0.6,
-    "spawnBatchSize": 5,
+    "spawnBatchSize": 2,
     "hp": 160,
     "armor": 40,
     "speed": 45,

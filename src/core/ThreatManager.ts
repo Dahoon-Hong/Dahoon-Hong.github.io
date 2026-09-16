@@ -85,8 +85,12 @@ function positiveNumber(value: unknown, path: string): number {
 }
 
 function positiveInteger(value: unknown, path: string): number {
-  if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value < 1) {
-    invalid(path, 'expected a finite integer >= 1');
+  return integerAtLeast(value, path, 1);
+}
+
+function integerAtLeast(value: unknown, path: string, minimum: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value < minimum) {
+    invalid(path, 'expected a finite integer >= ' + minimum);
   }
   return value;
 }
@@ -109,10 +113,10 @@ function outputConfig(value: unknown, path: string): ThreatOutputConfig {
   return { threatWeight, minMultiplier, maxMultiplier };
 }
 
-function integerOutputConfig(value: unknown, path: string): ThreatIntegerOutputConfig {
+function integerOutputConfig(value: unknown, path: string, minimumValue = 1): ThreatIntegerOutputConfig {
   const source = record(value, path);
   const base = outputConfig(value, path);
-  const minValue = positiveInteger(source.minValue, path + '.minValue');
+  const minValue = integerAtLeast(source.minValue, path + '.minValue', minimumValue);
   const maxValue = positiveInteger(source.maxValue, path + '.maxValue');
   if (minValue > maxValue) invalid(path, 'minValue must not exceed maxValue');
   return { ...base, minValue, maxValue, rounding: rounding(source.rounding, path + '.rounding') };
@@ -134,7 +138,7 @@ export function parseThreatConfig(value: unknown): ThreatConfig {
   }
 
   const outputs = record(source.outputs, 'threat.outputs');
-  const spawnBatch = integerOutputConfig(outputs.spawnBatch, 'threat.outputs.spawnBatch');
+  const spawnBatch = integerOutputConfig(outputs.spawnBatch, 'threat.outputs.spawnBatch', 0);
   const attack = outputConfig(outputs.attack, 'threat.outputs.attack');
   const targetKills = integerOutputConfig(outputs.targetKills, 'threat.outputs.targetKills');
 

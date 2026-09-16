@@ -14,6 +14,7 @@ export const GAME_TEST_SCENARIOS = [
   'enemy-collision-spawn',
   'vehicle-ram',
   'threat-scaling',
+  'tanker-batch-floor',
   'terminal-game-over',
   'terminal-region',
 ] as const;
@@ -34,9 +35,9 @@ export const GAME_TEST_THREAT_CONFIG: ThreatConfig = {
       threatWeight: 1,
       minMultiplier: 0.25,
       maxMultiplier: 4,
-      minValue: 1,
+      minValue: 0,
       maxValue: 20,
-      rounding: 'nearest',
+      rounding: 'floor',
     },
     attack: {
       threatWeight: 1,
