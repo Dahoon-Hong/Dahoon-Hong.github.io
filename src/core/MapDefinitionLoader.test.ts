@@ -11,6 +11,7 @@ const makeRoot = (overrides: Partial<MapDataRoot> = {}): MapDataRoot => ({
     mapId: 'test/example',
     planetId: 'test',
     regionId: 'example',
+    threat: { baseMultiplier: 1 },
     world: { cellSize: 36, columns: 3, rows: 2 },
     terrain: { legend: { '.': 'open', H: 'hill' }, rows: ['...', 'H..'] },
     tankStartCell: { x: 1, y: 0 },
@@ -38,6 +39,7 @@ describe('MapDefinitionLoader', () => {
     const map = loader.getById('test/example');
 
     expect(map?.mapId).toBe('test/example');
+    expect(map?.threat.baseMultiplier).toBe(1);
     expect(loader.createTerrainGrid('test/example').width).toBe(108);
     expect(loader.getAccessiblePickupCells('test/example', 2)).toEqual([{ x: 1, y: 0 }, { x: 0, y: 0 }]);
   });
@@ -83,6 +85,20 @@ describe('MapDefinitionLoader', () => {
         tankCollisionScale: 1.1,
       }],
     }), noAssets)).toThrow(/must be between 0.1 and 1/);
+  });
+
+  it('requires a positive map threat base multiplier', () => {
+    const missingThreat = { ...makeRoot().maps[0] as Record<string, unknown> };
+    delete missingThreat.threat;
+    expect(() => new MapDefinitionLoader(makeRoot({ maps: [missingThreat] }), noAssets))
+      .toThrow(/threat/);
+
+    expect(() => new MapDefinitionLoader(makeRoot({
+      maps: [{
+        ...makeRoot().maps[0] as Record<string, unknown>,
+        threat: { baseMultiplier: 0 },
+      }],
+    }), noAssets)).toThrow(/finite number > 0/);
   });
 
   it('validates the optional tank collision shape', () => {

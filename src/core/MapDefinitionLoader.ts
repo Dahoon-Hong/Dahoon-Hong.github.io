@@ -26,6 +26,7 @@ export interface MapDefinition extends TerrainMapData {
   repeat: { background: boolean; tile: boolean };
   safeMargin: { top: number; right: number; bottom: number; left: number };
   gameplay: { decorativeOnly: boolean; campaign: boolean };
+  threat: { baseMultiplier: number };
   tankStartCell: TerrainCell;
   enemySpawnCells: TerrainCell[];
   tankCollisionScale: number;
@@ -71,6 +72,13 @@ function string(value: unknown, path: string): string {
 function number(value: unknown, path: string, minimum = 0): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < minimum) {
     fail(path, `expected a finite number >= ${minimum}`);
+  }
+  return value;
+}
+
+function positiveNumber(value: unknown, path: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    fail(path, 'expected a finite number > 0');
   }
   return value;
 }
@@ -386,6 +394,7 @@ export class MapDefinitionLoader {
       });
 
       const gameplay = record(source.gameplay, `${path}.gameplay`);
+      const threat = record(source.threat, `${path}.threat`);
       const safeMargin = record(source.safeMargin, `${path}.safeMargin`);
       const artwork = parseArtwork(source.artwork, `${path}.artwork`, worldBounds);
       return {
@@ -408,6 +417,9 @@ export class MapDefinitionLoader {
         gameplay: {
           decorativeOnly: boolean(gameplay.decorativeOnly, `${path}.gameplay.decorativeOnly`),
           campaign: gameplay.campaign === undefined ? true : boolean(gameplay.campaign, `${path}.gameplay.campaign`),
+        },
+        threat: {
+          baseMultiplier: positiveNumber(threat.baseMultiplier, `${path}.threat.baseMultiplier`),
         },
         tankStartCell,
         enemySpawnCells,

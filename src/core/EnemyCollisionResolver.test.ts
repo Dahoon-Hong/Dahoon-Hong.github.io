@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EnemyCollisionResolver } from './EnemyCollisionResolver';
+import { calculateRamDamage, EnemyCollisionResolver, VehicleRamConfig } from './EnemyCollisionResolver';
 import { TerrainGrid, TerrainMapData } from './TerrainGrid';
 import { EnemyDefinition, EnemyNavigationDirective, StandardEnemy } from '../entities/Enemy';
 
@@ -61,10 +61,103 @@ describe('EnemyCollisionResolver', () => {
       enemy,
       { left: 126, top: 108, right: 162, bottom: 144 },
       { x: 122, y: 126 },
-    )).toBe(true);
+      { x: 100, y: 126 },
+      { x: 118, y: 126 },
+      0.1,
+    )).toMatchObject({
+      vehicleClosingSpeed: 0,
+    });
 
     expect(terrain.isOpenForRadius({ x: enemy.x, y: enemy.y }, enemy.radius, 'enemy')).toBe(true);
     expect(enemy.x).toBeGreaterThan(120);
+  });
+
+  it('reports forward and relative closing speed before resolving the enemy position', () => {
+    const terrain = makeGrid(Array.from({ length: 8 }, () => '.'.repeat(8)));
+    const resolver = new EnemyCollisionResolver(terrain, 72);
+    const enemy = new StandardEnemy(172, 126, definition);
+
+    const contact = resolver.resolveAgainstVehicle(
+      enemy,
+      { left: 126, top: 108, right: 162, bottom: 144 },
+      { x: 180, y: 126 },
+      { x: 100, y: 126 },
+      { x: 118, y: 126 },
+      0.1,
+    );
+
+    expect(contact).toMatchObject({
+      normal: { x: 1, y: 0 },
+      vehicleClosingSpeed: 180,
+      relativeClosingSpeed: 260,
+    });
+    expect(contact?.contactPoint).toEqual({ x: 162, y: 126 });
+    expect(enemy.x).toBeGreaterThan(162);
+  });
+
+  it('does not produce ram damage when the vehicle is stationary or moving away', () => {
+    const terrain = makeGrid(Array.from({ length: 8 }, () => '.'.repeat(8)));
+    const resolver = new EnemyCollisionResolver(terrain, 72);
+    const stationaryEnemy = new StandardEnemy(172, 126, definition);
+    const retreatingEnemy = new StandardEnemy(172, 126, definition);
+
+    const stationaryContact = resolver.resolveAgainstVehicle(
+      stationaryEnemy,
+      { left: 126, top: 108, right: 162, bottom: 144 },
+      { x: 180, y: 126 },
+      { x: 118, y: 126 },
+      { x: 118, y: 126 },
+      0.1,
+    );
+    const retreatingContact = resolver.resolveAgainstVehicle(
+      retreatingEnemy,
+      { left: 126, top: 108, right: 162, bottom: 144 },
+      { x: 172, y: 126 },
+      { x: 118, y: 126 },
+      { x: 100, y: 126 },
+      0.1,
+    );
+
+    expect(stationaryContact).not.toBeNull();
+    expect(retreatingContact).not.toBeNull();
+    expect(resolver.getRamDamage(stationaryContact!, 0.1)).toBe(0);
+    expect(resolver.getRamDamage(retreatingContact!, 0.1)).toBe(0);
+  });
+
+  it('scales ram damage with relative speed and simulation time', () => {
+    const config: VehicleRamConfig = {
+      referenceSpeed: 180,
+      damagePerSecondAtReferenceSpeed: 45,
+      minVehicleClosingSpeed: 30,
+    };
+    const contact = {
+      normal: { x: 1, y: 0 },
+      vehicleClosingSpeed: 180,
+      relativeClosingSpeed: 180,
+      contactPoint: { x: 162, y: 126 },
+    };
+
+    expect(calculateRamDamage(contact, 0.1, config)).toBeCloseTo(4.5);
+    expect(calculateRamDamage({ ...contact, relativeClosingSpeed: 360 }, 0.1, config))
+      .toBeCloseTo(9);
+
+    const coarseTotal = Array.from({ length: 10 }, () => calculateRamDamage(contact, 0.1, config))
+      .reduce((total, damage) => total + damage, 0);
+    const fineTotal = Array.from({ length: 100 }, () => calculateRamDamage(contact, 0.01, config))
+      .reduce((total, damage) => total + damage, 0);
+    expect(coarseTotal).toBeCloseTo(fineTotal);
+  });
+
+  it('ignores armor because ram damage is applied directly to enemy hp', () => {
+    const armoredDefinition = { ...definition, armor: 40 };
+    const unarmored = new StandardEnemy(100, 100, definition);
+    const armored = new StandardEnemy(100, 100, armoredDefinition);
+    const damage = 12.5;
+
+    unarmored.takeDamage(damage);
+    armored.takeDamage(damage);
+
+    expect(unarmored.hp).toBe(armored.hp);
   });
 
   it('returns equal and opposite velocity intents without changing positions', () => {

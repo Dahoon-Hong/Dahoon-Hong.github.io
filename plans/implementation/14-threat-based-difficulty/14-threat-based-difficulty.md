@@ -2,7 +2,7 @@
 
 작성일: 2026-09-14
 
-상태: 설계 승인, 구현 대기
+상태: 구현 진행 (자동 QA 완료, runtime QA BLOCKED)
 
 관련 문서:
 
@@ -106,7 +106,8 @@ JSON에는 코드가 지원하는 `threatMode`와 `outputMode`만 선택하게 �
   "version": 1,
   "time": {
     "stepSeconds": 60,
-    "growthMultiplier": 1.10,
+    "initialMultiplier": 0.25,
+    "growthMultiplier": 1.32,
     "minThreatMultiplier": 0.00,
     "maxThreatMultiplier": 4.00
   },
@@ -145,6 +146,7 @@ JSON에는 코드가 지원하는 `threatMode`와 `outputMode`만 선택하게 �
 | 필드 | 의미 | validation |
 | --- | --- | --- |
 | `time.stepSeconds` | 위협 시간이 한 단계 증가하는 Stage 경과 시간(초) | 유한한 수, `> 0` |
+| `time.initialMultiplier` | Stage 시작 시 시간 위협에 적용하는 공통 시작 배율 | 유한한 수, `> 0` |
 | `time.growthMultiplier` | 시간 단계마다 곱하는 증가 배율 | 유한한 수, `>= 1` |
 | `time.minThreatMultiplier/maxThreatMultiplier` | 합성된 위협 배율의 하한·상한 | 유한한 수, `0 <= min <= max` |
 | `outputs.*.threatWeight` | 해당 출력이 위협 변화에 반응하는 정도 | 유한한 수, `>= 0` |
@@ -176,14 +178,23 @@ Stage는 현재 `ProgressionManager`의 Region에 해당한다. Stage 진입 시
 ```text
 timeIndex = floor(stageElapsedSeconds / time.stepSeconds)
 
+timeMultiplier = time.initialMultiplier
+  × time.growthMultiplier ^ timeIndex
+
 threatMultiplier = clamp(
   mapBaseMultiplier
   × difficultyMultiplier
-  × time.growthMultiplier ^ timeIndex,
+  × timeMultiplier,
   time.minThreatMultiplier,
   time.maxThreatMultiplier
 )
 ```
+
+초기 생산 압력을 현재 기준의 약 1/4로 시작시키기 위해 production 설정은
+`initialMultiplier = 0.25`를 사용한다. `stepSeconds = 60`과
+`growthMultiplier = 1.32` 조합은 약 300초에 시간 배율을 1.0으로 회복시키며,
+그 이후에는 기존처럼 계속 증가한다. 이 값은 spawn 전용 보정이 아니라 공통
+위협수치에 적용되므로 attack과 targetKills도 같은 시간 곡선을 따른다.
 
 `stageElapsedSeconds`는 PLAYING 시간만 포함한다. `timeIndex`는 매 프레임이 아니라 경계가 바뀔 때만 갱신하며, 큰 frame delta로 여러 경계를 건너뛰면 최종 index를 한 번 계산한다.
 
@@ -345,6 +356,7 @@ targetKills = clamp(
 필수 테스트:
 
 - map base × difficulty × time growth 순서
+- configurable initial threat multiplier에서 시작해 약 5분에 기준값으로 회복하고 이후 계속 증가하는 시간 곡선
 - 0초, 경계 직전, 정확한 경계, 여러 경계 건너뛰기
 - maxThreatMultiplier clamp
 - weight 0/1 및 출력별 최소·최대 clamp
@@ -372,7 +384,7 @@ targetKills = clamp(
 
 구현:
 
-- `WaveManager`가 숫자형 ThreatProvider만 받도록 연결한다.
+- `WaveManager`가 ThreatProvider를 받도록 연결한다.
 - `prepareWave()`에서 targetKills를 snapshot한다.
 - 스폰 이벤트마다 현재 batch를 계산한다.
 - 적 생성 시 contactDamage 보정 정의를 사용한다.
@@ -388,7 +400,10 @@ targetKills = clamp(
 
 ### 14.6 runtime fixture와 observer
 
-`GameTestScenario`에 `threat-scaling` 시나리오를 추가한다. 테스트 전용 in-memory config는 `stepSeconds`를 짧게 설정해 1분 이내에 최소 두 번의 시간 경계를 관측할 수 있게 하되, production JSON은 변경하지 않는다.
+`GameTestScenario`에 `threat-scaling` 시나리오를 추가한다. 테스트 전용 in-memory config는
+`initialMultiplier`를 production과 같은 0.25로 두고 `stepSeconds`를 짧게 설정해
+1분 이내에 최소 두 번의 시간 경계를 관측할 수 있게 하되, production JSON의 5분 곡선은
+그대로 유지한다.
 
 observer에 다음 값을 추가한다.
 

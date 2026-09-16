@@ -1,3 +1,5 @@
+import type { ThreatConfig } from './ThreatManager';
+
 export const GAME_TEST_SCENARIOS = [
   'production-wait-input',
   'production-buffer-full',
@@ -10,11 +12,52 @@ export const GAME_TEST_SCENARIOS = [
   'enemy-navigation-worker',
   'enemy-collision-stress',
   'enemy-collision-spawn',
+  'vehicle-ram',
+  'threat-scaling',
+  'tanker-batch-floor',
   'terminal-game-over',
   'terminal-region',
 ] as const;
 
 export type GameTestScenario = typeof GAME_TEST_SCENARIOS[number];
+
+export const GAME_TEST_THREAT_CONFIG: ThreatConfig = {
+  version: 1,
+  time: {
+    stepSeconds: 0.5,
+    initialMultiplier: 0.25,
+    growthMultiplier: 1.5,
+    minThreatMultiplier: 0,
+    maxThreatMultiplier: 4,
+  },
+  outputs: {
+    spawnBatch: {
+      threatWeight: 1,
+      minMultiplier: 0.25,
+      maxMultiplier: 4,
+      minValue: 0,
+      maxValue: 20,
+      rounding: 'floor',
+    },
+    attack: {
+      threatWeight: 1,
+      minMultiplier: 0.25,
+      maxMultiplier: 4,
+    },
+    targetKills: {
+      threatWeight: 1,
+      minMultiplier: 0.5,
+      maxMultiplier: 4,
+      minValue: 1,
+      maxValue: 100,
+      rounding: 'nearest',
+    },
+  },
+  formula: {
+    threatMode: 'multiplicative-exponential-time',
+    outputMode: 'weighted-linear',
+  },
+};
 
 export function getGameTestScenario(): GameTestScenario | null {
   if (typeof window === 'undefined' || !import.meta.env.DEV) return null;
