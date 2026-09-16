@@ -10,6 +10,7 @@ export const GAME_TEST_SCENARIOS = [
   'enemy-navigation-worker',
   'enemy-collision-stress',
   'enemy-collision-spawn',
+  'vehicle-ram',
   'terminal-game-over',
   'terminal-region',
 ] as const;

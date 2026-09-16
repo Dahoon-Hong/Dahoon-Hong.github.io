@@ -126,6 +126,10 @@ export class Game {
   private testNavigationElapsed = 0;
   private testNavigationStuckProbe: StandardEnemy | null = null;
   private testNavigationStuckReleaseAt: number | null = null;
+  private ramContactsThisFrame = 0;
+  private ramDamageThisFrame = 0;
+  private ramDamageTotal = 0;
+  private ramMaxRelativeClosingSpeed = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -284,6 +288,10 @@ export class Game {
     this.lastMovementInput = { x: 0, y: 0 };
     this.lastMovementAt = null;
     this.testNavigationElapsed = 0;
+    this.ramContactsThisFrame = 0;
+    this.ramDamageThisFrame = 0;
+    this.ramDamageTotal = 0;
+    this.ramMaxRelativeClosingSpeed = 0;
     this.lastFrameDeltaMs = 0;
     this.maxFrameDeltaMs = 0;
     this.frameOverBudgetCount = 0;
@@ -532,6 +540,9 @@ export class Game {
       case 'enemy-collision-spawn':
         this.setupEnemyCollisionSpawnFixture();
         break;
+      case 'vehicle-ram':
+        this.setupVehicleRamFixture();
+        break;
       case 'terminal-game-over':
         this.vehicle.takeDamage(9999, 0, { x: 0, y: 0 });
         this.setState(GameState.GAME_OVER);
@@ -553,8 +564,16 @@ export class Game {
   private getTestNavigationMovement(dt: number): { x: number; y: number } {
     this.testNavigationElapsed += dt;
     if (this.testScenario === 'enemy-navigation-fixtures') return { x: 0, y: 0 };
+    if (this.testScenario === 'vehicle-ram') return this.getTestRamMovement();
     // ponytail: a short deterministic sweep is enough to cross cells without adding a test-only input API.
     return (this.testNavigationElapsed % 0.5) < 0.25 ? { x: 1, y: 0 } : { x: -1, y: 0 };
+  }
+
+  private getTestRamMovement(): { x: number; y: number } {
+    if (this.testNavigationElapsed < 1.2) return { x: 1, y: 0 };
+    if (this.testNavigationElapsed < 1.8) return { x: 0, y: 0 };
+    if (this.testNavigationElapsed < 2.6) return { x: -1, y: 0 };
+    return { x: 0, y: 0 };
   }
 
   private setupEnemyNavigationFixtures(): void {
@@ -694,6 +713,65 @@ export class Game {
     }
   }
 
+  private setupVehicleRamFixture(): void {
+    const bounds = this.vehicle.getGridBounds();
+    const standardDefinition = this.progression.enemyDefinitions.standard;
+    const tankerDefinition = this.progression.enemyDefinitions.tanker;
+    const ramLaneTopOffset = bounds.top - this.vehicle.y;
+    const standardPoint = this.findVehicleRamPoint(
+      bounds.right + standardDefinition.radius + 2,
+      ramLaneTopOffset,
+      standardDefinition.radius,
+    );
+    const tankerPoint = this.findVehicleRamPoint(
+      bounds.right + 3,
+      ramLaneTopOffset + this.vehicle.tileSize,
+      tankerDefinition.radius,
+      false,
+    );
+    if (!standardPoint || !tankerPoint) {
+      throw new Error('[Game] vehicle-ram fixture has no open forward points');
+    }
+
+    const standardFixture = {
+      ...standardDefinition,
+      hp: 1_000_000,
+      speed: 0,
+      contactDamage: 0,
+      reward: 0,
+    };
+    const tankerFixture = {
+      ...tankerDefinition,
+      hp: 1_000_000,
+      speed: 0,
+      contactDamage: 0,
+      reward: 0,
+    };
+    this.enemies.push(
+      new StandardEnemy(standardPoint.x, standardPoint.y, standardFixture),
+      new TankerEnemy(tankerPoint.x, tankerPoint.y, tankerFixture),
+    );
+    this.setState(GameState.PLAYING);
+  }
+
+  private findVehicleRamPoint(
+    startX: number,
+    yOffset: number,
+    radius: number,
+    requireVehiclePosition = true,
+  ): { x: number; y: number } | null {
+    const y = this.vehicle.y + yOffset;
+    for (let step = 0; step < 24; step++) {
+      const point = { x: startX + step * 18, y };
+      if (!this.terrainGrid.isOpenForRadius(point, radius, 'enemy')) continue;
+      if (requireVehiclePosition && !this.vehicle.isTerrainPositionValid({ x: point.x - (startX - this.vehicle.x), y: this.vehicle.y }, this.terrainGrid)) {
+        continue;
+      }
+      return point;
+    }
+    return null;
+  }
+
   private releaseTestNavigationStuckProbe(): void {
     if (!this.testNavigationStuckProbe || this.testNavigationStuckReleaseAt === null) return;
     if (this.renderContext.time < this.testNavigationStuckReleaseAt) return;
@@ -791,6 +869,9 @@ export class Game {
   }
 
   private update(dt: number): void {
+    this.ramContactsThisFrame = 0;
+    this.ramDamageThisFrame = 0;
+    this.ramMaxRelativeClosingSpeed = 0;
     if (!this.audioReady) {
       this.input.reset();
       this.publishTestSnapshot();
@@ -823,9 +904,11 @@ export class Game {
       || this.testScenario === 'enemy-navigation-worker'
       || this.testScenario === 'enemy-collision-stress'
       || this.testScenario === 'enemy-collision-spawn'
+      || this.testScenario === 'vehicle-ram'
       ? this.getTestNavigationMovement(dt)
       : this.input.getMovementVector();
     this.movementInput = isPaused ? { x: 0, y: 0 } : movementInput;
+    const vehiclePreviousPosition = { x: this.vehicle.x, y: this.vehicle.y };
     if (!isPaused) this.recentTerrainHitTimer = Math.max(0, this.recentTerrainHitTimer - dt);
 
     if (!isPaused) {
@@ -868,6 +951,7 @@ export class Game {
       this.testScenario !== 'enemy-navigation-fixtures'
       && this.testScenario !== 'enemy-navigation-worker'
       && this.testScenario !== 'enemy-collision-stress'
+      && this.testScenario !== 'vehicle-ram'
       && this.testScenario !== 'modern-firearms-stress'
     ) {
       this.waveManager.update(
@@ -926,12 +1010,35 @@ export class Game {
       if (collisionPushes.has(enemy)) {
         this.enemyCollision.recordPushSafeProgress(enemy.getNavigationTelemetry().safeProgress);
       }
-      if (this.enemyCollision.resolveAgainstVehicle(enemy, vehicleBounds, previousPos) && enemy.tryContactDamage()) {
-        this.vehicle.takeDamage(enemy.contactDamage, 0, { x: enemy.x - corePos.x, y: enemy.y - corePos.y });
-        this.addEffect(new VisualEffect(enemy.x, enemy.y, 25, '#ff1744', 'effect.contact-damage'));
-        if (!this.vehicle.isCoreActive()) {
-          this.audio.stopAll();
-          this.setState(GameState.GAME_OVER);
+      const contact = this.enemyCollision.resolveAgainstVehicle(
+        enemy,
+        vehicleBounds,
+        previousPos,
+        vehiclePreviousPosition,
+        corePos,
+        dt,
+      );
+      if (contact) {
+        this.ramContactsThisFrame++;
+        this.ramMaxRelativeClosingSpeed = Math.max(
+          this.ramMaxRelativeClosingSpeed,
+          contact.relativeClosingSpeed,
+        );
+        const ramDamage = this.enemyCollision.getRamDamage(contact, dt);
+        if (ramDamage > 0) {
+          enemy.takeDamage(ramDamage);
+          this.ramDamageThisFrame += ramDamage;
+          this.ramDamageTotal += ramDamage;
+          this.addEffect(new VisualEffect(enemy.x, enemy.y, 25, '#ff7043', 'effect.contact-damage'));
+        }
+
+        if (!enemy.isDead() && enemy.tryContactDamage()) {
+          this.vehicle.takeDamage(enemy.contactDamage, 0, { x: enemy.x - corePos.x, y: enemy.y - corePos.y });
+          this.addEffect(new VisualEffect(enemy.x, enemy.y, 25, '#ff1744', 'effect.contact-damage'));
+          if (!this.vehicle.isCoreActive()) {
+            this.audio.stopAll();
+            this.setState(GameState.GAME_OVER);
+          }
         }
       }
 
@@ -1043,6 +1150,10 @@ export class Game {
       collisionPairsThisFrame: collisionStats.collisionPairsThisFrame,
       collisionPushesThisFrame: collisionStats.collisionPushesThisFrame,
       collisionBlockedPushesThisFrame: collisionStats.collisionBlockedPushesThisFrame,
+      ramContactsThisFrame: this.ramContactsThisFrame,
+      ramDamageThisFrame: this.ramDamageThisFrame,
+      ramDamageTotal: this.ramDamageTotal,
+      ramMaxRelativeClosingSpeed: this.ramMaxRelativeClosingSpeed,
       frameDeltaMs: this.lastFrameDeltaMs,
       frameDeltaMsMax: this.maxFrameDeltaMs,
       frameOverBudgetCount: this.frameOverBudgetCount,

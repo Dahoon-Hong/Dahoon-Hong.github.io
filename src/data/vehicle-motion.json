@@ -10,5 +10,10 @@
   "collision": {
     "contactEpsilon": 0.05,
     "maxSlideIterations": 4
+  },
+  "ram": {
+    "referenceSpeed": 180,
+    "damagePerSecondAtReferenceSpeed": 45,
+    "minVehicleClosingSpeed": 30
   }
 }

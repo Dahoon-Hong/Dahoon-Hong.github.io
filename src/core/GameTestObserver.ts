@@ -67,6 +67,10 @@ export interface GameTestSnapshot {
   collisionPairsThisFrame?: number;
   collisionPushesThisFrame?: number;
   collisionBlockedPushesThisFrame?: number;
+  ramContactsThisFrame?: number;
+  ramDamageThisFrame?: number;
+  ramDamageTotal?: number;
+  ramMaxRelativeClosingSpeed?: number;
   frameDeltaMs?: number;
   frameDeltaMsMax?: number;
   frameOverBudgetCount?: number;

@@ -1,6 +1,7 @@
 import type { Enemy } from '../entities/Enemy';
 import type { TerrainAabb, TerrainGrid, TerrainPoint } from './TerrainGrid';
 import { EnemySpatialIndex } from './EnemySpatialIndex';
+import motion from '../data/vehicle-motion.json';
 
 const COLLISION_EPSILON = 0.01;
 const MAX_SPAWN_CANDIDATES = 32;
@@ -20,12 +21,45 @@ export interface EnemyCollisionStats {
 
 export type EnemyNeighborProvider = (enemy: Enemy) => readonly Enemy[];
 
+export interface VehicleCollisionContact {
+  normal: TerrainPoint;
+  vehicleClosingSpeed: number;
+  relativeClosingSpeed: number;
+  contactPoint: TerrainPoint;
+}
+
+export interface VehicleRamConfig {
+  referenceSpeed: number;
+  damagePerSecondAtReferenceSpeed: number;
+  minVehicleClosingSpeed: number;
+}
+
+export function calculateRamDamage(
+  contact: VehicleCollisionContact,
+  dt: number,
+  config: VehicleRamConfig,
+): number {
+  if (!Number.isFinite(dt) || dt <= 0) return 0;
+  if (!Number.isFinite(contact.vehicleClosingSpeed)
+    || !Number.isFinite(contact.relativeClosingSpeed)
+    || contact.vehicleClosingSpeed < config.minVehicleClosingSpeed
+    || contact.relativeClosingSpeed <= 0) {
+    return 0;
+  }
+
+  const damage = config.damagePerSecondAtReferenceSpeed
+    * (contact.relativeClosingSpeed / config.referenceSpeed)
+    * dt;
+  return Number.isFinite(damage) ? Math.max(0, damage) : 0;
+}
+
 export class EnemyCollisionResolver {
   private terrain: TerrainGrid;
   private readonly spatialIndex: EnemySpatialIndex;
   private readonly pushSpeed: number;
   private readonly lookaheadDistance: number;
   private readonly spawnProbeDistance: number;
+  private readonly ramConfig: VehicleRamConfig = motion.ram;
   private readonly collisionDurationSamples: number[] = [];
   private stats: EnemyCollisionStats = this.createEmptyStats();
 
@@ -46,6 +80,16 @@ export class EnemyCollisionResolver {
     }
     if (!Number.isFinite(spawnProbeDistance) || spawnProbeDistance <= 0) {
       throw new Error('[EnemyCollisionResolver] spawnProbeDistance must be a finite number > 0');
+    }
+    if (!Number.isFinite(this.ramConfig.referenceSpeed) || this.ramConfig.referenceSpeed <= 0) {
+      throw new Error('[EnemyCollisionResolver] ram.referenceSpeed must be a finite number > 0');
+    }
+    if (!Number.isFinite(this.ramConfig.damagePerSecondAtReferenceSpeed)
+      || this.ramConfig.damagePerSecondAtReferenceSpeed <= 0) {
+      throw new Error('[EnemyCollisionResolver] ram.damagePerSecondAtReferenceSpeed must be a finite number > 0');
+    }
+    if (!Number.isFinite(this.ramConfig.minVehicleClosingSpeed) || this.ramConfig.minVehicleClosingSpeed < 0) {
+      throw new Error('[EnemyCollisionResolver] ram.minVehicleClosingSpeed must be a finite number >= 0');
     }
     this.pushSpeed = pushSpeed;
     this.lookaheadDistance = lookaheadDistance;
@@ -193,14 +237,28 @@ export class EnemyCollisionResolver {
     enemy: Enemy,
     bounds: TerrainAabb,
     previousPosition: TerrainPoint,
-  ): boolean {
+    vehiclePreviousPosition: TerrainPoint,
+    vehiclePosition: TerrainPoint,
+    dt: number,
+  ): VehicleCollisionContact | null {
     const closestX = Math.max(bounds.left, Math.min(bounds.right, enemy.x));
     const closestY = Math.max(bounds.top, Math.min(bounds.bottom, enemy.y));
     const deltaX = enemy.x - closestX;
     const deltaY = enemy.y - closestY;
-    if (deltaX * deltaX + deltaY * deltaY > enemy.radius * enemy.radius) return false;
+    if (deltaX * deltaX + deltaY * deltaY > enemy.radius * enemy.radius) return null;
 
     const distance = Math.hypot(deltaX, deltaY);
+    const enemyPositionBeforeResolve = { x: enemy.x, y: enemy.y };
+    const normal = this.getVehicleContactNormal(
+      enemy,
+      vehiclePreviousPosition,
+      vehiclePosition,
+      { x: deltaX, y: deltaY },
+      distance,
+    );
+    const contactPoint = distance > 1e-9
+      ? { x: closestX, y: closestY }
+      : { x: enemy.x, y: enemy.y };
     const target = distance > 0
       ? {
         x: closestX + (deltaX / distance) * (enemy.radius + COLLISION_EPSILON),
@@ -210,7 +268,33 @@ export class EnemyCollisionResolver {
     const safePoint = this.getSafePoint(enemy, target);
     enemy.x = safePoint.x;
     enemy.y = safePoint.y;
-    return true;
+
+    const safeDt = Number.isFinite(dt) && dt > 0 ? dt : 0;
+    const vehicleVelocity = safeDt > 0
+      ? {
+        x: (vehiclePosition.x - vehiclePreviousPosition.x) / safeDt,
+        y: (vehiclePosition.y - vehiclePreviousPosition.y) / safeDt,
+      }
+      : { x: 0, y: 0 };
+    const enemyVelocity = safeDt > 0
+      ? {
+        x: (enemyPositionBeforeResolve.x - previousPosition.x) / safeDt,
+        y: (enemyPositionBeforeResolve.y - previousPosition.y) / safeDt,
+      }
+      : { x: 0, y: 0 };
+    const vehicleClosingSpeed = Math.max(0, this.dot(vehicleVelocity, normal));
+    const relativeClosingSpeed = Math.max(
+      0,
+      this.dot({
+        x: vehicleVelocity.x - enemyVelocity.x,
+        y: vehicleVelocity.y - enemyVelocity.y,
+      }, normal),
+    );
+    return { normal, vehicleClosingSpeed, relativeClosingSpeed, contactPoint };
+  }
+
+  public getRamDamage(contact: VehicleCollisionContact, dt: number): number {
+    return calculateRamDamage(contact, dt, this.ramConfig);
   }
 
   public getStats(): EnemyCollisionStats {
@@ -281,6 +365,40 @@ export class EnemyCollisionResolver {
     ];
     distances.sort((first, second) => first.distance - second.distance);
     return distances[0].point;
+  }
+
+  private getVehicleContactNormal(
+    enemy: Enemy,
+    vehiclePreviousPosition: TerrainPoint,
+    vehiclePosition: TerrainPoint,
+    delta: TerrainPoint,
+    distance: number,
+  ): TerrainPoint {
+    if (distance > 1e-9) return { x: delta.x / distance, y: delta.y / distance };
+
+    const centerDelta = {
+      x: enemy.x - vehiclePosition.x,
+      y: enemy.y - vehiclePosition.y,
+    };
+    const centerDistance = Math.hypot(centerDelta.x, centerDelta.y);
+    if (centerDistance > 1e-9) {
+      return { x: centerDelta.x / centerDistance, y: centerDelta.y / centerDistance };
+    }
+
+    const movementDelta = {
+      x: vehiclePosition.x - vehiclePreviousPosition.x,
+      y: vehiclePosition.y - vehiclePreviousPosition.y,
+    };
+    const movementDistance = Math.hypot(movementDelta.x, movementDelta.y);
+    if (movementDistance > 1e-9) {
+      return { x: movementDelta.x / movementDistance, y: movementDelta.y / movementDistance };
+    }
+
+    return { x: 0, y: 0 };
+  }
+
+  private dot(first: TerrainPoint, second: TerrainPoint): number {
+    return first.x * second.x + first.y * second.y;
   }
 
   private getDeterministicDirection(first: Enemy, second: Enemy): TerrainPoint {
