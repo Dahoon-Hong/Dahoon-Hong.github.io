@@ -231,8 +231,8 @@ interval × spawnIntervalPerTier ^ threatTier
 | Power Pack | `movementSpeed: 180` | 이동 속도 |
 | Caterpillar Track | `trackMaxSpeed: 180` | 최대 주행 속도 |
 | Armor Plate | `armorValue: 20` | 접촉 피해 완화 |
-| Machine Gun | `damage: 30`, `fireRate: 0.2`, `minRange: 0`, `maxRange: 600` | 단일 대상 처리 |
-| Howitzer | `damage: 90`, `fireRate: 0.9`, `aoeRadius: 120`, `minRange: 100`, `maxRange: 800` | 군중 처리 |
+| Direct Weapon | `damage: 30`, `fireRate: 0.2`, `range: 600` | 단일 대상 처리 |
+| Arc Weapon | `damage: 90`, `fireRate: 0.9`, `aoeRadius: 120`, `range: 800` | 군중 처리 |
 
 직사 무기의 이론상 단일 대상 DPS는 `30 / 0.2 = 150`이다. 곡사 무기는 단일 대상 DPS만 비교하지 않고, `90 / 0.9`에 동시 피격 수와 폭발 범위를 포함해 평가한다. 따라서 두 무기를 같은 DPS로 맞추지 않고 서로 다른 상황에서 선택 가치가 있도록 한다.
 
@@ -262,7 +262,7 @@ interval × spawnIntervalPerTier ^ threatTier
 무기 선택지는 다음 중 서로 다른 두 가지 이상을 선택하게 만든다.
 
 - DPS 증가: `damage` 또는 `fireRate`
-- 안정성 증가: `maxRange`, `projectileSpeed`
+- 안정성 증가: `range`, `projectileSpeed`, `maxDistance`
 - 군중 처리 증가: `aoeRadius` 또는 다중 대상 관련 효과
 
 플레이어는 모든 상황에서 같은 노드를 고르는 것이 아니라, 현재 Stage의 적 구성과 자신의 조작 방식에 따라 선택해야 한다. 강화 비용은 현재 `matter` 기반을 유지하고, 효과 대비 비용이 낮은 노드가 한 가지 빌드를 고정하지 않도록 플레이테스트에서 조정한다.
