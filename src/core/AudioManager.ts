@@ -123,7 +123,8 @@ export class AudioManager {
 
   private readonly unlockAudio = (): void => {
     this.userGestureSeen = true;
-    void this.ensureReady();
+    const context = this.ensureReady();
+    if (context) this.startMusicIfReady();
     void this.preload();
   };
 
@@ -165,16 +166,22 @@ export class AudioManager {
       return;
     }
 
-    if (!this.userGestureSeen) return;
-
-    const context = this.ensureReady();
+    const context = this.getOrCreateContext();
     if (!context) return;
 
     const externalIds = SOUND_EFFECT_IDS.filter((id) => {
       const entry = manifest.sounds?.[id];
       return Boolean(entry && !isProceduralSource(entry.src));
     });
-    await Promise.all(externalIds.map((id) => this.loadExternalBuffer(id, context)));
+
+    const externalLoads = this.userGestureSeen
+      ? externalIds.map((id) => this.loadExternalBuffer(id, context))
+      : [];
+    await Promise.all([
+      this.getMusicBuffer(context, 'music.main-menu'),
+      this.getMusicBuffer(context, 'music.gameplay.test'),
+      ...externalLoads,
+    ]);
   }
 
   public attachUserGestureListeners(target?: Window): void {
@@ -246,7 +253,7 @@ export class AudioManager {
     if (this.requestedMusicId !== id) this.stopMusicSource();
     this.requestedMusicId = id;
     this.musicRequested = true;
-    void this.startMusicIfReady();
+    this.startMusicIfReady();
   }
 
   public stopMusic(): void {
@@ -264,7 +271,6 @@ export class AudioManager {
 
   private getOrCreateContext(): AudioContext | null {
     if (this.context) return this.context;
-
     if (typeof window === 'undefined') return null;
 
     const owner = window as AudioWindow;
@@ -296,7 +302,7 @@ export class AudioManager {
     const context = this.context;
     if (!context) return;
     if (context.state !== 'suspended') {
-      void this.startMusicIfReady();
+      this.startMusicIfReady();
       return;
     }
     if (this.resumePending) return;
@@ -304,7 +310,7 @@ export class AudioManager {
     void context.resume()
       .then(() => {
         this.resumePending = false;
-        void this.startMusicIfReady();
+        this.startMusicIfReady();
       })
       .catch(() => {
         this.resumePending = false;
@@ -357,7 +363,7 @@ export class AudioManager {
     this.scheduleRelease(voice.release, duration);
   }
 
-  public stopAll(): void {
+  public stopAll(options: { preserveMusic?: boolean } = {}): void {
     for (const source of this.activeSources) {
       try {
         source.stop();
@@ -368,7 +374,7 @@ export class AudioManager {
     this.activeSources.clear();
     this.activeVoices.clear();
     this.cooldowns.clear();
-    this.stopMusic();
+    if (!options.preserveMusic) this.stopMusic();
   }
 
   private applyMusicGain(fadeSeconds = 0.06): void {
@@ -382,20 +388,31 @@ export class AudioManager {
     gain.gain.setTargetAtTime(target, now, Math.max(0.01, fadeSeconds));
   }
 
-  private async startMusicIfReady(): Promise<void> {
+  private startMusicIfReady(): void {
     const context = this.context;
     const musicGain = this.musicGain;
     const id = this.requestedMusicId;
-    if (!context || !musicGain || context.state !== 'running' || !this.musicRequested || this.musicSource || this.musicStartPending) return;
+    if (!context || !musicGain || !this.musicRequested || this.musicSource || this.musicStartPending) return;
+    if (!this.userGestureSeen && context.state !== 'running') return;
 
-    this.musicStartPending = true;
-    const buffer = await this.getMusicBuffer(context, id);
-    this.musicStartPending = false;
-    if (!buffer || !this.musicRequested || this.requestedMusicId !== id || this.musicSource || context.state !== 'running') {
-      if (this.musicRequested && this.requestedMusicId !== id) void this.startMusicIfReady();
+    const cached = this.musicBuffers.get(id);
+    if (cached) {
+      this.startMusicSource(context, musicGain, cached);
       return;
     }
 
+    this.musicStartPending = true;
+    void this.getMusicBuffer(context, id).then((buffer) => {
+      this.musicStartPending = false;
+      if (!buffer || !this.musicRequested || this.requestedMusicId !== id || this.musicSource) {
+        if (this.musicRequested && this.requestedMusicId !== id) this.startMusicIfReady();
+        return;
+      }
+      this.startMusicSource(context, musicGain, buffer);
+    });
+  }
+
+  private startMusicSource(context: AudioContext, musicGain: GainNode, buffer: AudioBuffer): void {
     const source = context.createBufferSource();
     source.buffer = buffer;
     source.loop = true;
@@ -407,7 +424,8 @@ export class AudioManager {
       source.start();
       this.musicSource = source;
       this.applyMusicGain(0.2);
-    } catch {
+    } catch (error) {
+      console.warn('[Audio] music start failed', this.requestedMusicId, error);
       source.disconnect();
     }
   }
