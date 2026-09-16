@@ -1,6 +1,7 @@
 import { Enemy, EnemyDefinition, EnemyType, StandardEnemy, TankerEnemy } from '../entities/Enemy';
 import type { RegionDefinition } from './ProgressionManager';
 import type { TerrainCell, TerrainGrid, TerrainPoint } from './TerrainGrid';
+import type { ThreatProvider } from './ThreatManager';
 export interface WaveSpawnAdmission {
   allowed: boolean;
   reason?: string;
@@ -43,11 +44,13 @@ export class WaveManager {
   public lastSpawnSkipReason: string | null = null;
   public lastSpawnTypes: EnemyType[] = [];
   public lastSpawnAt: number | null = null;
+  public lastSpawnContactDamage: number | null = null;
 
   private readonly region: RegionDefinition;
   private readonly enemyDefinitions: Readonly<Record<EnemyType, EnemyDefinition>>;
   private readonly baseEnemySpawn: number;
   private readonly spawnContext: WaveSpawnContext;
+  private readonly threatProvider: ThreatProvider | null;
   private readonly spawnTimers: Record<EnemyType, number> = { standard: 0, tanker: 0 };
   private readonly activeWaveEnemies = new Set<Enemy>();
   private elapsedTime = 0;
@@ -58,11 +61,13 @@ export class WaveManager {
     enemyDefinitions: Readonly<Record<EnemyType, EnemyDefinition>>,
     baseEnemySpawn: number,
     spawnContext: WaveSpawnContext,
+    threatProvider?: ThreatProvider,
   ) {
     this.region = region;
     this.enemyDefinitions = enemyDefinitions;
     this.baseEnemySpawn = baseEnemySpawn;
     this.spawnContext = spawnContext;
+    this.threatProvider = threatProvider ?? null;
     this.totalWaves = region.waves.length;
     this.stageTargetKills = region.waves.reduce((total, wave) => total + wave.targetKills, 0);
     this.prepareWave();
@@ -111,7 +116,7 @@ export class WaveManager {
 
   private prepareWave(): void {
     const wave = this.region.waves[this.currentWave - 1];
-    this.targetKills = wave.targetKills;
+    this.targetKills = this.threatProvider?.getTargetKills(wave.targetKills) ?? wave.targetKills;
     this.killedEnemiesCount = 0;
     this.spawnedEnemiesCount = 0;
     this.spawnSkippedCount = 0;
@@ -124,6 +129,7 @@ export class WaveManager {
     this.lastSpawnSkipReason = null;
     this.lastSpawnTypes = [];
     this.lastSpawnAt = null;
+    this.lastSpawnContactDamage = null;
     this.waveCleared = false;
     this.spawnAttemptCursor = 0;
   }
@@ -138,7 +144,9 @@ export class WaveManager {
   }
 
   private spawnBatch(type: EnemyType, enemies: Enemy[]): EnemyType[] {
-    const spawnCount = calculateEnemySpawnCount(this.baseEnemySpawn, this.enemyDefinitions[type]);
+    const definition = this.enemyDefinitions[type];
+    const spawnCount = this.threatProvider?.getSpawnBatch(this.baseEnemySpawn, definition)
+      ?? calculateEnemySpawnCount(this.baseEnemySpawn, definition);
     const spawnedTypes: EnemyType[] = [];
     for (let count = 0; count < spawnCount; count++) {
       if (this.spawnEnemy(type, enemies)) spawnedTypes.push(type);
@@ -160,12 +168,15 @@ export class WaveManager {
       this.lastSpawnSkipReason = typeof admission === 'boolean' ? 'admission' : admission?.reason ?? 'admission';
       return false;
     }
+    const definition = this.threatProvider?.getScaledEnemyDefinition(this.enemyDefinitions[type])
+      ?? this.enemyDefinitions[type];
     const enemy = type === 'tanker'
-      ? new TankerEnemy(spawnPoint.x, spawnPoint.y, this.enemyDefinitions.tanker)
-      : new StandardEnemy(spawnPoint.x, spawnPoint.y, this.enemyDefinitions.standard);
+      ? new TankerEnemy(spawnPoint.x, spawnPoint.y, definition)
+      : new StandardEnemy(spawnPoint.x, spawnPoint.y, definition);
     enemies.push(enemy);
     this.activeWaveEnemies.add(enemy);
     this.spawnedEnemiesCount++;
+    this.lastSpawnContactDamage = enemy.contactDamage;
     return true;
   }
 }

@@ -34,7 +34,13 @@ import { LocalStorageCampaignProgressStore } from './LocalStorageCampaignProgres
 import { WorldMapDataLoader } from './WorldMapDataLoader';
 import { WorldMap } from '../ui/WorldMap';
 import { GameTestObserver } from './GameTestObserver';
-import { getGameTestEnemyCount, getGameTestScenario, getGameTestWorkerEnabled } from './GameTestScenario';
+import {
+  GAME_TEST_THREAT_CONFIG,
+  getGameTestEnemyCount,
+  getGameTestScenario,
+  getGameTestWorkerEnabled,
+} from './GameTestScenario';
+import { ThreatManager } from './ThreatManager';
 
 export enum AppScreen {
   START_MENU = 'START_MENU',
@@ -87,6 +93,7 @@ export class Game {
   private readonly camera: Camera;
   private readonly testObserver: GameTestObserver;
   private readonly testScenario = getGameTestScenario();
+  private readonly difficultyMultiplier = 1;
   private readonly startMenu = new StartMenu();
   private readonly settingsScreen = new SettingsScreen();
   private terrainGrid: TerrainGrid;
@@ -101,6 +108,7 @@ export class Game {
   private armory: ArmoryManager;
   private upgradeManager: UpgradeManager;
   private waveManager: WaveManager;
+  private threatManager: ThreatManager;
   private enemies: Enemy[] = [];
   private projectiles: Projectile[] = [];
   private effects: VisualEffect[] = [];
@@ -157,6 +165,7 @@ export class Game {
       this.progression.currentRegion.id,
     );
     if (!initialMap) throw new Error('[Game] initial map is missing');
+    this.threatManager = this.createThreatManager(initialMap);
     this.terrainGrid = new TerrainGrid(initialMap);
     this.pathfinder = new TerrainPathfinder(this.terrainGrid);
     this.enemyNavigation = new EnemyNavigationCoordinator(
@@ -277,6 +286,7 @@ export class Game {
     const map = this.getCurrentMap();
     if (!map) throw new Error(`[Game] map is missing for ${this.progression.currentRegion.mapId}`);
     this.audio.stopAll();
+    this.threatManager = this.createThreatManager(map);
     this.setTerrainContext(map);
     this.upgradeManager = new UpgradeManager(this.tankDefinition.modules);
     this.vehicle = this.createVehicle();
@@ -476,6 +486,13 @@ export class Game {
     return vehicle;
   }
 
+  private createThreatManager(map: MapDefinition): ThreatManager {
+    if (this.testScenario === 'threat-scaling') {
+      return new ThreatManager(map.threat.baseMultiplier, this.difficultyMultiplier, GAME_TEST_THREAT_CONFIG);
+    }
+    return new ThreatManager(map.threat.baseMultiplier, this.difficultyMultiplier);
+  }
+
   private createWaveManager(): WaveManager {
     const map = this.getCurrentMap();
     if (!map) throw new Error(`[Game] map is missing for ${this.progression.currentRegion.mapId}`);
@@ -492,6 +509,7 @@ export class Game {
           enemies,
         ),
       },
+      this.threatManager,
     );
   }
 
@@ -542,6 +560,9 @@ export class Game {
         break;
       case 'vehicle-ram':
         this.setupVehicleRamFixture();
+        break;
+      case 'threat-scaling':
+        this.waveManager.killedEnemiesCount = this.waveManager.targetKills;
         break;
       case 'terminal-game-over':
         this.vehicle.takeDamage(9999, 0, { x: 0, y: 0 });
@@ -912,6 +933,7 @@ export class Game {
     if (!isPaused) this.recentTerrainHitTimer = Math.max(0, this.recentTerrainHitTimer - dt);
 
     if (!isPaused) {
+      this.threatManager.advance(dt);
       this.renderContext.time += dt;
       this.releaseTestNavigationStuckProbe();
       const startX = this.vehicle.x;
@@ -1097,6 +1119,7 @@ export class Game {
     const navigationStats = this.enemyNavigation.getStats();
     const collisionStats = this.enemyCollision.getStats();
     const currentMap = this.getCurrentMap();
+    const threatSnapshot = this.threatManager.getSnapshot();
     this.testObserver.update({
       scenario: this.testScenario,
       mapId: currentMap?.mapId ?? null,
@@ -1104,6 +1127,11 @@ export class Game {
       gameState: this.state,
       wave: this.waveManager.currentWave,
       targetKills: this.waveManager.targetKills,
+      stageElapsedSeconds: threatSnapshot.stageElapsedSeconds,
+      threatTimeIndex: threatSnapshot.timeIndex,
+      threatMultiplier: threatSnapshot.threatMultiplier,
+      spawnBatchMultiplier: threatSnapshot.spawnBatchMultiplier,
+      attackMultiplier: threatSnapshot.attackMultiplier,
       killedEnemies: this.waveManager.killedEnemiesCount,
       stageTargetKills: this.waveManager.stageTargetKills,
       stageKilledEnemies: this.waveManager.stageKilledEnemiesCount,
@@ -1139,6 +1167,7 @@ export class Game {
       lastMovementAt: this.lastMovementAt,
       lastSpawnBatchSize: this.waveManager.lastSpawnBatchSize,
       lastSpawnAt: this.waveManager.lastSpawnAt,
+      lastSpawnContactDamage: this.waveManager.lastSpawnContactDamage,
       lastSpawnTypes: [...this.waveManager.lastSpawnTypes],
       lastSpawnSkippedCount: this.waveManager.lastSpawnSkippedCount,
       lastSpawnSkipReason: this.waveManager.lastSpawnSkipReason,

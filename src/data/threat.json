@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "time": {
+    "stepSeconds": 60,
+    "initialMultiplier": 0.25,
+    "growthMultiplier": 1.32,
+    "minThreatMultiplier": 0,
+    "maxThreatMultiplier": 4
+  },
+  "outputs": {
+    "spawnBatch": {
+      "threatWeight": 1,
+      "minMultiplier": 0.25,
+      "maxMultiplier": 4,
+      "minValue": 1,
+      "maxValue": 20,
+      "rounding": "nearest"
+    },
+    "attack": {
+      "threatWeight": 1,
+      "minMultiplier": 0.25,
+      "maxMultiplier": 4
+    },
+    "targetKills": {
+      "threatWeight": 1,
+      "minMultiplier": 0.5,
+      "maxMultiplier": 4,
+      "minValue": 1,
+      "maxValue": 100,
+      "rounding": "nearest"
+    }
+  },
+  "formula": {
+    "threatMode": "multiplicative-exponential-time",
+    "outputMode": "weighted-linear"
+  }
+}

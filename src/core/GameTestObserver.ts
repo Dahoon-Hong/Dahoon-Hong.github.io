@@ -36,6 +36,11 @@ export interface GameTestSnapshot {
   gameState: string;
   wave: number;
   targetKills: number;
+  stageElapsedSeconds?: number;
+  threatTimeIndex?: number;
+  threatMultiplier?: number;
+  spawnBatchMultiplier?: number;
+  attackMultiplier?: number;
   killedEnemies: number;
   stageTargetKills: number;
   stageKilledEnemies: number;
@@ -56,6 +61,7 @@ export interface GameTestSnapshot {
   lastMovementAt: number | null;
   lastSpawnBatchSize: number;
   lastSpawnAt: number | null;
+  lastSpawnContactDamage?: number | null;
   lastSpawnTypes: readonly string[];
   lastSpawnSkippedCount?: number;
   lastSpawnSkipReason?: string | null;

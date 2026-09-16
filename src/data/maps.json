@@ -176,6 +176,9 @@
         ]
       },
       "mapId": "aurelia/landing-zone",
+      "threat": {
+        "baseMultiplier": 0.9
+      },
       "planetId": "aurelia",
       "regionId": "landing-zone",
       "safeMargin": {
@@ -231,6 +234,9 @@
         "tile": false
       },
       "mapId": "aurelia/relay-fields",
+      "threat": {
+        "baseMultiplier": 1
+      },
       "planetId": "aurelia",
       "regionId": "relay-fields",
       "enemySpawnCells": [
@@ -386,6 +392,9 @@
         "tile": false
       },
       "mapId": "cinder/ash-basin",
+      "threat": {
+        "baseMultiplier": 1.1
+      },
       "planetId": "cinder",
       "regionId": "ash-basin",
       "enemySpawnCells": [
@@ -537,6 +546,9 @@
         "tile": false
       },
       "mapId": "cinder/core-ruins",
+      "threat": {
+        "baseMultiplier": 1.2
+      },
       "planetId": "cinder",
       "regionId": "core-ruins",
       "enemySpawnCells": [

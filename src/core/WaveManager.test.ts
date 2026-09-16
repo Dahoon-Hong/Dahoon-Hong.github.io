@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { StandardEnemy, TankerEnemy } from '../entities/Enemy';
 import { TerrainGrid, TerrainMapData } from './TerrainGrid';
 import { ProgressionManager, RegionDefinition } from './ProgressionManager';
+import { THREAT_CONFIG, ThreatManager } from './ThreatManager';
 import { calculateEnemySpawnCount, WaveManager } from './WaveManager';
 
 const enemyDefinitions = {
@@ -75,6 +76,26 @@ describe('WaveManager', () => {
     expect(manager.lastSpawnBatchSize).toBe(3);
     expect(manager.lastSpawnTypes).toEqual(['standard', 'standard', 'tanker']);
     expect(manager.lastSpawnAt).toBeCloseTo(0.11);
+  });
+
+  it('applies the current threat snapshot to batch, target, and contact damage', () => {
+    const threatManager = new ThreatManager(1.5, 1, {
+      ...THREAT_CONFIG,
+      time: { ...THREAT_CONFIG.time, initialMultiplier: 1 },
+    });
+    const manager = new WaveManager(region, enemyDefinitions, 2, {
+      terrain,
+      spawnCells: [{ x: 0, y: 0 }, { x: 3, y: 1 }],
+    }, threatManager);
+    const enemies: Array<StandardEnemy | TankerEnemy> = [];
+
+    expect(manager.targetKills).toBe(15);
+    manager.update(0.11, enemies, terrain.width, terrain.height, { x: 0, y: 0 });
+
+    expect(enemies).toHaveLength(5);
+    expect(manager.lastSpawnBatchSize).toBe(5);
+    expect(manager.lastSpawnContactDamage).toBe(3);
+    expect(enemies[0].contactDamage).toBe(1.5);
   });
 
   it('skips saturated spawn attempts without inflating the spawned count', () => {
