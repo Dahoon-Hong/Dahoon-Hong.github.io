@@ -1,0 +1,81 @@
+{
+  "date": "2026-11-01",
+  "status": "verified",
+  "confirmed_through": 494,
+  "new_decisions": {
+    "from": 465,
+    "to": 494,
+    "count": 30
+  },
+  "pending_questions": [],
+  "publication": {
+    "id": "40b7d682-9c6a-81e9-aec2-ff8a0b6959b0",
+    "url": "https://app.notion.com/p/40b7d6829c6a81e9aec2ff8a0b6959b0",
+    "title": "개발 인계·전체 문서 — Q-494"
+  },
+  "source_files": 20,
+  "source_pages": 30,
+  "updated_existing_pages": [
+    {
+      "key": "parent",
+      "id": "3f97d682-9c6a-81a2-999d-ecb377794963",
+      "status": "verified"
+    },
+    {
+      "key": "index",
+      "id": "4017d682-9c6a-8126-af90-d19f44b5e784",
+      "status": "verified"
+    },
+    {
+      "key": "engine",
+      "id": "4027d682-9c6a-8194-84e2-c617a2bf19f3",
+      "status": "verified"
+    },
+    {
+      "key": "ui",
+      "id": "4017d682-9c6a-81bf-b789-e07489697954",
+      "status": "verified"
+    },
+    {
+      "key": "rules",
+      "id": "3fe7d682-9c6a-81ca-8ae7-c3b8e7f769a2",
+      "status": "verified"
+    },
+    {
+      "key": "production",
+      "id": "3fe7d682-9c6a-81fa-b7cf-d95f8bb33e98",
+      "status": "verified"
+    },
+    {
+      "key": "nfr",
+      "id": "4017d682-9c6a-817a-8b71-ec4118bedc26",
+      "status": "verified"
+    },
+    {
+      "key": "progress",
+      "id": "3fe7d682-9c6a-815e-8c2e-d815c6600ec1",
+      "status": "verified"
+    },
+    {
+      "key": "bundle",
+      "id": "4027d682-9c6a-810b-8089-d8a75a22a506",
+      "status": "verified"
+    },
+    {
+      "key": "publication",
+      "id": "40b7d682-9c6a-8109-809d-f1a5c2fe805e",
+      "status": "verified"
+    }
+  ],
+  "readback": {
+    "all_source_fragments": true,
+    "all_30_new_decisions": true,
+    "all_existing_latest_headers": true,
+    "source_end_markers": true,
+    "source_file_hashes": true,
+    "final_sync_status_refresh": true
+  },
+  "implementation_status": "Unity+C# selected. No game project, runtime tests, Windows builds, gameplay or performance measurements completed.",
+  "start_prompt": "아래 노션 페이지의 개발 인계와 연결 문서를 읽고 Project C 개발을 이어서 진행해: https://app.notion.com/p/40b7d6829c6a81e9aec2ff8a0b6959b0",
+  "local_start_prompt": "Project C 개발을 이어서 진행해. AGENTS.md와 development-handoff.md부터 읽어."
+}

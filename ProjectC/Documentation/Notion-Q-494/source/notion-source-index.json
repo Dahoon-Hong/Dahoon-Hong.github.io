@@ -1,0 +1,308 @@
+{
+  "hub_id": "40b7d682-9c6a-81e9-aec2-ff8a0b6959b0",
+  "hub_url": "https://app.notion.com/p/40b7d6829c6a81e9aec2ff8a0b6959b0",
+  "confirmed_through": 494,
+  "files": 20,
+  "entries": [
+    {
+      "key": "AGENTS.md::1",
+      "file": "AGENTS.md",
+      "part": 1,
+      "parts": 1,
+      "title": "AGENTS.md",
+      "source_sha256": "6b8393e553517117dca6f31901c1a0ab525f8e2bbb09e715b38e024c5e2cdcb2",
+      "notion_id": "40b7d682-9c6a-81f8-8e54-da3b3930bec3",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a81f88e54da3b3930bec3?pvs=204"
+    },
+    {
+      "key": "README.md::1",
+      "file": "README.md",
+      "part": 1,
+      "parts": 1,
+      "title": "README.md",
+      "source_sha256": "f7e071588fbc55335b5fb7539b6760783f5f815d039e5892661dd2e518d9a1f8",
+      "notion_id": "40b7d682-9c6a-81e1-9c57-f17b5c94bf4d",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a81e19c57f17b5c94bf4d?pvs=204"
+    },
+    {
+      "key": "START-HERE.md::1",
+      "file": "START-HERE.md",
+      "part": 1,
+      "parts": 1,
+      "title": "START-HERE.md",
+      "source_sha256": "68ba390a98f737d080da537252cc149ad46ecf5567cc621d41b9875ff0acb1b1",
+      "notion_id": "40b7d682-9c6a-816d-b280-ee5513c9cb19",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a816db280ee5513c9cb19?pvs=204"
+    },
+    {
+      "key": "asset-plan.md::1",
+      "file": "asset-plan.md",
+      "part": 1,
+      "parts": 1,
+      "title": "asset-plan.md",
+      "source_sha256": "de96be80e356bc53c53953016b455ffc33988cb5e75f262fa91eb65f04e11487",
+      "notion_id": "40b7d682-9c6a-81eb-9d9f-df9ab35b21ac",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a81eb9d9fdf9ab35b21ac?pvs=204"
+    },
+    {
+      "key": "cycle-summary.md::1",
+      "file": "cycle-summary.md",
+      "part": 1,
+      "parts": 1,
+      "title": "cycle-summary.md",
+      "source_sha256": "3681499fe55fe421a7e54c78953b7911f87a74244a67e3731c3367f328ada4d5",
+      "notion_id": "40b7d682-9c6a-8107-b6c3-e22644305440",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a8107b6c3e22644305440?pvs=204"
+    },
+    {
+      "key": "design-principles.md::1",
+      "file": "design-principles.md",
+      "part": 1,
+      "parts": 1,
+      "title": "design-principles.md",
+      "source_sha256": "9d8cecf867b10ea2eff6d545fad09b20c57f5346886d059bdbd14a5e1341f09a",
+      "notion_id": "40b7d682-9c6a-81bd-8d8c-f461a5f413a4",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a81bd8d8cf461a5f413a4?pvs=204"
+    },
+    {
+      "key": "development-handoff.md::1",
+      "file": "development-handoff.md",
+      "part": 1,
+      "parts": 1,
+      "title": "development-handoff.md",
+      "source_sha256": "8a264d7e4004fa4dcb7bdbc7bafae1c771dab8c87a97f69958f16c5936890e5b",
+      "notion_id": "40b7d682-9c6a-8174-a32f-c55f910a82a4",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a8174a32fc55f910a82a4?pvs=204"
+    },
+    {
+      "key": "drone-rules.md::1",
+      "file": "drone-rules.md",
+      "part": 1,
+      "parts": 1,
+      "title": "drone-rules.md",
+      "source_sha256": "afe9ef32fd76051487422a4fd63a6929453ca382c9bdd37f49a1465d6fd15ee0",
+      "notion_id": "40b7d682-9c6a-816b-a053-f9243a742653",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a816ba053f9243a742653?pvs=204"
+    },
+    {
+      "key": "engine-review.md::1",
+      "file": "engine-review.md",
+      "part": 1,
+      "parts": 1,
+      "title": "engine-review.md",
+      "source_sha256": "14657d30352c0c9dbb9dd56e173e2f4844178923b232f2621a21ec0ec56e58d1",
+      "notion_id": "40b7d682-9c6a-8181-82d7-fae922f45e88",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a818182d7fae922f45e88?pvs=204"
+    },
+    {
+      "key": "event-rules.md::1",
+      "file": "event-rules.md",
+      "part": 1,
+      "parts": 1,
+      "title": "event-rules.md",
+      "source_sha256": "7c99a1897502da4b40b7902fee968c306c8b3f594bd0ea6e2a97fca9007fc568",
+      "notion_id": "40b7d682-9c6a-814b-a9b4-fa47c69046af",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a814ba9b4fa47c69046af?pvs=204"
+    },
+    {
+      "key": "first-validation.md::1",
+      "file": "first-validation.md",
+      "part": 1,
+      "parts": 1,
+      "title": "first-validation.md",
+      "source_sha256": "4f4481af1c61b721e30332d62adeead0e40c5440040ac836bc4644bf4b84bfc2",
+      "notion_id": "40b7d682-9c6a-8145-8b72-ca668b73acd7",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a81458b72ca668b73acd7?pvs=204"
+    },
+    {
+      "key": "planning.md::1",
+      "file": "planning.md",
+      "part": 1,
+      "parts": 4,
+      "title": "planning.md — 1/4",
+      "source_sha256": "a811e49971c63f224d6996c998cf8c724abd0f5b1d8334868f80f415158ac8f4",
+      "notion_id": "40b7d682-9c6a-817c-931e-f9b5133935ed",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a817c931ef9b5133935ed?pvs=204"
+    },
+    {
+      "key": "planning.md::2",
+      "file": "planning.md",
+      "part": 2,
+      "parts": 4,
+      "title": "planning.md — 2/4",
+      "source_sha256": "a811e49971c63f224d6996c998cf8c724abd0f5b1d8334868f80f415158ac8f4",
+      "notion_id": "40b7d682-9c6a-818d-9f3d-e7538d6ae621",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a818d9f3de7538d6ae621?pvs=204"
+    },
+    {
+      "key": "planning.md::3",
+      "file": "planning.md",
+      "part": 3,
+      "parts": 4,
+      "title": "planning.md — 3/4",
+      "source_sha256": "a811e49971c63f224d6996c998cf8c724abd0f5b1d8334868f80f415158ac8f4",
+      "notion_id": "40b7d682-9c6a-818f-8339-eb459d2ba1cc",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a818f8339eb459d2ba1cc?pvs=204"
+    },
+    {
+      "key": "planning.md::4",
+      "file": "planning.md",
+      "part": 4,
+      "parts": 4,
+      "title": "planning.md — 4/4",
+      "source_sha256": "a811e49971c63f224d6996c998cf8c724abd0f5b1d8334868f80f415158ac8f4",
+      "notion_id": "40b7d682-9c6a-81d3-98ff-e74c1121e716",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a81d398ffe74c1121e716?pvs=204"
+    },
+    {
+      "key": "play-flow.md::1",
+      "file": "play-flow.md",
+      "part": 1,
+      "parts": 1,
+      "title": "play-flow.md",
+      "source_sha256": "fe47e9ae45e660a73aa35febac46a32e110626569a81b6c7d8bd526634185918",
+      "notion_id": "40b7d682-9c6a-814f-94fe-f858882cb1e3",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a814f94fef858882cb1e3?pvs=204"
+    },
+    {
+      "key": "question-cycle.md::1",
+      "file": "question-cycle.md",
+      "part": 1,
+      "parts": 1,
+      "title": "question-cycle.md",
+      "source_sha256": "c9159cf94fa68ebc58ace604f75b4832601d7e774621b15082970c5d98b8f7a7",
+      "notion_id": "40b7d682-9c6a-815d-943c-d9e3fac12781",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a815d943cd9e3fac12781?pvs=204"
+    },
+    {
+      "key": "reference/planning-baseline.md::1",
+      "file": "reference/planning-baseline.md",
+      "part": 1,
+      "parts": 1,
+      "title": "reference/planning-baseline.md",
+      "source_sha256": "10003a8fc75f6466f1fb6f7475ed09f603377aba046e57a9942515d61603fdec",
+      "notion_id": "40b7d682-9c6a-815a-ae60-ef80508e2626",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a815aae60ef80508e2626?pvs=204"
+    },
+    {
+      "key": "reference/planning-history.md::1",
+      "file": "reference/planning-history.md",
+      "part": 1,
+      "parts": 8,
+      "title": "reference/planning-history.md — 1/8",
+      "source_sha256": "6567a751d682fd2eb785a9e0f5e1c64a61d0bfa54949bb5a05e448cf2c4a2c0b",
+      "notion_id": "40b7d682-9c6a-81b7-b4db-de84ad52ecba",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a81b7b4dbde84ad52ecba?pvs=204"
+    },
+    {
+      "key": "reference/planning-history.md::2",
+      "file": "reference/planning-history.md",
+      "part": 2,
+      "parts": 8,
+      "title": "reference/planning-history.md — 2/8",
+      "source_sha256": "6567a751d682fd2eb785a9e0f5e1c64a61d0bfa54949bb5a05e448cf2c4a2c0b",
+      "notion_id": "40b7d682-9c6a-8149-81ee-ed0e755e6eb5",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a814981eeed0e755e6eb5?pvs=204"
+    },
+    {
+      "key": "reference/planning-history.md::3",
+      "file": "reference/planning-history.md",
+      "part": 3,
+      "parts": 8,
+      "title": "reference/planning-history.md — 3/8",
+      "source_sha256": "6567a751d682fd2eb785a9e0f5e1c64a61d0bfa54949bb5a05e448cf2c4a2c0b",
+      "notion_id": "40b7d682-9c6a-8190-aa89-fc86f38ef15e",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a8190aa89fc86f38ef15e?pvs=204"
+    },
+    {
+      "key": "reference/planning-history.md::4",
+      "file": "reference/planning-history.md",
+      "part": 4,
+      "parts": 8,
+      "title": "reference/planning-history.md — 4/8",
+      "source_sha256": "6567a751d682fd2eb785a9e0f5e1c64a61d0bfa54949bb5a05e448cf2c4a2c0b",
+      "notion_id": "40b7d682-9c6a-81bd-a8af-c88e79dace51",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a81bda8afc88e79dace51?pvs=204"
+    },
+    {
+      "key": "reference/planning-history.md::5",
+      "file": "reference/planning-history.md",
+      "part": 5,
+      "parts": 8,
+      "title": "reference/planning-history.md — 5/8",
+      "source_sha256": "6567a751d682fd2eb785a9e0f5e1c64a61d0bfa54949bb5a05e448cf2c4a2c0b",
+      "notion_id": "40b7d682-9c6a-8103-b259-f506c20d1e78",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a8103b259f506c20d1e78?pvs=204"
+    },
+    {
+      "key": "reference/planning-history.md::6",
+      "file": "reference/planning-history.md",
+      "part": 6,
+      "parts": 8,
+      "title": "reference/planning-history.md — 6/8",
+      "source_sha256": "6567a751d682fd2eb785a9e0f5e1c64a61d0bfa54949bb5a05e448cf2c4a2c0b",
+      "notion_id": "40b7d682-9c6a-81c0-a785-cc5833cc3ba7",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a81c0a785cc5833cc3ba7?pvs=204"
+    },
+    {
+      "key": "reference/planning-history.md::7",
+      "file": "reference/planning-history.md",
+      "part": 7,
+      "parts": 8,
+      "title": "reference/planning-history.md — 7/8",
+      "source_sha256": "6567a751d682fd2eb785a9e0f5e1c64a61d0bfa54949bb5a05e448cf2c4a2c0b",
+      "notion_id": "40b7d682-9c6a-81fd-b3b5-d7cdfab6913b",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a81fdb3b5d7cdfab6913b?pvs=204"
+    },
+    {
+      "key": "reference/planning-history.md::8",
+      "file": "reference/planning-history.md",
+      "part": 8,
+      "parts": 8,
+      "title": "reference/planning-history.md — 8/8",
+      "source_sha256": "6567a751d682fd2eb785a9e0f5e1c64a61d0bfa54949bb5a05e448cf2c4a2c0b",
+      "notion_id": "40b7d682-9c6a-81e0-aa68-e2452694ac1a",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a81e0aa68e2452694ac1a?pvs=204"
+    },
+    {
+      "key": "review.md::1",
+      "file": "review.md",
+      "part": 1,
+      "parts": 1,
+      "title": "review.md",
+      "source_sha256": "ca548089cb5e7ab1728d9389e30ca30bc7acb40ea849347ab1a217a2f30b8500",
+      "notion_id": "40b7d682-9c6a-8111-af35-ee7294643bcf",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a8111af35ee7294643bcf?pvs=204"
+    },
+    {
+      "key": "software-architecture.md::1",
+      "file": "software-architecture.md",
+      "part": 1,
+      "parts": 1,
+      "title": "software-architecture.md",
+      "source_sha256": "aaef721adbf13b5342d30a8c5489211aaa0f79e14867a21e805224925300d3df",
+      "notion_id": "40b7d682-9c6a-8164-b3a4-ea4a79fb5a1b",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a8164b3a4ea4a79fb5a1b?pvs=204"
+    },
+    {
+      "key": "technical-validation.md::1",
+      "file": "technical-validation.md",
+      "part": 1,
+      "parts": 1,
+      "title": "technical-validation.md",
+      "source_sha256": "03fee08d544a351490bd31ae4f05423c78d8880055940cb562b2b6f3a8ebff0e",
+      "notion_id": "40b7d682-9c6a-812d-9bcf-e02e0fdc4c97",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a812d9bcfe02e0fdc4c97?pvs=204"
+    },
+    {
+      "key": "ui-flow.md::1",
+      "file": "ui-flow.md",
+      "part": 1,
+      "parts": 1,
+      "title": "ui-flow.md",
+      "source_sha256": "00ae4c7027c8b68068f447c73d32f1901f605c6d6af95738eec37ef55df4749c",
+      "notion_id": "40b7d682-9c6a-8151-8249-c7d825d04cb7",
+      "notion_url": "https://app.notion.com/p/40b7d6829c6a81518249c7d825d04cb7?pvs=204"
+    }
+  ]
+}

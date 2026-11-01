@@ -1,0 +1,69 @@
+{
+  "date": "2026-10-23",
+  "status": "verified",
+  "confirmed_through": 424,
+  "new_decisions": {
+    "from": 380,
+    "to": 424,
+    "count": 45
+  },
+  "cycle": {
+    "completed": 2,
+    "total": 10,
+    "status": "stopped_by_user",
+    "draft_questions": "Q-425~429: unpresented, unanswered, on hold"
+  },
+  "bundle": {
+    "id": "4027d682-9c6a-810b-8089-d8a75a22a506",
+    "url": "https://app.notion.com/p/4027d6829c6a810b8089d8a75a22a506?pvs=204",
+    "properties": {
+      "title": "기획 검토·플레이·화면·사건·드론 명세 — Q-424"
+    }
+  },
+  "updated_pages": [
+    {
+      "key": "index",
+      "id": "4017d682-9c6a-8126-af90-d19f44b5e784",
+      "url": "https://app.notion.com/p/4017d6829c6a8126af90d19f44b5e784?pvs=204",
+      "status": "succeeded"
+    },
+    {
+      "key": "ui",
+      "id": "4017d682-9c6a-81bf-b789-e07489697954",
+      "url": "https://app.notion.com/p/4017d6829c6a81bfb789e07489697954?pvs=204",
+      "status": "succeeded"
+    },
+    {
+      "key": "rules",
+      "id": "3fe7d682-9c6a-81ca-8ae7-c3b8e7f769a2",
+      "url": "https://app.notion.com/p/3fe7d6829c6a81ca8ae7c3b8e7f769a2?pvs=204",
+      "status": "succeeded"
+    },
+    {
+      "key": "production",
+      "id": "3fe7d682-9c6a-81fa-b7cf-d95f8bb33e98",
+      "url": "https://app.notion.com/p/3fe7d6829c6a81fab7cfd95f8bb33e98?pvs=204",
+      "status": "succeeded"
+    },
+    {
+      "key": "nfr",
+      "id": "4017d682-9c6a-817a-8b71-ec4118bedc26",
+      "url": "https://app.notion.com/p/4017d6829c6a817a8b71ec4118bedc26?pvs=204",
+      "status": "succeeded"
+    },
+    {
+      "key": "progress",
+      "id": "3fe7d682-9c6a-815e-8c2e-d815c6600ec1",
+      "url": "https://app.notion.com/p/3fe7d6829c6a815e8c2ed815c6600ec1?pvs=204",
+      "status": "succeeded"
+    }
+  ],
+  "readback": {
+    "all_expected_rules_present": true,
+    "all_pages_stopped": true,
+    "bundle_sections_present": true,
+    "scenario_ids_present": true,
+    "unknown_blocks": 0,
+    "table_count": 20
+  }
+}
