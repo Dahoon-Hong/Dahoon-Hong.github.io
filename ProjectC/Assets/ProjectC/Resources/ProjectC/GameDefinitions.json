@@ -1,0 +1,206 @@
+{
+  "MapWidth": 128,
+  "MapHeight": 128,
+  "ProductionHeight": 103,
+  "StartingFunds": 500,
+  "FirstIronOrder": 100,
+  "RegularExportOrderQuantity": 500,
+  "IronUnitPrice": 1,
+  "ExportGoal": 2000,
+  "ExportPricePerCrystal": 2,
+  "ShipCargoCapacity": 500,
+  "MatchDeadlineMilliseconds": 3900000,
+  "StartingProductionDrones": 4,
+  "StartingCombatDrones": 1,
+  "MaximumDroneCount": 30,
+  "DroneUnitPrice": 100,
+  "ImportShipIntervalMilliseconds": 180000,
+  "ImportOrderLeadMilliseconds": 60000,
+  "ShipDockLimitMilliseconds": 60000,
+  "IronUnloadRatePerSecond": 20,
+  "CrystalLoadRatePerSecond": 20,
+  "SubsidyIntervalMilliseconds": 180000,
+  "InitialWaveMilliseconds": 300000,
+  "WaveIntervalMilliseconds": 120000,
+  "WaveCount": 30,
+  "FirstWaveEnemyCount": 10,
+  "AdditionalEnemiesPerWave": 5,
+  "WaveSpawnIntervalMilliseconds": 500,
+  "MaximumEnemiesPerEntrySpawn": 3,
+  "DroneCarryCapacity": 5,
+  "DroneSpeedCellsPerSecond": 2,
+  "ConveyorCapacityPerCell": 1,
+  "ConveyorRatePerLinePerSecond": 20,
+  "OutpostCapacityPerItem": 500,
+  "TurretAmmunitionCapacity": 60,
+  "TurretHealth": 1000,
+  "OutpostHealth": 5000,
+  "TurretDamage": 20,
+  "TurretRange": 8,
+  "TurretRateOfFireMilliseconds": 1000,
+  "EnemyHealth": 100,
+  "EnemyDamagePerSecond": 10,
+  "EnemySpeedCellsPerSecond": 1,
+  "IronworksRecipe": {
+    "Id": "ironworks",
+    "Input": "Iron",
+    "InputCount": 1,
+    "Output": "Plate",
+    "OutputCount": 1,
+    "DurationMilliseconds": 1000
+  },
+  "AmmunitionRecipe": {
+    "Id": "ammunition-factory",
+    "Input": "Plate",
+    "InputCount": 1,
+    "Output": "Ammunition",
+    "OutputCount": 12,
+    "DurationMilliseconds": 12000
+  },
+  "RefineryRecipe": {
+    "Id": "refinery",
+    "Input": "Ore",
+    "InputCount": 2,
+    "Output": "Crystal",
+    "OutputCount": 1,
+    "DurationMilliseconds": 2000
+  },
+  "StartingFacilities": [
+    {
+      "Id": "port",
+      "Kind": "Port",
+      "X": 61,
+      "Y": 2,
+      "Width": 6,
+      "Height": 4,
+      "MaximumHealth": 0,
+      "Capacities": [
+        { "Item": "Iron", "Quantity": 500 },
+        { "Item": "Crystal", "Quantity": 500 }
+      ],
+      "StartingStock": []
+    },
+    {
+      "Id": "ironworks",
+      "Kind": "Ironworks",
+      "X": 58,
+      "Y": 52,
+      "Width": 2,
+      "Height": 2,
+      "MaximumHealth": 0,
+      "Capacities": [ { "Item": "Iron", "Quantity": 60 } ],
+      "StartingStock": []
+    },
+    {
+      "Id": "ammunition-factory",
+      "Kind": "AmmunitionFactory",
+      "X": 66,
+      "Y": 52,
+      "Width": 3,
+      "Height": 3,
+      "MaximumHealth": 0,
+      "Capacities": [ { "Item": "Plate", "Quantity": 5 } ],
+      "StartingStock": []
+    },
+    {
+      "Id": "outpost",
+      "Kind": "Outpost",
+      "X": 62,
+      "Y": 101,
+      "Width": 4,
+      "Height": 4,
+      "MaximumHealth": 5000,
+      "Capacities": [
+        { "Item": "Iron", "Quantity": 500 },
+        { "Item": "Plate", "Quantity": 500 },
+        { "Item": "Ammunition", "Quantity": 500 }
+      ],
+      "StartingStock": []
+    },
+    {
+      "Id": "turret",
+      "Kind": "Turret",
+      "X": 64,
+      "Y": 109,
+      "Width": 1,
+      "Height": 1,
+      "MaximumHealth": 1000,
+      "Capacities": [ { "Item": "Ammunition", "Quantity": 60 }, { "Item": "Iron", "Quantity": 20 }, { "Item": "Plate", "Quantity": 5 } ],
+      "StartingStock": [ { "Item": "Ammunition", "Quantity": 60 } ]
+    }
+  ],
+  "BuildableFacilities": [
+    {
+      "Id": "ironworks", "Kind": "Ironworks", "Width": 2, "Height": 2,
+      "Capacities": [ { "Item": "Iron", "Quantity": 60 }, { "Item": "Plate", "Quantity": 60 } ],
+      "RestockTargets": [ { "Item": "Iron", "Quantity": 60 } ],
+      "ConstructionCosts": [ { "Item": "Iron", "Quantity": 20 } ], "ConstructionMilliseconds": 3000
+    },
+    {
+      "Id": "ammunition-factory", "Kind": "AmmunitionFactory", "Width": 3, "Height": 3,
+      "Capacities": [ { "Item": "Plate", "Quantity": 60 }, { "Item": "Ammunition", "Quantity": 60 } ],
+      "RestockTargets": [ { "Item": "Plate", "Quantity": 5 } ],
+      "ConstructionCosts": [ { "Item": "Iron", "Quantity": 20 }, { "Item": "Plate", "Quantity": 5 } ], "ConstructionMilliseconds": 3000
+    },
+    {
+      "Id": "turret", "Kind": "Turret", "Width": 1, "Height": 1, "MaximumHealth": 1000,
+      "Capacities": [ { "Item": "Ammunition", "Quantity": 60 }, { "Item": "Iron", "Quantity": 20 }, { "Item": "Plate", "Quantity": 5 } ],
+      "RestockTargets": [ { "Item": "Ammunition", "Quantity": 60 } ],
+      "ConstructionCosts": [ { "Item": "Iron", "Quantity": 20 }, { "Item": "Plate", "Quantity": 5 } ], "ConstructionMilliseconds": 3000
+    },
+    {
+      "Id": "miner", "Kind": "Miner", "Width": 2, "Height": 2,
+      "Capacities": [ { "Item": "Ore", "Quantity": 60 } ],
+      "ConstructionCosts": [ { "Item": "Iron", "Quantity": 20 }, { "Item": "Plate", "Quantity": 5 } ], "ConstructionMilliseconds": 3000
+    },
+    {
+      "Id": "refinery", "Kind": "Refinery", "Width": 3, "Height": 3,
+      "Capacities": [ { "Item": "Ore", "Quantity": 60 }, { "Item": "Crystal", "Quantity": 60 } ],
+      "RestockTargets": [ { "Item": "Ore", "Quantity": 60 } ],
+      "ConstructionCosts": [ { "Item": "Iron", "Quantity": 20 }, { "Item": "Plate", "Quantity": 5 } ], "ConstructionMilliseconds": 3000
+    },
+    {
+      "Id": "conveyor", "Kind": "Conveyor", "Width": 1, "Height": 1, "MaximumHealth": 100,
+      "Capacities": [], "ConstructionCosts": [ { "Item": "Iron", "Quantity": 1 } ], "ConstructionMilliseconds": 100
+    },
+    {
+      "Id": "splitter", "Kind": "Splitter", "Width": 1, "Height": 1, "MaximumHealth": 200,
+      "Capacities": [], "ConstructionCosts": [ { "Item": "Iron", "Quantity": 5 } ], "ConstructionMilliseconds": 3000
+    },
+    {
+      "Id": "merger", "Kind": "Merger", "Width": 1, "Height": 1, "MaximumHealth": 200,
+      "Capacities": [], "ConstructionCosts": [ { "Item": "Iron", "Quantity": 5 } ], "ConstructionMilliseconds": 3000
+    }
+  ],
+  "OreNodes": [
+    { "Id": "ore-west", "X": 20, "Y": 25 },
+    { "Id": "ore-east", "X": 105, "Y": 57 },
+    { "Id": "ore-south", "X": 25, "Y": 87 }
+  ],
+  "MountainRegions": [
+    { "X": 0, "Y": 0, "Width": 58, "Height": 2 },
+    { "X": 68, "Y": 0, "Width": 60, "Height": 2 },
+    { "X": 0, "Y": 126, "Width": 58, "Height": 2 },
+    { "X": 68, "Y": 126, "Width": 60, "Height": 2 },
+    { "X": 0, "Y": 2, "Width": 2, "Height": 109 },
+    { "X": 0, "Y": 118, "Width": 2, "Height": 8 },
+    { "X": 126, "Y": 2, "Width": 2, "Height": 109 },
+    { "X": 126, "Y": 118, "Width": 2, "Height": 8 },
+    { "X": 34, "Y": 113, "Width": 14, "Height": 8 },
+    { "X": 80, "Y": 113, "Width": 14, "Height": 8 },
+    { "X": 17, "Y": 104, "Width": 8, "Height": 5 },
+    { "X": 103, "Y": 104, "Width": 8, "Height": 5 }
+  ],
+  "EnemyEntryPoints": [
+    { "Id": "west", "Edge": "West", "X": 0, "Y": 114 },
+    { "Id": "north", "Edge": "North", "X": 64, "Y": 127 },
+    { "Id": "east", "Edge": "East", "X": 127, "Y": 114 }
+  ],
+  "SubsidyTiers": [
+    { "ExportThreshold": 0, "Amount": 100 },
+    { "ExportThreshold": 100, "Amount": 200 },
+    { "ExportThreshold": 300, "Amount": 300 },
+    { "ExportThreshold": 600, "Amount": 400 },
+    { "ExportThreshold": 1000, "Amount": 500 }
+  ]
+}

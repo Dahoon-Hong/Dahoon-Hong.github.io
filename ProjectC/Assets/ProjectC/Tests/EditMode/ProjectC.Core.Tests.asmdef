@@ -1,0 +1,21 @@
+{
+  "name": "ProjectC.Core.Tests",
+  "rootNamespace": "ProjectC.Core.Tests",
+  "references": [
+    "ProjectC.Core"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}

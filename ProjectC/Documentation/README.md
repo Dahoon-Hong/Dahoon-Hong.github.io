@@ -2,6 +2,8 @@
 
 Project C의 요구사항과 작업 기준은 이 브랜치의 문서로 관리합니다. 이후 구현과 변경은 먼저 이 로컬 문서를 확인하고 갱신합니다. Notion은 최초 자료의 출처로 보존합니다.
 
+- [Unity 프로젝트 환경과 현재 기술 경계](UnityProjectContext.md)
+
 ## 작업 시작 순서
 
 1. [Project C 작업 지침](../AGENTS.md)
@@ -18,7 +20,7 @@ Project C의 요구사항과 작업 기준은 이 브랜치의 문서로 관리�
 
 압축을 푼 Markdown과 JSON을 브랜치에 보존했습니다. 압축 해제 시 20개 Markdown의 SHA-256이 원문 해시와 모두 일치함을 확인했습니다. planning.md의 Notion 이미지 블록은 로컬 PNG 링크로 바꾸었고, 저장소 공백 검사에 맞춰 planning.md, planning-baseline.md, planning-history.md 끝의 빈 줄을 정리했습니다. 원본 해시와 페이지 ID/URL은 notion-source-index.json에 유지했습니다.
 
-ZIP 자체는 캐시에서만 사용하고 압축을 푼 31개 파일을 브랜치에 포함했습니다. ZIP에 없던 UI 와이어프레임 PNG는 Notion 첨부에서 별도로 받아 [assets 폴더](Notion-Q-494/assets/project-c-ui-wireframes-01.png)에 넣었습니다. [planning.md](Notion-Q-494/source/planning.md)에서도 로컬 이미지를 볼 수 있습니다. 배치·색·예시 수치·통계는 검토용 제안이며 확정 요구와 구분합니다.
+ZIP 자체는 캐시에서만 사용하고 압축을 푼 31개 파일을 브랜치에 포함했습니다. ZIP에 포함되지 않았던 UI 와이어프레임과 지도 배치 PNG는 Notion 첨부에서 받아 [assets 폴더](Notion-Q-494/assets)에 넣었습니다. 지도 원문의 좌표·진입점·산 영역은 [지도 초안 기록](Notion-Q-494/maps/map-layout-draft-01.md)에 출처와 함께 요약했습니다. [planning.md](Notion-Q-494/source/planning.md)에서도 UI 로컬 이미지를 볼 수 있습니다. 배치·색·예시 수치·통계는 검토용 제안이며 확정 요구와 구분합니다.
 
 ## 문서 변경 원칙
 

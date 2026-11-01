@@ -1,6 +1,6 @@
 # Plan 1: Project C MVP
 
-- **Status:** Planned
+- **Status:** In Progress
 - **Branch:** `defence_c` (parentless baseline)
 - **Created:** 2026-11-01
 - **Purpose:** Implement and verify the complete first playable Project C release.
@@ -40,6 +40,17 @@ without rendering a Unity scene.
   exported, departure strictly before 3,900 game seconds, and outpost destruction
   as a loss. At the exact event boundaries, apply
   [event-rules.md](../../../ProjectC/Documentation/Notion-Q-494/source/event-rules.md).
+- Preserve the opening timetable and actual state changes: first 100-iron order
+  with 100 prepaid from 500 funds, sequential unloading at 20 items per game
+  second, next regular order at 120 seconds for a ship due at 180 seconds, and
+  100 support at 180 seconds when nothing has been exported. The first wave has
+  10 enemies at 300 seconds; the starting turret holds 60 ammunition. Use the
+  confirmed five-drone assignment of four production and one combat.
+- Preserve the confirmed basic production rates: one iron becomes one plate in
+  one second; one plate becomes twelve ammunition in twelve seconds. The outpost
+  must receive ammunition before combat-area drones can deliver it to a turret.
+  Export only cargo committed at actual departure; partial available cargo may
+  ship under the existing contract rules.
 - Provide the confirmed play, port contract, settings, and result flows. Support
   Korean and English, minimum 1280×720, adjustable UI scale, window/fullscreen
   modes, key remapping with duplicate-binding prevention, audio controls, pause
@@ -137,9 +148,12 @@ settlement match core state.
   turret targeting/ammunition/damage, drone work, construction, repair, demolition,
   supply, contracts, and the win/loss state.
 - Implement all applicable acceptance criteria in
+  [planning.md](../../../ProjectC/Documentation/Notion-Q-494/source/planning.md),
+  including `AC-UI-001` through `AC-UI-028`, and the runtime scenarios in
   [play-flow.md](../../../ProjectC/Documentation/Notion-Q-494/source/play-flow.md)
-  and [ui-flow.md](../../../ProjectC/Documentation/Notion-Q-494/source/ui-flow.md),
-  including onboarding that can be skipped without granting resources or automating
+  and `UF-01` through `UF-30` in
+  [ui-flow.md](../../../ProjectC/Documentation/Notion-Q-494/source/ui-flow.md).
+  Onboarding must be skippable without granting resources or automating
   production/transport.
 - Complete the four confirmed screens, settings persistence, Korean/English text,
   minimum-resolution layout, selection/placement feedback, facility detail and
@@ -197,7 +211,7 @@ a pass or skip.
 | CORE-03 | Time and event precedence | Pause and 1×/2×/4× preserve rules; EV-01 through EV-07 in `event-rules.md` produce their documented outcomes. |
 | FLOW-01 | End-to-end playable loop | Import → production → outpost/turret supply → defense → mining/refining → actual ship departure settlement. |
 | GAME-01 | Full match and outcome | 30-wave schedule; victory only after 2,000 crystals are actually exported before 3,900 game seconds with outpost alive; outpost loss wins precedence. |
-| UI-01 | Source interface acceptance | All applicable `AC-UI-*` scenarios in `ui-flow.md`, Korean/English, minimum 1280×720, supported scale, input and settings behavior. |
+| UI-01 | Source interface acceptance | All applicable `AC-UI-001`–`AC-UI-028` criteria in `planning.md` and all `UF-01`–`UF-30` scenarios in `ui-flow.md`; Korean/English, minimum 1280×720, supported scale, input and settings behavior. UF-13 covers all 16 combinations of language, 1280×720/1920×1080, and four UI scales. |
 | VIS-01 | Scene/UI rendering | Fixed orthographic camera, scene pixel feel, crisp text/UI, selection identity, representative models and terrain, zoom readability. |
 | RUN-01 | Windows offline ZIP | Exact packaged build launches and completes the applicable play, settings, restart, and result flows without network access. |
 | PERF-01 | Performance target | Recorded 1080p measurements at 1×/2×/4× on the target integrated-GPU/8-GB class; report whether each meets 60 FPS. |

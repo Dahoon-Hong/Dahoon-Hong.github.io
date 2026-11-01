@@ -63,6 +63,8 @@
 
 압축 파일 자체는 브랜치에 포함하지 않았지만 ZIP 안의 Markdown과 JSON 31개는 source 폴더에 풀어 저장했습니다. ZIP에 없던 UI 와이어프레임은 Notion 첨부에서 별도로 받아 [project-c-ui-wireframes-01.png](assets/project-c-ui-wireframes-01.png)에 포함했습니다. 이 이미지는 플레이·항구 계약·설정·결과 화면 배치 검토용입니다. 색, 간격, 예시 수치와 통계는 확정 요구가 아닙니다.
 
+지도 배치 원문 페이지에 별도로 첨부된 [지도 초안 PNG](assets/project-c-map-draft-01.png)도 추가 보존했습니다. 좌표·진입점·산 영역과 원문 페이지의 상태는 [지도 초안 기록](maps/map-layout-draft-01.md)을 따릅니다. Notion ZIP에 있던 31개 파일은 수정하지 않았습니다.
+
 ## Project C 계획 문서
 
 - 현재 확정 기획: [planning.md](source/planning.md)
