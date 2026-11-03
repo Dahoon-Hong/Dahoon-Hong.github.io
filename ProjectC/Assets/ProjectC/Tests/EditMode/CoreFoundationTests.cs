@@ -260,6 +260,53 @@ namespace ProjectC.Core.Tests
         }
 
         [Test]
+        public void BlockedEntryQueuesPriorWaveWhileOtherEntriesContinueIndependently()
+        {
+            GameSimulation simulation = GameSimulation.CreateNewMatch();
+            simulation.World.Facilities.Add(new FacilityState("west-entry-blocker", FacilityKind.Turret,
+                new GridPosition(0, 114), new InventoryStore("west-entry-blocker.inventory"), 1_000));
+
+            simulation.AdvanceGameMilliseconds(300_000);
+            Assert.That(simulation.World.Enemies.FindAll(enemy => enemy.WaveNumber == 1).Count, Is.EqualTo(6));
+
+            simulation.AdvanceGameMilliseconds(120_000);
+
+            Assert.That(simulation.World.HighestWaveReached, Is.EqualTo(2));
+            Assert.That(simulation.World.Enemies.Exists(enemy => enemy.WaveNumber == 2 && enemy.EntryIndex != 0),
+                Is.True, "Unblocked entry queues should spawn the second wave on schedule.");
+            Assert.That(simulation.World.Enemies.Exists(enemy => enemy.WaveNumber == 2 && enemy.EntryIndex == 0),
+                Is.False, "The blocked entry must keep its first-wave batch ahead of the second wave.");
+
+            // Isolate the queued-spawn assertions from movement and combat of already-observed enemies.
+            simulation.World.Enemies.Clear();
+            simulation.World.Facilities.RemoveAt(simulation.World.Facilities.Count - 1);
+            simulation.AdvanceGameMilliseconds(500);
+
+            int firstWaveEntryCount = simulation.World.Definitions.SplitWaveAcrossEntries(1)[0];
+            int firstWaveFirstGroupCount = Math.Min(firstWaveEntryCount,
+                simulation.World.Definitions.MaximumEnemiesPerEntrySpawn);
+            Assert.That(simulation.World.Enemies.FindAll(enemy => enemy.EntryIndex == 0 && enemy.WaveNumber == 1)
+                .Count, Is.EqualTo(firstWaveFirstGroupCount));
+            Assert.That(simulation.World.Enemies.Exists(enemy => enemy.EntryIndex == 0 && enemy.WaveNumber == 2),
+                Is.False, "The queued second wave must wait for the previous batch to spawn.");
+
+            simulation.World.Enemies.Clear();
+            simulation.AdvanceGameMilliseconds(simulation.World.Definitions.WaveSpawnIntervalMilliseconds);
+
+            Assert.That(simulation.World.Enemies.FindAll(enemy => enemy.EntryIndex == 0 && enemy.WaveNumber == 1)
+                .Count, Is.EqualTo(firstWaveEntryCount - firstWaveFirstGroupCount));
+            Assert.That(simulation.World.Enemies.Exists(enemy => enemy.EntryIndex == 0 && enemy.WaveNumber == 2),
+                Is.False, "The second wave must wait for the previous wave's remaining enemy.");
+
+            // Free the spawn area after observing the prior batch so occupancy cannot delay the queued batch.
+            simulation.World.Enemies.Clear();
+            simulation.AdvanceGameMilliseconds(simulation.World.Definitions.WaveSpawnIntervalMilliseconds);
+
+            Assert.That(simulation.World.Enemies.Exists(enemy => enemy.EntryIndex == 0 && enemy.WaveNumber == 2),
+                Is.True, "The queued second-wave batch must remain and spawn after the first batch.");
+        }
+
+        [Test]
         public void MovingEnemiesStayInsideCombatTerrainAndDoNotOverlap()
         {
             GameSimulation simulation = GameSimulation.CreateNewMatch();

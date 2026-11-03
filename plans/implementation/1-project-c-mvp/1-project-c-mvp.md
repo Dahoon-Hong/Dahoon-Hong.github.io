@@ -106,6 +106,53 @@ without rendering a Unity scene.
    checking the current project packages. Do not add a package unless the project
    needs it.
 
+## Fast verification cadence
+
+Keep the required scenarios below as release gates while shortening the
+implementation feedback loop:
+
+- For simulation-only changes, run affected EditMode tests or a focused test
+  filter before building a Player. The Unity CLI installed for this worktree is
+  `1.0.0-beta.15`; the project Editor is `6000.2.14f1`. From the repository root,
+  an affected run is:
+
+  ```powershell
+  unity --no-banner --color never --format json test ProjectC --mode EditMode --affected --output ProjectC/Builds/Verification-fast/EditMode-affected.xml --editor-version 6000.2.14f1 --timeout 600 -- -nographics
+  ```
+
+  Use `--filter <test-name-pattern>` for a known focused test. Drop `--affected`
+  or the filter for a full EditMode suite. Keep the XML report with the run so
+  failures and the affected-test selection remain reviewable.
+- Keep the Unity Editor open during active code iterations and use its Test Runner
+  to rerun the focused or failed EditMode tests. The measured test body took
+  3.01 seconds while a cold headless CLI invocation spent about 43 seconds
+  starting/importing the Editor; starting a new CLI process for every small edit
+  repeats that larger cost. Keep the existing `Library` cache between runs.
+  `--affected` is based on the diff from `HEAD`, but this project's
+  `ProjectC.Core.Tests` assembly references only `ProjectC.Core`; a change isolated
+  to `ProjectC.Runtime` UI code may therefore select no relevant tests. Compile
+  the Editor and verify those changes in a Player instead of treating an empty
+  affected-test selection as coverage.
+- Rebuild a Player after a batch of runtime, presentation, or platform changes,
+  rather than after each simulation-only edit. Then group applicable UI and
+  runtime checks into the same Standalone QA session. Run the 16 UF-13 language,
+  resolution, and scale combinations in that session when the runtime controls
+  permit; otherwise use one session per resolution and cycle language and scale
+  without relaunching for each combination.
+  After the batch build, reuse the executable for visual iterations with
+  `unity build run ProjectC --build-path ProjectC/Builds/Windows64/MVP/ProjectC.exe`
+  (or launch that executable directly); this command runs the latest existing
+  build without rebuilding it.
+- A WebGL build can support quick supplemental smoke checks, but it does not
+  replace required Windows Standalone evidence or the offline ZIP checks.
+
+Baseline measured on 2026-11-03: the full EditMode suite passed 33/33; test
+execution took 3.01 seconds and the first headless Editor startup/import took
+about 43 seconds. The first sandboxed launch crashed while starting
+`BuildReportRestService` on a local socket; rerunning the same command outside
+that process sandbox completed successfully. This is an environment startup
+constraint, not a test failure.
+
 ## Implementation phases
 
 ### Phase 1 — Project baseline and simulation foundation

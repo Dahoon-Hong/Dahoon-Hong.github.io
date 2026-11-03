@@ -23,6 +23,13 @@ namespace ProjectC.Runtime
         private Vector2 baseReferenceResolution;
         private Action closeCallback;
         private GameObject panelObject;
+        private RectTransform panelRect;
+        private RectTransform titleRect;
+        private RectTransform closeButtonRect;
+        private UI.ScrollRect scrollRect;
+        private int lastScreenWidth = -1;
+        private int lastScreenHeight = -1;
+        private float lastScaleFactor = -1f;
         private Font font;
         private UI.Text languageText;
         private UI.Text screenModeText;
@@ -94,6 +101,9 @@ namespace ProjectC.Runtime
             languageDraft = string.Equals(appliedLanguage, "ko", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
             RefreshLabels();
             panelObject.SetActive(true);
+            RefreshViewport(true);
+            scrollRect.StopMovement();
+            scrollRect.verticalNormalizedPosition = 1f;
         }
 
         public void Close()
@@ -107,6 +117,7 @@ namespace ProjectC.Runtime
         private void Update()
         {
             if (!IsOpen) return;
+            RefreshViewport();
             Keyboard keyboard = Keyboard.current;
             if (keyboard == null) return;
 
@@ -147,9 +158,15 @@ namespace ProjectC.Runtime
         {
             panelObject = CreatePanel(canvas.transform, "Project C Settings", Vector2.zero,
                 new Vector2(760f, 760f), Backdrop).gameObject;
-            RectTransform panel = panelObject.GetComponent<RectTransform>();
-            CreateText(panel, "Settings Title", "SETTINGS", 30f, 700f, 560f, 36f, TextColor, 24);
-            CreateButton(panel, "Close Settings", "×", 685f, 699f, 42f, 36f, CloseFromButton);
+            panelRect = panelObject.GetComponent<RectTransform>();
+            RectTransform content = CreateScrollContent(panelRect);
+            RectTransform panel = content;
+            CreateSettingsHeader(panelRect);
+            CreateSettingsScrollbar(panelRect, scrollRect);
+            titleRect = CreateText(panelRect, "Settings Title", "SETTINGS", 30f, 700f, 560f, 36f,
+                TextColor, 24).GetComponent<RectTransform>();
+            closeButtonRect = CreateButton(panelRect, "Close Settings", "×", 685f, 699f, 42f, 36f,
+                CloseFromButton).GetComponent<RectTransform>();
 
             CreateText(panel, "Language Label", "Language", 32f, 648f, 185f, 32f, TextColor, 16);
             languageText = CreateText(panel, "Language Value", string.Empty, 300f, 648f, 180f, 32f, Teal, 16);
@@ -538,6 +555,7 @@ namespace ProjectC.Runtime
             float divisor = percent / 100f;
             canvasScaler.referenceResolution = new Vector2(baseReferenceResolution.x / divisor,
                 baseReferenceResolution.y / divisor);
+            RefreshViewport(true);
         }
 
         private Key ReadBinding(string name, Key fallback)
@@ -581,6 +599,131 @@ namespace ProjectC.Runtime
             rect.sizeDelta = size;
             panel.GetComponent<UI.Image>().color = color;
             return rect;
+        }
+
+        private RectTransform CreateScrollContent(RectTransform panel)
+        {
+            var scrollObject = new GameObject("Settings Scroll View", typeof(RectTransform), typeof(UI.ScrollRect));
+            scrollObject.transform.SetParent(panel, false);
+            RectTransform scrollView = scrollObject.GetComponent<RectTransform>();
+            scrollView.anchorMin = Vector2.zero;
+            scrollView.anchorMax = Vector2.one;
+            scrollView.offsetMin = Vector2.zero;
+            scrollView.offsetMax = Vector2.zero;
+
+            var viewportObject = new GameObject("Settings Viewport", typeof(RectTransform), typeof(UI.Image),
+                typeof(UI.RectMask2D));
+            viewportObject.transform.SetParent(scrollView, false);
+            RectTransform viewport = viewportObject.GetComponent<RectTransform>();
+            viewport.anchorMin = Vector2.zero;
+            viewport.anchorMax = Vector2.one;
+            viewport.offsetMin = Vector2.zero;
+            viewport.offsetMax = Vector2.zero;
+            UI.Image viewportImage = viewportObject.GetComponent<UI.Image>();
+            viewportImage.color = Color.clear;
+
+            var contentObject = new GameObject("Settings Content", typeof(RectTransform));
+            contentObject.transform.SetParent(viewport, false);
+            RectTransform content = contentObject.GetComponent<RectTransform>();
+            content.anchorMin = new Vector2(0.5f, 1f);
+            content.anchorMax = new Vector2(0.5f, 1f);
+            content.pivot = new Vector2(0.5f, 1f);
+            content.anchoredPosition = Vector2.zero;
+            content.sizeDelta = new Vector2(760f, 760f);
+
+            scrollRect = scrollObject.GetComponent<UI.ScrollRect>();
+            scrollRect.viewport = viewport;
+            scrollRect.content = content;
+            scrollRect.horizontal = false;
+            scrollRect.vertical = true;
+            scrollRect.inertia = false;
+            scrollRect.movementType = UI.ScrollRect.MovementType.Clamped;
+            scrollRect.scrollSensitivity = 36f;
+            return content;
+        }
+
+        private static void CreateSettingsScrollbar(RectTransform viewport, UI.ScrollRect target)
+        {
+            var scrollbarObject = new GameObject("Settings Scrollbar", typeof(RectTransform), typeof(UI.Image),
+                typeof(UI.Scrollbar));
+            scrollbarObject.transform.SetParent(viewport, false);
+            RectTransform scrollbarRect = scrollbarObject.GetComponent<RectTransform>();
+            scrollbarRect.anchorMin = new Vector2(1f, 0f);
+            scrollbarRect.anchorMax = new Vector2(1f, 1f);
+            scrollbarRect.pivot = new Vector2(1f, 0.5f);
+            scrollbarRect.anchoredPosition = new Vector2(-8f, 0f);
+            scrollbarRect.sizeDelta = new Vector2(8f, -48f);
+
+            UI.Image track = scrollbarObject.GetComponent<UI.Image>();
+            track.color = new Color32(72, 96, 108, 180);
+            var handleObject = new GameObject("Handle", typeof(RectTransform), typeof(UI.Image));
+            handleObject.transform.SetParent(scrollbarObject.transform, false);
+            RectTransform handleRect = handleObject.GetComponent<RectTransform>();
+            handleRect.anchorMin = Vector2.zero;
+            handleRect.anchorMax = Vector2.one;
+            handleRect.sizeDelta = new Vector2(-2f, -2f);
+            handleRect.anchoredPosition = Vector2.zero;
+            UI.Image handleImage = handleObject.GetComponent<UI.Image>();
+            handleImage.color = Teal;
+
+            UI.Scrollbar scrollbar = scrollbarObject.GetComponent<UI.Scrollbar>();
+            scrollbar.handleRect = handleRect;
+            scrollbar.targetGraphic = handleImage;
+            scrollbar.direction = UI.Scrollbar.Direction.BottomToTop;
+            target.verticalScrollbar = scrollbar;
+            target.verticalScrollbarVisibility = UI.ScrollRect.ScrollbarVisibility.AutoHide;
+        }
+
+        private static void CreateSettingsHeader(RectTransform panel)
+        {
+            var headerObject = new GameObject("Settings Header", typeof(RectTransform), typeof(UI.Image));
+            headerObject.transform.SetParent(panel, false);
+            RectTransform headerRect = headerObject.GetComponent<RectTransform>();
+            headerRect.anchorMin = new Vector2(0f, 1f);
+            headerRect.anchorMax = Vector2.one;
+            headerRect.pivot = new Vector2(0.5f, 1f);
+            headerRect.anchoredPosition = Vector2.zero;
+            headerRect.sizeDelta = new Vector2(0f, 72f);
+            UI.Image headerImage = headerObject.GetComponent<UI.Image>();
+            headerImage.color = Backdrop;
+            headerImage.raycastTarget = false;
+        }
+
+        private void RefreshViewport(bool force = false)
+        {
+            if (panelRect == null || canvasScaler == null || canvas == null) return;
+
+            float scaleFactor = CalculateCanvasScaleFactor();
+            float screenHeight = Screen.height;
+            if (!force && lastScreenWidth == Screen.width && lastScreenHeight == Screen.height &&
+                Mathf.Approximately(lastScaleFactor, scaleFactor))
+                return;
+
+            float availableHeight = screenHeight / scaleFactor - 48f;
+            float panelHeight = Mathf.Clamp(availableHeight, 320f, 760f);
+            panelRect.sizeDelta = new Vector2(760f, panelHeight);
+            if (titleRect != null)
+                titleRect.anchoredPosition = new Vector2(30f, panelHeight - 60f);
+            if (closeButtonRect != null)
+                closeButtonRect.anchoredPosition = new Vector2(685f, panelHeight - 61f);
+
+            lastScreenWidth = Screen.width;
+            lastScreenHeight = Screen.height;
+            lastScaleFactor = scaleFactor;
+        }
+
+        private float CalculateCanvasScaleFactor()
+        {
+            if (canvasScaler.uiScaleMode != UI.CanvasScaler.ScaleMode.ScaleWithScreenSize ||
+                Screen.width <= 0 || Screen.height <= 0 ||
+                canvasScaler.referenceResolution.x <= 0f || canvasScaler.referenceResolution.y <= 0f)
+                return Mathf.Max(0.01f, canvasScaler.scaleFactor);
+
+            float widthScale = Screen.width / canvasScaler.referenceResolution.x;
+            float heightScale = Screen.height / canvasScaler.referenceResolution.y;
+            float logScale = Mathf.Lerp(Mathf.Log(widthScale, 2f), Mathf.Log(heightScale, 2f),
+                canvasScaler.matchWidthOrHeight);
+            return Mathf.Max(0.01f, Mathf.Pow(2f, logScale));
         }
 
         private UI.Text CreateText(Transform parent, string name, string value, float x, float y,
