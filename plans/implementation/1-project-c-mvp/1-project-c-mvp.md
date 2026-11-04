@@ -303,3 +303,24 @@ browser DOM checks for native runtime evidence.
 - [x] Create a fresh implementation plan numbered from Plan 1 for this branch.
 - [ ] Implement phases 1–5.
 - [ ] Run the required runtime scenarios and record actual evidence.
+
+### Focused implementation slice — connected FLOW-01 core scenario
+
+**Requirements and scope**
+
+- Add a deterministic EditMode scenario that starts with `GameSimulation.CreateNewMatch()` and uses only the confirmed opening shipment and normal simulation commands; do not inject inventory, add a player-facing short mode, or bypass facility construction.
+- Add a focused core regression that seeds an Outpost exactly at its ammo target and a turret deficit, then verifies automatic combat supply and re-queues production restock after pickup. Keep this isolated setup separate from the zero-inventory connected flow.
+- Coalesce incremental automatic restock requests that share a source, destination, and item, so sequential ship unloading can use the existing drone carry capacity without leaving many one-item jobs.
+- Connect first iron unloading, iron-to-plate production, ammunition production, outpost relay, turret delivery, first-wave combat, ore mining/refining, port loading, and export settlement on actual ship departure.
+- In the connected scenario, set Ironworks Iron and AmmunitionFactory Plate restock targets to 0 before the first simulation tick. After the opening shipment fully unloads, queue a normal Port→Ironworks transfer for 20 Iron and let the Ironworks produce 20 Plates. Place Miner and Refinery only after Ironworks Iron reaches 0; then `ConstructionSystem.QueueMissingMaterials` can batch the sites' combined 40 Iron from Port and 10 Plates from Ironworks without competing for incomplete stock. Restore the AmmunitionFactory Plate target to 5 after construction.
+- Set the Refinery Ore target to 0 before its first simulation tick. Once the completed Miner has produced 10 Ore, queue a normal Miner→Refinery transfer for 10; after the Refinery produces five actual Crystals, lower Miner and Refinery priorities to 3, raise Port to 5, and queue a normal Refinery→Port transfer for five. Let the scheduled export ship load and depart with the batch by the 360-second arrival. The simulation continues through the first wave while these steps advance; lower Outpost priority to 3 after the first confirmed turret resupply. The existing regular-ship test covers the transient partial-loading boundary, while this connected flow checks departure and settlement without polling through a 250 ms loading window.
+- Set the outpost ammunition restock target to one produced batch (12) and raise its existing facility priority to 5 as player commands. With outpost stock exactly at that target, the turret's automatic combat restock must still be allowed to draw ammunition; after the actual outbound pickup, production-side restock can refill the outpost. Raise the new miner and refinery priorities to 5 before their construction requests compete with older restock work.
+- Assert that the connected stock flow remains conserved and export/funds are credited only when the ship departs.
+- Keep this scenario in `ProjectC.Core.Tests` so simulation iterations can use the focused test filter without rebuilding the Windows Player. This is fast regression coverage, not evidence that the required Standalone FLOW-01 runtime scenario has passed.
+
+**Acceptance and verification**
+
+- The test starts with the existing zero-material opening state and reaches each connected stage using existing `GameSimulation` commands and systems.
+- Outpost restock targets protect production-to-outpost automatic restock only; they do not block automatic outpost-to-combat supply even when the outpost is exactly at target, and the production refill resumes after actual stock removal.
+- The focused EditMode test passes; the report records test duration and test XML path. A Player build is not required for this simulation-only slice.
+- The full runtime FLOW-01, native UI, full-match, performance, and offline ZIP gates remain open until separately verified.

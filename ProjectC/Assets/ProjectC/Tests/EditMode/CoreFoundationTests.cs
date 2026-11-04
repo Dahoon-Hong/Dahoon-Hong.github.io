@@ -503,6 +503,213 @@ namespace ProjectC.Core.Tests
         }
 
         [Test]
+        public void OutpostTargetAllowsCombatSupplyAndRequeuesAfterPickup()
+        {
+            GameSimulation simulation = GameSimulation.CreateNewMatch();
+            GameWorld world = simulation.World;
+            FacilityState outpost = world.FindFacility("outpost");
+            FacilityState ammunitionFactory = world.FindFacility("ammunition-factory");
+            FacilityState turret = world.FindFacility("turret");
+
+            simulation.SetRestockTarget(outpost.Id, ItemId.Ammunition, 12);
+            Assert.That(outpost.Inventory.TryAdd(ItemId.Ammunition, 12), Is.True);
+            Assert.That(ammunitionFactory.Inventory.TryAdd(ItemId.Ammunition, 5), Is.True);
+            Assert.That(turret.Inventory.TryRemove(ItemId.Ammunition, 5), Is.True);
+
+            simulation.AdvanceGameMilliseconds(1_000);
+
+            TransportOrder combatRestock = world.TransportOrders.Find(order => order.IsAutomatic &&
+                order.SourceFacilityId == outpost.Id && order.DestinationFacilityId == turret.Id &&
+                order.Item == ItemId.Ammunition);
+            Assert.That(combatRestock, Is.Not.Null,
+                "A full Outpost restock target must not block automatic turret supply.");
+            Assert.That(combatRestock.Quantity, Is.EqualTo(5));
+            Assert.That(outpost.Inventory.GetStock(ItemId.Ammunition), Is.EqualTo(12));
+            Assert.That(turret.Inventory.GetExpectedInbound(ItemId.Ammunition), Is.EqualTo(5));
+
+            simulation.AdvanceGameMilliseconds(4_000);
+
+            Assert.That(outpost.Inventory.GetStock(ItemId.Ammunition), Is.EqualTo(7));
+            Assert.That(world.TransportOrders.Exists(order => order.IsAutomatic &&
+                order.SourceFacilityId == ammunitionFactory.Id && order.DestinationFacilityId == outpost.Id &&
+                order.Item == ItemId.Ammunition && order.Quantity == 5), Is.True,
+                "Production restock resumes after an actual outbound pickup reduces Outpost stock.");
+        }
+
+        [Test]
+        public void AutomaticRestockMergesIncrementalStockIntoOneTransferOrder()
+        {
+            GameSimulation simulation = CreateMatchWithoutAutomaticRestock();
+            GameWorld world = simulation.World;
+            FacilityState port = world.FindFacility("port");
+            FacilityState ironworks = world.FindFacility("ironworks");
+            simulation.SetRestockTarget(ironworks.Id, ItemId.Iron, 60);
+
+            Assert.That(port.Inventory.TryAdd(ItemId.Iron, 1), Is.True);
+            simulation.Transport.Tick(world, 50, 50);
+            Assert.That(port.Inventory.TryAdd(ItemId.Iron, 1), Is.True);
+            simulation.Transport.Tick(world, 100, 50);
+
+            var automaticIronOrders = world.TransportOrders.FindAll(order => order.IsAutomatic &&
+                order.SourceFacilityId == port.Id && order.DestinationFacilityId == ironworks.Id &&
+                order.Item == ItemId.Iron);
+            Assert.That(automaticIronOrders, Has.Count.EqualTo(1));
+            Assert.That(automaticIronOrders[0].Quantity, Is.EqualTo(2));
+            Assert.That(automaticIronOrders[0].ReservedQuantity, Is.EqualTo(2));
+            Assert.That(ironworks.Inventory.GetExpectedInbound(ItemId.Iron), Is.EqualTo(2));
+        }
+
+        [Test]
+        public void ConfirmedOpeningFlowConnectsFirstDefenseToActualCrystalExport()
+        {
+            GameSimulation simulation = GameSimulation.CreateNewMatch();
+            GameWorld world = simulation.World;
+            FacilityState port = world.FindFacility("port");
+            FacilityState ironworks = world.FindFacility("ironworks");
+            FacilityState ammunitionFactory = world.FindFacility("ammunition-factory");
+            FacilityState outpost = world.FindFacility("outpost");
+            FacilityState turret = world.FindFacility("turret");
+
+            Assert.That(port.Inventory.GetStock(ItemId.Iron), Is.Zero);
+            Assert.That(ironworks.Inventory.GetStock(ItemId.Iron), Is.Zero);
+            Assert.That(ammunitionFactory.Inventory.GetStock(ItemId.Plate), Is.Zero);
+            Assert.That(outpost.Inventory.GetStock(ItemId.Ammunition), Is.Zero);
+            Assert.That(turret.Inventory.GetStock(ItemId.Ammunition), Is.EqualTo(60));
+            Assert.That(world.Funds.Balance, Is.EqualTo(400));
+            Assert.That(world.Funds.OutstandingPrepayments, Is.EqualTo(100));
+            Assert.That(ironworks.GetRestockTarget(ItemId.Iron), Is.EqualTo(60));
+            Assert.That(ammunitionFactory.GetRestockTarget(ItemId.Plate), Is.EqualTo(5));
+
+            simulation.SetRestockTarget("outpost", ItemId.Ammunition, 12);
+            simulation.SetFacilityPriority("outpost", 5);
+            simulation.SetRestockTarget(ironworks.Id, ItemId.Iron, 0);
+            simulation.SetRestockTarget(ammunitionFactory.Id, ItemId.Plate, 0);
+            simulation.SetFacilityPriority(ironworks.Id, 5);
+            Assert.That(outpost.GetRestockTarget(ItemId.Ammunition), Is.EqualTo(12));
+            Assert.That(outpost.Priority, Is.EqualTo(5));
+
+            AdvanceUntil(simulation, () => world.ImportShips[0].UnloadedIron == 100,
+                10_000, "opening iron shipment");
+            TransportOrder ironSupply = simulation.QueueTransfer(port.Id, ironworks.Id, ItemId.Iron, 20);
+            AdvanceUntil(simulation, () => ironSupply.DeliveredQuantity == 20 &&
+                    ironworks.Inventory.GetStock(ItemId.Plate) >= 20 &&
+                    ironworks.Inventory.GetStock(ItemId.Iron) == 0,
+                180_000, "ironworks production batch for construction", () => "port iron=" +
+                port.Inventory.GetStock(ItemId.Iron) + ", ironworks iron=" +
+                ironworks.Inventory.GetStock(ItemId.Iron) + ", plates=" +
+                ironworks.Inventory.GetStock(ItemId.Plate) + ", delivered iron=" +
+                ironSupply.DeliveredQuantity + ", orders=" + DescribeTransportOrders(world));
+
+            Assert.That(simulation.TryPlaceFacility(FacilityKind.Miner, new GridPosition(20, 25), 0,
+                out FacilityState miner, out string minerReason), Is.True, minerReason);
+            Assert.That(simulation.TryPlaceFacility(FacilityKind.Refinery, new GridPosition(22, 25), 0,
+                out FacilityState refinery, out string refineryReason), Is.True, refineryReason);
+            simulation.SetFacilityPriority(miner.Id, 5);
+            simulation.SetFacilityPriority(refinery.Id, 5);
+            simulation.SetRestockTarget(refinery.Id, ItemId.Ore, 0);
+            AdvanceUntil(simulation, () => !miner.IsUnderConstruction && !refinery.IsUnderConstruction,
+                600_000, "miner and refinery construction", () =>
+                "miner started=" + miner.IsConstructionStarted + ", building=" + miner.IsUnderConstruction +
+                ", iron=" + miner.Inventory.GetStock(ItemId.Iron) + ", plate=" + miner.Inventory.GetStock(ItemId.Plate) +
+                "; refinery started=" + refinery.IsConstructionStarted + ", building=" + refinery.IsUnderConstruction +
+                ", iron=" + refinery.Inventory.GetStock(ItemId.Iron) + ", plate=" + refinery.Inventory.GetStock(ItemId.Plate) +
+                "; drones=" + DescribeDrones(world) + "; orders=" + DescribeTransportOrders(world));
+            simulation.SetRestockTarget(ammunitionFactory.Id, ItemId.Plate, 5);
+
+            AdvanceUntil(simulation, () => miner.Inventory.GetStock(ItemId.Ore) >= 10,
+                300_000, "a full mined ore transfer batch", () => "miner ore=" +
+                miner.Inventory.GetStock(ItemId.Ore) + ", refinery ore=" + refinery.Inventory.GetStock(ItemId.Ore));
+            TransportOrder oreTransfer = simulation.QueueTransfer(miner.Id, refinery.Id, ItemId.Ore, 10);
+            AdvanceUntil(simulation, () => oreTransfer.DeliveredQuantity == 10,
+                60_000, "ore delivery to refinery", () => "miner ore=" +
+                miner.Inventory.GetStock(ItemId.Ore) + ", refinery ore=" +
+                refinery.Inventory.GetStock(ItemId.Ore) + ", delivered=" + oreTransfer.DeliveredQuantity +
+                ", drones=" + DescribeDrones(world));
+            AdvanceUntil(simulation, () => refinery.Inventory.GetAvailable(ItemId.Crystal) >= 5,
+                60_000, "five produced crystals");
+
+            simulation.SetFacilityPriority(port.Id, 5);
+            simulation.SetFacilityPriority(miner.Id, 3);
+            simulation.SetFacilityPriority(refinery.Id, 3);
+            TransportOrder crystalTransfer = simulation.QueueTransfer(refinery.Id, port.Id, ItemId.Crystal, 5);
+            AdvanceUntil(simulation, () => crystalTransfer.DeliveredQuantity == 5,
+                60_000, "crystal delivery to port", () => "refinery crystal=" +
+                refinery.Inventory.GetStock(ItemId.Crystal) + ", reserved=" +
+                refinery.Inventory.GetReserved(ItemId.Crystal) + ", port crystal=" +
+                port.Inventory.GetStock(ItemId.Crystal) + ", delivered=" + crystalTransfer.DeliveredQuantity +
+                ", order reserved=" + crystalTransfer.ReservedQuantity + ", transit=" +
+                crystalTransfer.InTransitQuantity + ", drones=" + DescribeDrones(world) +
+                ", orders=" + DescribeTransportOrders(world));
+            Assert.That(port.Inventory.GetStock(ItemId.Crystal), Is.GreaterThanOrEqualTo(5));
+
+            int exportsBeforeDeparture = world.ExportedCrystals;
+            long latestAcceptableArrival = world.Definitions.ImportShipIntervalMilliseconds * 2L;
+            int shipDepartureTimeout = (int)Math.Max(0,
+                latestAcceptableArrival + world.Definitions.ShipDockLimitMilliseconds + 5_000 -
+                simulation.CurrentMilliseconds);
+            AdvanceUntil(simulation, () => world.ExportedCrystals >= exportsBeforeDeparture + 5,
+                shipDepartureTimeout, "scheduled ship export departure", () => "time=" + simulation.CurrentMilliseconds +
+                ", port crystal=" + port.Inventory.GetStock(ItemId.Crystal) +
+                ", exports=" + world.ExportedCrystals + ", ships=" + DescribeImportShips(world));
+
+            ImportShipState exportingShip = world.ImportShips.Find(ship =>
+                ship.Phase == ImportShipPhase.Departed && ship.LoadedCrystal > 0);
+            Assert.That(exportingShip, Is.Not.Null);
+            Assert.That(exportingShip.LoadedCrystal, Is.EqualTo(5));
+            Assert.That(exportingShip.ArrivalMilliseconds, Is.LessThanOrEqualTo(latestAcceptableArrival));
+            Assert.That(world.Events.Exists(entry => entry.Category == "export" &&
+                entry.Detail == exportingShip.Id + ":departed-crystal:" + exportingShip.LoadedCrystal), Is.True);
+            Assert.That(crystalTransfer.State, Is.EqualTo(TransportOrderState.Completed));
+
+            AdvanceUntil(simulation, () => simulation.Production.GetProgress("ammunition-factory").CompletedCycles > 0,
+                240_000, "ammunition production", () => "ironworks plate=" +
+                ironworks.Inventory.GetStock(ItemId.Plate) + ", factory plate=" +
+                ammunitionFactory.Inventory.GetStock(ItemId.Plate) + ", factory target=" +
+                ammunitionFactory.GetRestockTarget(ItemId.Plate) + ", orders=" + DescribeTransportOrders(world));
+            AdvanceUntil(simulation, () => SumDeliveredQuantity(world, ammunitionFactory.Id, outpost.Id,
+                    ItemId.Ammunition, true) >= 12,
+                240_000, "twelve ammunition relayed to outpost", () => "factory ammo=" +
+                ammunitionFactory.Inventory.GetStock(ItemId.Ammunition) + ", outpost ammo=" +
+                outpost.Inventory.GetStock(ItemId.Ammunition) + ", inbound=" +
+                outpost.Inventory.GetExpectedInbound(ItemId.Ammunition) + ", target=" +
+                outpost.GetRestockTarget(ItemId.Ammunition) + ", delivered=" +
+                SumDeliveredQuantity(world, ammunitionFactory.Id, outpost.Id, ItemId.Ammunition, true) +
+                ", orders=" + DescribeTransportOrders(world));
+
+            AdvanceUntil(simulation, () => world.Enemies.Exists(enemy =>
+                    enemy.WaveNumber == 1 && !enemy.IsAlive),
+                360_000, "first-wave turret defense");
+
+            Assert.That(world.HighestWaveReached, Is.GreaterThanOrEqualTo(1));
+            AdvanceUntil(simulation, () => world.TransportOrders.Exists(order =>
+                    order.IsAutomatic && order.SourceFacilityId == "outpost" && order.DestinationFacilityId == "turret" &&
+                    order.Item == ItemId.Ammunition && order.DeliveredQuantity > 0),
+                300_000, "outpost ammunition delivery to turret", () => "outpost ammo=" +
+                outpost.Inventory.GetStock(ItemId.Ammunition) + ", expected=" +
+                outpost.Inventory.GetExpectedInbound(ItemId.Ammunition) + ", turret ammo=" +
+                turret.Inventory.GetStock(ItemId.Ammunition) + ", turret expected=" +
+                turret.Inventory.GetExpectedInbound(ItemId.Ammunition) +
+                ", drones=" + DescribeDrones(world) + ", orders=" + DescribeTransportOrders(world));
+            simulation.SetFacilityPriority(outpost.Id, 3);
+            Assert.That(world.Outcome, Is.EqualTo(MatchOutcome.Running));
+
+            int producedCrystal = simulation.Production.GetProgress(refinery.Id).CompletedCycles;
+            int storedCrystal = 0;
+            int inTransitCrystal = 0;
+            for (int i = 0; i < world.Facilities.Count; i++)
+                storedCrystal += world.Facilities[i].Inventory.GetStock(ItemId.Crystal);
+            for (int i = 0; i < world.ImportShips.Count; i++)
+                if (world.ImportShips[i].Phase != ImportShipPhase.Departed)
+                    storedCrystal += world.ImportShips[i].Cargo.GetStock(ItemId.Crystal);
+            for (int i = 0; i < world.TransportOrders.Count; i++)
+                if (world.TransportOrders[i].Item == ItemId.Crystal)
+                    inTransitCrystal += world.TransportOrders[i].InTransitQuantity;
+
+            Assert.That(world.ExportedCrystals + storedCrystal + inTransitCrystal, Is.EqualTo(producedCrystal),
+                "Crystal output must remain accounted for through port loading and ship departure.");
+        }
+
+        [Test]
         public void SimulationPauseAndFourTimesSpeedUseTheSameGameClock()
         {
             GameSimulation simulation = GameSimulation.CreateNewMatch();
@@ -564,6 +771,89 @@ namespace ProjectC.Core.Tests
             definitions.FindBuildableFacility(FacilityKind.Ironworks).RestockTargets = Array.Empty<ItemQuantityData>();
             definitions.FindBuildableFacility(FacilityKind.AmmunitionFactory).RestockTargets = Array.Empty<ItemQuantityData>();
             return GameSimulation.CreateNewMatch(definitions);
+        }
+
+        private static void AdvanceUntil(GameSimulation simulation, Func<bool> condition,
+            int timeoutMilliseconds, string description, Func<string> diagnostics = null)
+        {
+            long deadline = simulation.CurrentMilliseconds + timeoutMilliseconds;
+            while (!condition() && simulation.World.Outcome == MatchOutcome.Running &&
+                   simulation.CurrentMilliseconds < deadline)
+            {
+                long remaining = deadline - simulation.CurrentMilliseconds;
+                simulation.AdvanceGameMilliseconds(Math.Min(1_000, remaining));
+            }
+
+            string diagnosticText = diagnostics == null ? string.Empty : " " + diagnostics();
+            Assert.That(condition(), Is.True, "Timed out waiting for " + description + " at " +
+                simulation.CurrentMilliseconds + " ms; outcome: " + simulation.World.Outcome + "." + diagnosticText);
+        }
+
+        private static int SumDeliveredQuantity(GameWorld world, string sourceId, string destinationId,
+            ItemId item, bool automaticOnly)
+        {
+            int delivered = 0;
+            for (int i = 0; i < world.TransportOrders.Count; i++)
+            {
+                TransportOrder order = world.TransportOrders[i];
+                if (order.SourceFacilityId != sourceId || order.DestinationFacilityId != destinationId ||
+                    order.Item != item || (automaticOnly && !order.IsAutomatic)) continue;
+                delivered += order.DeliveredQuantity;
+            }
+
+            return delivered;
+        }
+
+        private static string DescribeImportShips(GameWorld world)
+        {
+            var summary = new System.Text.StringBuilder();
+            for (int i = 0; i < world.ImportShips.Count; i++)
+            {
+                ImportShipState ship = world.ImportShips[i];
+                if (summary.Length > 0) summary.Append("; ");
+                summary.Append(ship.Id).Append(" phase=").Append(ship.Phase)
+                    .Append(" arrival=").Append(ship.ArrivalMilliseconds)
+                    .Append(" docked=").Append(ship.DockedAtMilliseconds)
+                    .Append(" eligible=").Append(ship.EligibleCrystalToLoad)
+                    .Append(" loaded=").Append(ship.LoadedCrystal)
+                    .Append(" remainingIron=").Append(ship.RemainingIron);
+            }
+
+            return summary.ToString();
+        }
+
+        private static string DescribeTransportOrders(GameWorld world)
+        {
+            var summary = new System.Text.StringBuilder();
+            for (int i = 0; i < world.TransportOrders.Count; i++)
+            {
+                TransportOrder order = world.TransportOrders[i];
+                if (order.State == TransportOrderState.Completed || order.State == TransportOrderState.Cancelled)
+                    continue;
+                if (summary.Length > 0) summary.Append("; ");
+                summary.Append(order.SourceFacilityId).Append("->").Append(order.DestinationFacilityId)
+                    .Append(':').Append(order.Item).Append(" state=").Append(order.State)
+                    .Append(" delivered=").Append(order.DeliveredQuantity)
+                    .Append(" reserved=").Append(order.ReservedQuantity)
+                    .Append(" transit=").Append(order.InTransitQuantity);
+            }
+
+            return summary.ToString();
+        }
+
+        private static string DescribeDrones(GameWorld world)
+        {
+            var summary = new System.Text.StringBuilder();
+            for (int i = 0; i < world.Drones.Count; i++)
+            {
+                DroneState drone = world.Drones[i];
+                if (summary.Length > 0) summary.Append("; ");
+                summary.Append(drone.Id).Append(" available=").Append(drone.IsAvailable)
+                    .Append(" task=").Append(drone.ActiveTransportOrderId ?? drone.ActiveConstructionSiteId ?? "none")
+                    .Append(" position=").Append(drone.PositionX).Append(',').Append(drone.PositionY);
+            }
+
+            return summary.ToString();
         }
     }
 }

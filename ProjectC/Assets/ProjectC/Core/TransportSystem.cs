@@ -33,7 +33,7 @@ namespace ProjectC.Core
         public string SourceRecoveryPileId { get; }
         public string DestinationFacilityId { get; }
         public ItemId Item { get; }
-        public int Quantity { get; }
+        public int Quantity { get; private set; }
         public int DeliveredQuantity { get; internal set; }
         public int ReservedQuantity { get; internal set; }
         public int InTransitQuantity { get; internal set; }
@@ -45,6 +45,12 @@ namespace ProjectC.Core
         internal bool IsCancelled { get; set; }
         internal HashSet<string> CancellationFacilityIds { get; }
         internal int RemainingUnassigned => Quantity - DeliveredQuantity - ReservedQuantity - InTransitQuantity - CancelledQuantity;
+
+        internal void AddQuantity(int quantity)
+        {
+            if (quantity <= 0) throw new ArgumentOutOfRangeException(nameof(quantity));
+            Quantity = checked(Quantity + quantity);
+        }
     }
 
     /// <summary>Moves reserved cargo with the confirmed drone capacity and game-time speed.</summary>
@@ -192,16 +198,37 @@ namespace ProjectC.Core
 
                     FacilityState source = FindRestockSource(world, destination, item);
                     if (source == null) continue;
-                    int protectedStock = Math.Min(source.Inventory.GetStock(item),
-                        Math.Max(0, source.GetRestockTarget(item) - source.Inventory.GetExpectedInbound(item)));
+                    int protectedStock = GetProtectedStock(source, destination, item,
+                        world.Definitions.ProductionHeight);
                     int available = Math.Max(0, source.Inventory.GetAvailable(item) - protectedStock);
                     int quantity = Math.Min(deficit, available);
                     if (quantity <= 0) continue;
 
-                    TransportOrder order = QueueTransfer(world, source.Id, destination.Id, item, quantity, currentMilliseconds);
-                    order.IsAutomatic = true;
+                    QueueAutomaticRestock(world, source, destination, item, quantity, currentMilliseconds);
                 }
             }
+        }
+
+        private TransportOrder QueueAutomaticRestock(GameWorld world, FacilityState source,
+            FacilityState destination, ItemId item, int quantity, long currentMilliseconds)
+        {
+            for (int orderIndex = 0; orderIndex < world.TransportOrders.Count; orderIndex++)
+            {
+                TransportOrder existing = world.TransportOrders[orderIndex];
+                if (!existing.IsAutomatic || existing.IsCancelled || existing.CancelledQuantity > 0 ||
+                    existing.State == TransportOrderState.Completed || existing.State == TransportOrderState.Cancelled ||
+                    existing.SourceFacilityId != source.Id || existing.DestinationFacilityId != destination.Id ||
+                    existing.Item != item) continue;
+
+                existing.AddQuantity(quantity);
+                destination.Inventory.AddExpectedInbound(item, quantity);
+                world.Record(currentMilliseconds, "transport", existing.Id + ":restock-extended:" + quantity);
+                return existing;
+            }
+
+            TransportOrder order = QueueTransfer(world, source.Id, destination.Id, item, quantity, currentMilliseconds);
+            order.IsAutomatic = true;
+            return order;
         }
 
         private static FacilityState FindRestockSource(GameWorld world, FacilityState destination, ItemId item)
@@ -218,8 +245,8 @@ namespace ProjectC.Core
                 if (destinationCombat && destination.Kind != FacilityKind.Outpost && source.Kind != FacilityKind.Outpost)
                     continue;
 
-                int protectedStock = Math.Min(source.Inventory.GetStock(item),
-                    Math.Max(0, source.GetRestockTarget(item) - source.Inventory.GetExpectedInbound(item)));
+                int protectedStock = GetProtectedStock(source, destination, item,
+                    world.Definitions.ProductionHeight);
                 if (source.Inventory.GetAvailable(item) <= protectedStock) continue;
                 double dx = (source.Position.X + source.Width * 0.5d) - (destination.Position.X + destination.Width * 0.5d);
                 double dy = (source.Position.Y + source.Height * 0.5d) - (destination.Position.Y + destination.Height * 0.5d);
@@ -230,6 +257,16 @@ namespace ProjectC.Core
             }
 
             return best;
+        }
+
+        private static int GetProtectedStock(FacilityState source, FacilityState destination,
+            ItemId item, int productionHeight)
+        {
+            // Outpost targets govern inbound production restock, not combat-side demand.
+            if (source.Kind == FacilityKind.Outpost && IsCombatFacility(destination, productionHeight)) return 0;
+
+            return Math.Min(source.Inventory.GetStock(item),
+                Math.Max(0, source.GetRestockTarget(item) - source.Inventory.GetExpectedInbound(item)));
         }
 
         private void QueueRecoveryTransfers(GameWorld world, long currentMilliseconds)
