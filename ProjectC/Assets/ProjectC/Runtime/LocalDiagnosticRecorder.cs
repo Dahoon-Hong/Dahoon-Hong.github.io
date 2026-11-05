@@ -69,7 +69,8 @@ namespace ProjectC.Runtime
             });
         }
 
-        public void RecordMeasurement(long gameTimeMilliseconds, string name, double value, string unit)
+        public void RecordMeasurement(long gameTimeMilliseconds, string name, double value, string unit,
+            string details = "")
         {
             Write(new Record
             {
@@ -77,7 +78,28 @@ namespace ProjectC.Runtime
                 gameTimeMilliseconds = gameTimeMilliseconds,
                 name = name ?? string.Empty,
                 value = value.ToString("R", CultureInfo.InvariantCulture),
-                unit = unit ?? string.Empty
+                unit = unit ?? string.Empty,
+                detail = details ?? string.Empty
+            });
+        }
+
+        public void RecordFrameSample(long gameTimeMilliseconds, GameSpeed speed, double framesPerSecond,
+            double averageFrameTimeMilliseconds, double sampleDurationSeconds, int frameCount,
+            int width, int height)
+        {
+            Write(new Record
+            {
+                recordType = "measurement",
+                gameTimeMilliseconds = gameTimeMilliseconds,
+                name = "render_fps",
+                value = framesPerSecond.ToString("R", CultureInfo.InvariantCulture),
+                unit = "frames/s",
+                gameSpeed = (int)speed + "x",
+                averageFrameTimeMilliseconds = averageFrameTimeMilliseconds.ToString("R", CultureInfo.InvariantCulture),
+                sampleDurationSeconds = sampleDurationSeconds.ToString("R", CultureInfo.InvariantCulture),
+                sampleFrameCount = frameCount,
+                screenWidth = width,
+                screenHeight = height
             });
         }
 
@@ -122,6 +144,12 @@ namespace ProjectC.Runtime
                 unityVersion = Application.unityVersion,
                 platform = Application.platform.ToString(),
                 deviceModel = SystemInfo.deviceModel,
+                operatingSystem = SystemInfo.operatingSystem,
+                graphicsDeviceName = SystemInfo.graphicsDeviceName,
+                graphicsMemoryMegabytes = SystemInfo.graphicsMemorySize,
+                systemMemoryMegabytes = SystemInfo.systemMemorySize,
+                screenWidth = Screen.width,
+                screenHeight = Screen.height,
                 gameTimeMilliseconds = simulation.CurrentMilliseconds,
                 mapWidth = definitions.MapWidth,
                 mapHeight = definitions.MapHeight,
@@ -193,6 +221,12 @@ namespace ProjectC.Runtime
             public string unityVersion;
             public string platform;
             public string deviceModel;
+            public string operatingSystem;
+            public string graphicsDeviceName;
+            public int graphicsMemoryMegabytes;
+            public int systemMemoryMegabytes;
+            public int screenWidth;
+            public int screenHeight;
             public long gameTimeMilliseconds;
             public int mapWidth;
             public int mapHeight;
@@ -211,6 +245,10 @@ namespace ProjectC.Runtime
             public string detail;
             public string value;
             public string unit;
+            public string gameSpeed;
+            public string averageFrameTimeMilliseconds;
+            public string sampleDurationSeconds;
+            public int sampleFrameCount;
             public string stackTrace;
             public string outcome;
             public int exportedCrystals;

@@ -82,6 +82,34 @@ namespace ProjectC.Core
             return order;
         }
 
+        public bool RequestDroneRegionChange(GameWorld world, DroneState drone, DroneRegion region,
+            long currentMilliseconds)
+        {
+            if (world == null) throw new ArgumentNullException(nameof(world));
+            if (drone == null) throw new ArgumentNullException(nameof(drone));
+            if (region != DroneRegion.Production && region != DroneRegion.Combat)
+                throw new ArgumentOutOfRangeException(nameof(region));
+            if (drone.PendingRegion == region) return false;
+
+            if (drone.Region == region)
+            {
+                if (!drone.PendingRegion.HasValue) return false;
+                drone.PendingRegion = null;
+                if (drone.IsReturningToOutpost)
+                {
+                    drone.IsReturningToOutpost = false;
+                    drone.IsAvailable = true;
+                }
+                world.Record(currentMilliseconds, "drone", drone.Id + ":region-change-cancelled:" + region);
+                return true;
+            }
+
+            drone.PendingRegion = region;
+            world.Record(currentMilliseconds, "drone", drone.Id + ":region-change-requested:" + drone.Region + "->" + region);
+            if (drone.IsAvailable) StartRegionChangeReturn(world, drone, currentMilliseconds);
+            return true;
+        }
+
         private TransportOrder QueueRecoveryTransfer(GameWorld world, RecoveryPile source, FacilityState destination,
             ItemId item, int quantity, long createdMilliseconds)
         {
@@ -99,6 +127,7 @@ namespace ProjectC.Core
         public void Tick(GameWorld world, long currentMilliseconds, long elapsedMilliseconds)
         {
             if (world == null || elapsedMilliseconds <= 0) return;
+            AdvanceRegionChangeReturns(world, currentMilliseconds, elapsedMilliseconds);
             QueueRestockTransfers(world, currentMilliseconds);
             QueueRecoveryTransfers(world, currentMilliseconds);
             AssignTrips(world, currentMilliseconds);
@@ -196,13 +225,14 @@ namespace ProjectC.Core
                                   destination.Inventory.GetExpectedInbound(item);
                     if (deficit <= 0) continue;
 
-                    FacilityState source = FindRestockSource(world, destination, item);
+                    int minimumBatch = Math.Min(deficit, world.Definitions.DroneCarryCapacity);
+                    FacilityState source = FindRestockSource(world, destination, item, minimumBatch);
                     if (source == null) continue;
                     int protectedStock = GetProtectedStock(source, destination, item,
                         world.Definitions.ProductionHeight);
-                    int available = Math.Max(0, source.Inventory.GetAvailable(item) - protectedStock);
+                    int available = GetUncommittedStock(world, source, item, protectedStock);
                     int quantity = Math.Min(deficit, available);
-                    if (quantity <= 0) continue;
+                    if (quantity < minimumBatch) continue;
 
                     QueueAutomaticRestock(world, source, destination, item, quantity, currentMilliseconds);
                 }
@@ -231,7 +261,91 @@ namespace ProjectC.Core
             return order;
         }
 
-        private static FacilityState FindRestockSource(GameWorld world, FacilityState destination, ItemId item)
+        /// <summary>Removes automatic restock work that exceeds the destination's current target.</summary>
+        public void ReconcileAutomaticRestockTarget(GameWorld world, FacilityState destination,
+            ItemId item, int target, long currentMilliseconds)
+        {
+            if (world == null) throw new ArgumentNullException(nameof(world));
+            if (destination == null) throw new ArgumentNullException(nameof(destination));
+            if (target < 0) throw new ArgumentOutOfRangeException(nameof(target));
+
+            long excess = (long)destination.Inventory.GetStock(item) +
+                          destination.Inventory.GetExpectedInbound(item) - target;
+            if (excess <= 0) return;
+
+            int cancelledQuantity = 0;
+            var changedOrders = new HashSet<TransportOrder>();
+
+            // Drop unassigned quantity across all matching orders before touching reserved trips.
+            for (int orderIndex = world.TransportOrders.Count - 1; orderIndex >= 0 && excess > 0; orderIndex--)
+            {
+                TransportOrder order = world.TransportOrders[orderIndex];
+                if (!IsOpenAutomaticRestockOrder(order, destination, item)) continue;
+
+                int quantity = (int)Math.Min(excess, order.RemainingUnassigned);
+                if (quantity <= 0) continue;
+
+                destination.Inventory.RemoveExpectedInbound(item, quantity);
+                order.CancelledQuantity += quantity;
+                excess -= quantity;
+                cancelledQuantity += quantity;
+                changedOrders.Add(order);
+                world.Record(currentMilliseconds, "transport", order.Id + ":restock-unassigned-cancelled:" + quantity);
+            }
+
+            // Reserved cargo can still be released while a drone is traveling to pickup.
+            // Once cargo has been picked up, its trip and inbound accounting remain intact.
+            for (int tripIndex = trips.Count - 1; tripIndex >= 0 && excess > 0; tripIndex--)
+            {
+                Trip trip = trips[tripIndex];
+                TransportOrder order = trip.Order;
+                if (trip.Phase != TripPhase.ToPickup || !IsOpenAutomaticRestockOrder(order, destination, item))
+                    continue;
+
+                int quantity = (int)Math.Min(excess, trip.ReservedCargo);
+                if (quantity <= 0) continue;
+
+                trip.SourceInventory.RemoveReservation(item, quantity);
+                trip.ReservedCargo -= quantity;
+                order.ReservedQuantity -= quantity;
+                order.CancelledQuantity += quantity;
+                destination.Inventory.RemoveExpectedInbound(item, quantity);
+                excess -= quantity;
+                cancelledQuantity += quantity;
+                changedOrders.Add(order);
+                world.Record(currentMilliseconds, "transport", order.Id + ":restock-pickup-cancelled:" + quantity);
+
+                if (trip.ReservedCargo > 0) continue;
+                trip.Drone.IsAvailable = true;
+                trip.Drone.ActiveTransportOrderId = null;
+                trips.RemoveAt(tripIndex);
+            }
+
+            foreach (TransportOrder order in changedOrders)
+            {
+                if (order.ReservedQuantity > 0 || order.InTransitQuantity > 0)
+                    order.State = TransportOrderState.InProgress;
+                else if (order.DeliveredQuantity + order.CancelledQuantity >= order.Quantity)
+                    order.State = TransportOrderState.Cancelled;
+                else
+                    order.State = TransportOrderState.Waiting;
+            }
+
+            if (cancelledQuantity > 0)
+                world.Record(currentMilliseconds, "transport", destination.Id + ":restock-target-reconciled:" +
+                    item + ":target:" + target + ":cancelled:" + cancelledQuantity);
+        }
+
+        private static bool IsOpenAutomaticRestockOrder(TransportOrder order, FacilityState destination, ItemId item)
+        {
+            return order.IsAutomatic && !order.IsCancelled && order.SourceFacilityId != null &&
+                   order.SourceRecoveryPileId == null && order.DestinationFacilityId == destination.Id &&
+                   order.Item == item && order.State != TransportOrderState.Completed &&
+                   order.State != TransportOrderState.Cancelled;
+        }
+
+        private static FacilityState FindRestockSource(GameWorld world, FacilityState destination,
+            ItemId item, int minimumAvailable)
         {
             FacilityState best = null;
             double bestDistanceSquared = double.MaxValue;
@@ -240,14 +354,13 @@ namespace ProjectC.Core
             {
                 FacilityState source = world.Facilities[i];
                 if (source == destination || source.IsUnderConstruction || source.IsDestroyed || source.IsDemolishing ||
-                    source.Inventory.GetAvailable(item) <= 0 ||
                     !HasLegalRoute(source, destination, world.Definitions.ProductionHeight)) continue;
                 if (destinationCombat && destination.Kind != FacilityKind.Outpost && source.Kind != FacilityKind.Outpost)
                     continue;
 
                 int protectedStock = GetProtectedStock(source, destination, item,
                     world.Definitions.ProductionHeight);
-                if (source.Inventory.GetAvailable(item) <= protectedStock) continue;
+                if (GetUncommittedStock(world, source, item, protectedStock) < minimumAvailable) continue;
                 double dx = (source.Position.X + source.Width * 0.5d) - (destination.Position.X + destination.Width * 0.5d);
                 double dy = (source.Position.Y + source.Height * 0.5d) - (destination.Position.Y + destination.Height * 0.5d);
                 double distanceSquared = dx * dx + dy * dy;
@@ -257,6 +370,23 @@ namespace ProjectC.Core
             }
 
             return best;
+        }
+
+        private static int GetUncommittedStock(GameWorld world, FacilityState source,
+            ItemId item, int protectedStock)
+        {
+            long queuedOutbound = 0;
+            for (int orderIndex = 0; orderIndex < world.TransportOrders.Count; orderIndex++)
+            {
+                TransportOrder order = world.TransportOrders[orderIndex];
+                if (order.IsCancelled || order.State == TransportOrderState.Completed ||
+                    order.State == TransportOrderState.Cancelled || order.SourceFacilityId != source.Id ||
+                    order.Item != item) continue;
+                queuedOutbound += order.RemainingUnassigned;
+            }
+
+            return Math.Max(0, source.Inventory.GetAvailable(item) - protectedStock -
+                (int)Math.Min(queuedOutbound, int.MaxValue));
         }
 
         private static int GetProtectedStock(FacilityState source, FacilityState destination,
@@ -524,7 +654,7 @@ namespace ProjectC.Core
             for (int droneIndex = 0; droneIndex < world.Drones.Count; droneIndex++)
             {
                 DroneState drone = world.Drones[droneIndex];
-                if (!drone.IsAvailable) continue;
+                if (!drone.IsAvailable || drone.PendingRegion.HasValue) continue;
 
                 TransportOrder bestOrder = null;
                 FacilityState bestSourceFacility = null;
@@ -610,6 +740,63 @@ namespace ProjectC.Core
             drone.PositionX += dx * ratio;
             drone.PositionY += dy * ratio;
             return false;
+        }
+
+        private static void AdvanceRegionChangeReturns(GameWorld world, long currentMilliseconds,
+            long elapsedMilliseconds)
+        {
+            for (int i = 0; i < world.Drones.Count; i++)
+            {
+                DroneState drone = world.Drones[i];
+                if (!drone.PendingRegion.HasValue) continue;
+                if (!drone.IsReturningToOutpost)
+                {
+                    if (!drone.IsAvailable) continue;
+                    StartRegionChangeReturn(world, drone, currentMilliseconds);
+                    if (!drone.PendingRegion.HasValue) continue;
+                }
+
+                FacilityState outpost = world.FindFacility(FacilityKind.Outpost);
+                if (outpost == null) continue;
+                double targetX = outpost.Position.X + outpost.Width * 0.5d;
+                double targetY = outpost.Position.Y + outpost.Height * 0.5d;
+                if (MoveToward(drone, targetX, targetY, world.Definitions.DroneSpeedCellsPerSecond,
+                    elapsedMilliseconds))
+                    CompleteRegionChange(world, drone, currentMilliseconds);
+            }
+        }
+
+        private static void StartRegionChangeReturn(GameWorld world, DroneState drone, long currentMilliseconds)
+        {
+            FacilityState outpost = world.FindFacility(FacilityKind.Outpost);
+            if (outpost == null) throw new InvalidOperationException("The outpost is required for drone reassignment.");
+            if (IsInsideFacility(drone, outpost))
+            {
+                CompleteRegionChange(world, drone, currentMilliseconds);
+                return;
+            }
+
+            drone.IsAvailable = false;
+            drone.IsReturningToOutpost = true;
+        }
+
+        private static bool IsInsideFacility(DroneState drone, FacilityState facility)
+        {
+            return drone.PositionX >= facility.Position.X &&
+                   drone.PositionX <= facility.Position.X + facility.Width &&
+                   drone.PositionY >= facility.Position.Y &&
+                   drone.PositionY <= facility.Position.Y + facility.Height;
+        }
+
+        private static void CompleteRegionChange(GameWorld world, DroneState drone, long currentMilliseconds)
+        {
+            if (!drone.PendingRegion.HasValue) return;
+            DroneRegion previousRegion = drone.Region;
+            drone.Region = drone.PendingRegion.Value;
+            drone.PendingRegion = null;
+            drone.IsReturningToOutpost = false;
+            drone.IsAvailable = true;
+            world.Record(currentMilliseconds, "drone", drone.Id + ":region-changed:" + previousRegion + "->" + drone.Region);
         }
 
         private static bool HasLegalRoute(FacilityState source, FacilityState destination, int productionHeight)

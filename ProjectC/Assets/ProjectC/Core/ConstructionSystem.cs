@@ -175,7 +175,7 @@ namespace ProjectC.Core
             }
         }
 
-        /// <summary>Queues only currently available material; newly produced stock is picked up on a later tick.</summary>
+        /// <summary>Queues construction material in drone-sized batches as stock becomes available.</summary>
         public void QueueMissingMaterials(GameWorld world, long currentMilliseconds, TransportSystem transport)
         {
             if (world == null) throw new ArgumentNullException(nameof(world));
@@ -191,15 +191,16 @@ namespace ProjectC.Core
                     ItemQuantityData cost = site.Definition.ConstructionCosts[costIndex];
                     ItemId item = GameDefinitions.ParseItem(cost.Item);
                     int required = cost.Quantity - destination.Inventory.GetStock(item) - destination.Inventory.GetExpectedInbound(item);
-                    while (required > 0)
-                    {
-                        FacilityState source = FindNearestSource(world, destination, item);
-                        if (source == null) break;
-                        int quantity = Math.Min(required, source.Inventory.GetAvailable(item));
-                        if (quantity <= 0) break;
-                        transport.QueueTransfer(world, source.Id, destination.Id, item, quantity, currentMilliseconds);
-                        required -= quantity;
-                    }
+                    if (required <= 0) continue;
+
+                    int minimumBatch = Math.Min(required, world.Definitions.DroneCarryCapacity);
+                    FacilityState source = FindNearestSource(world, destination, item, minimumBatch);
+                    if (source == null) continue;
+
+                    int available = GetUncommittedStock(world, source, item);
+                    int quantity = Math.Min(required, available);
+                    if (quantity < minimumBatch) continue;
+                    transport.QueueTransfer(world, source.Id, destination.Id, item, quantity, currentMilliseconds);
                 }
             }
         }
@@ -354,14 +355,16 @@ namespace ProjectC.Core
             }
         }
 
-        private static FacilityState FindNearestSource(GameWorld world, FacilityState destination, ItemId item)
+        private static FacilityState FindNearestSource(GameWorld world, FacilityState destination,
+            ItemId item, int minimumAvailable)
         {
             FacilityState best = null;
             double bestDistanceSquared = double.MaxValue;
             for (int i = 0; i < world.Facilities.Count; i++)
             {
                 FacilityState source = world.Facilities[i];
-                if (source == destination || source.IsUnderConstruction || source.Inventory.GetAvailable(item) <= 0 ||
+                if (source == destination || source.IsUnderConstruction ||
+                    GetUncommittedStock(world, source, item) < minimumAvailable ||
                     !HasLegalRoute(source, destination, world.Definitions.ProductionHeight)) continue;
                 double dx = (source.Position.X + source.Width * 0.5d) - (destination.Position.X + destination.Width * 0.5d);
                 double dy = (source.Position.Y + source.Height * 0.5d) - (destination.Position.Y + destination.Height * 0.5d);
@@ -374,6 +377,22 @@ namespace ProjectC.Core
             return best;
         }
 
+        private static int GetUncommittedStock(GameWorld world, FacilityState source, ItemId item)
+        {
+            long queuedOutbound = 0;
+            for (int orderIndex = 0; orderIndex < world.TransportOrders.Count; orderIndex++)
+            {
+                TransportOrder order = world.TransportOrders[orderIndex];
+                if (order.IsCancelled || order.State == TransportOrderState.Completed ||
+                    order.State == TransportOrderState.Cancelled || order.SourceFacilityId != source.Id ||
+                    order.Item != item) continue;
+                queuedOutbound += order.RemainingUnassigned;
+            }
+
+            return Math.Max(0, source.Inventory.GetAvailable(item) -
+                (int)Math.Min(queuedOutbound, int.MaxValue));
+        }
+
         private static DroneState FindAvailableWorker(GameWorld world, FacilityState facility)
         {
             bool combat = facility.Position.Y >= world.Definitions.ProductionHeight;
@@ -383,7 +402,7 @@ namespace ProjectC.Core
             for (int i = 0; i < world.Drones.Count; i++)
             {
                 DroneState drone = world.Drones[i];
-                if (!drone.IsAvailable || drone.Region != requiredRegion) continue;
+                if (!drone.IsAvailable || drone.PendingRegion.HasValue || drone.Region != requiredRegion) continue;
                 double dx = drone.PositionX - (facility.Position.X + facility.Width * 0.5d);
                 double dy = drone.PositionY - (facility.Position.Y + facility.Height * 0.5d);
                 double distanceSquared = dx * dx + dy * dy;

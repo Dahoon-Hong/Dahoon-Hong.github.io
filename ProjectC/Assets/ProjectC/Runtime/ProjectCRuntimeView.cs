@@ -26,6 +26,7 @@ namespace ProjectC.Runtime
         }
 
         private const int RequestedTransferBatch = 5;
+        private const float DiagnosticSampleWindowSeconds = 10f;
         private static readonly Color Navy = new Color32(12, 24, 39, 238);
         private static readonly Color Panel = new Color32(18, 36, 54, 244);
         private static readonly Color Teal = new Color32(46, 197, 186, 255);
@@ -94,6 +95,9 @@ namespace ProjectC.Runtime
         private UI.Text portHistoryText;
         private UI.Text regularImportLabel;
         private UI.Text regularExportLabel;
+        private UI.Text droneAllocationText;
+        private UI.Button moveDroneToProductionButton;
+        private UI.Button moveDroneToCombatButton;
         private UI.InputField regularImportInput;
         private UI.InputField regularExportInput;
         private UI.InputField oneOffIronInput;
@@ -149,6 +153,10 @@ namespace ProjectC.Runtime
         private GridPosition conveyorDragStart;
         private GridPosition conveyorPreviewEnd;
         private float hudRefreshSeconds;
+        private float diagnosticSampleSeconds;
+        private float diagnosticSampleFrameSeconds;
+        private int diagnosticSampleFrameCount;
+        private GameSpeed diagnosticSampleSpeed = GameSpeed.Paused;
         private float cameraShakeRemaining;
         private float cameraShakeElapsed;
         private float screenFlashRemaining;
@@ -191,6 +199,7 @@ namespace ProjectC.Runtime
             try
             {
                 simulation.AdvanceRealSeconds(Time.unscaledDeltaTime);
+                CaptureDiagnosticFrame(Time.unscaledDeltaTime);
                 RefreshFacilityViews();
                 UpdateDroneMarkers();
                 UpdateEnemyMarkers();
@@ -243,6 +252,42 @@ namespace ProjectC.Runtime
             for (int i = 0; i < terrainMaterials.Count; i++) Destroy(terrainMaterials[i]);
             terrainMaterials.Clear();
             if (runtimeFont != null) Destroy(runtimeFont);
+        }
+
+        private void CaptureDiagnosticFrame(float frameSeconds)
+        {
+            GameSpeed speed = simulation.Clock.Speed;
+            if (diagnostics == null || menuState != MenuState.Closed || speed == GameSpeed.Paused ||
+                frameSeconds <= 0f || float.IsNaN(frameSeconds) || float.IsInfinity(frameSeconds))
+            {
+                ResetDiagnosticFrameSample();
+                return;
+            }
+
+            if (diagnosticSampleSpeed != speed)
+            {
+                ResetDiagnosticFrameSample();
+                diagnosticSampleSpeed = speed;
+            }
+
+            diagnosticSampleSeconds += frameSeconds;
+            diagnosticSampleFrameSeconds += frameSeconds;
+            diagnosticSampleFrameCount++;
+            if (diagnosticSampleSeconds < DiagnosticSampleWindowSeconds || diagnosticSampleFrameCount <= 0) return;
+
+            diagnostics.RecordFrameSample(simulation.CurrentMilliseconds, speed,
+                diagnosticSampleFrameCount / diagnosticSampleSeconds,
+                diagnosticSampleFrameSeconds * 1000d / diagnosticSampleFrameCount,
+                diagnosticSampleSeconds, diagnosticSampleFrameCount, Screen.width, Screen.height);
+            ResetDiagnosticFrameSample();
+        }
+
+        private void ResetDiagnosticFrameSample()
+        {
+            diagnosticSampleSeconds = 0f;
+            diagnosticSampleFrameSeconds = 0f;
+            diagnosticSampleFrameCount = 0;
+            diagnosticSampleSpeed = GameSpeed.Paused;
         }
 
         private void CreateWorld()
@@ -1287,10 +1332,18 @@ namespace ProjectC.Runtime
             portSummaryText = CreatePortText(panel, "One Off Order Summary", string.Empty,
                 30f, 270f, 915f, 68f, TextColor, 13);
 
-            CreatePortText(panel, "Ships Header", "SHIP STATUS", 30f, 244f, 430f, 22f, Teal, 13);
-            CreatePortText(panel, "Trade History Header", "MATCH TRADE HISTORY", 500f, 244f, 440f, 22f, Teal, 13);
-            portShipStatusText = CreateScrollablePortText(panel, "Ship Status List", new Vector2(30f, 22f), new Vector2(440f, 212f));
-            portHistoryText = CreateScrollablePortText(panel, "Trade History List", new Vector2(500f, 22f), new Vector2(450f, 212f));
+            droneAllocationText = CreatePortText(panel, "Drone Allocation Summary", string.Empty,
+                30f, 226f, 280f, 36f, TextColor, 13);
+            moveDroneToCombatButton = CreateButton(panel, "Move Drone to Combat", Vector2.zero, Vector2.zero,
+                Vector2.zero, new Vector2(455f, 230f), new Vector2(235f, 36f),
+                () => MoveOneDroneToRegion(DroneRegion.Production, DroneRegion.Combat));
+            moveDroneToProductionButton = CreateButton(panel, "Move Drone to Production", Vector2.zero, Vector2.zero,
+                Vector2.zero, new Vector2(710f, 230f), new Vector2(235f, 36f),
+                () => MoveOneDroneToRegion(DroneRegion.Combat, DroneRegion.Production));
+            CreatePortText(panel, "Ships Header", "SHIP STATUS", 30f, 194f, 430f, 22f, Teal, 13);
+            CreatePortText(panel, "Trade History Header", "MATCH TRADE HISTORY", 500f, 194f, 440f, 22f, Teal, 13);
+            portShipStatusText = CreateScrollablePortText(panel, "Ship Status List", new Vector2(30f, 22f), new Vector2(440f, 162f));
+            portHistoryText = CreateScrollablePortText(panel, "Trade History List", new Vector2(500f, 22f), new Vector2(450f, 162f));
 
             regularImportSlider.onValueChanged.AddListener(value => SetContractInput(regularImportInput, value));
             regularExportSlider.onValueChanged.AddListener(value => SetContractInput(regularExportInput, value));
@@ -1582,12 +1635,72 @@ namespace ProjectC.Runtime
                     simulation.World.Funds.Balance, exportQuantity, simulation.AvailableDronePurchaseCount,
                     simulation.World.Definitions.MaximumDroneCount, validation,
                     string.IsNullOrEmpty(transferFeedback) ? string.Empty : "\n" + transferFeedback);
+            RefreshDroneAllocationControls(running);
             var confirmButton = FindButton(portPanelObject.transform, "Confirm One Off Order Button");
             if (confirmButton != null) confirmButton.interactable = valid;
             var applyButton = FindButton(portPanelObject.transform, "Apply Regular Contracts Button");
             if (applyButton != null) applyButton.interactable = running;
             RefreshPortShipStatus();
             RefreshPortTradeHistory();
+        }
+
+        private void RefreshDroneAllocationControls(bool running)
+        {
+            int productionCount = 0;
+            int combatCount = 0;
+            int pendingProductionCount = 0;
+            int pendingCombatCount = 0;
+            for (int i = 0; i < simulation.World.Drones.Count; i++)
+            {
+                DroneState drone = simulation.World.Drones[i];
+                if (drone.Region == DroneRegion.Production) productionCount++;
+                else combatCount++;
+                if (drone.PendingRegion == DroneRegion.Production) pendingProductionCount++;
+                else if (drone.PendingRegion == DroneRegion.Combat) pendingCombatCount++;
+            }
+
+            droneAllocationText.text = IsKorean
+                ? string.Format("배정 생산 {0} / 전투 {1}\n이동 대기 생산 {2} / 전투 {3}",
+                    productionCount, combatCount, pendingProductionCount, pendingCombatCount)
+                : string.Format("Assigned  Production {0} / Combat {1}\nMoving  Production {2} / Combat {3}",
+                    productionCount, combatCount, pendingProductionCount, pendingCombatCount);
+            moveDroneToCombatButton.GetComponentInChildren<UI.Text>().text =
+                Localize("Move 1 to Combat", "전투로 1대 이동");
+            moveDroneToProductionButton.GetComponentInChildren<UI.Text>().text =
+                Localize("Move 1 to Production", "생산으로 1대 이동");
+            moveDroneToCombatButton.interactable = running && FindDroneForRegionChange(DroneRegion.Production) != null;
+            moveDroneToProductionButton.interactable = running && FindDroneForRegionChange(DroneRegion.Combat) != null;
+        }
+
+        private DroneState FindDroneForRegionChange(DroneRegion sourceRegion)
+        {
+            for (int i = 0; i < simulation.World.Drones.Count; i++)
+            {
+                DroneState drone = simulation.World.Drones[i];
+                if (drone.Region == sourceRegion && !drone.PendingRegion.HasValue) return drone;
+            }
+
+            return null;
+        }
+
+        private void MoveOneDroneToRegion(DroneRegion sourceRegion, DroneRegion targetRegion)
+        {
+            DroneState drone = FindDroneForRegionChange(sourceRegion);
+            if (drone == null)
+            {
+                transferFeedback = Localize("No unassigned drone is available in that region.",
+                    "해당 구역에서 재배정할 수 있는 드론이 없습니다.");
+                RefreshPortManagementPanel();
+                return;
+            }
+
+            if (!simulation.RequestDroneRegionChange(drone.Id, targetRegion)) return;
+            transferFeedback = Localize("Drone reassignment requested; it changes region at the Outpost after its current task.",
+                "드론 재배정을 요청했습니다. 현재 작업 후 전초기지에 도착하면 구역이 바뀝니다.");
+            diagnostics?.RecordCommand(simulation.CurrentMilliseconds, "request_drone_region_change",
+                drone.Id + ":" + sourceRegion + "->" + targetRegion);
+            diagnostics?.CaptureEvents(simulation.World);
+            RefreshPortManagementPanel();
         }
 
         private void RefreshPortShipStatus()
@@ -2606,6 +2719,9 @@ namespace ProjectC.Runtime
             {
                 DroneState drone = simulation.World.Drones[i];
                 droneMarkers[i].position = new Vector3((float)drone.PositionX, 1f + i * 0.22f, (float)drone.PositionY);
+                Material regionMaterial = CreateMaterial(drone.Region == DroneRegion.Production ? Teal : Warning);
+                Renderer renderer = droneMarkers[i].GetComponent<Renderer>();
+                if (renderer.sharedMaterial != regionMaterial) renderer.sharedMaterial = regionMaterial;
             }
         }
 

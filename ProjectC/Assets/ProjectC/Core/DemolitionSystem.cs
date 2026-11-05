@@ -141,7 +141,7 @@ namespace ProjectC.Core
                     for (int droneIndex = 0; droneIndex < world.Drones.Count; droneIndex++)
                     {
                         DroneState drone = world.Drones[droneIndex];
-                        if (!drone.IsAvailable || !CanDroneServe(world, drone, facility)) continue;
+                        if (!drone.IsAvailable || drone.PendingRegion.HasValue || !CanDroneServe(world, drone, facility)) continue;
 
                         double dx = drone.PositionX - (facility.Position.X + facility.Width * 0.5d);
                         double dy = drone.PositionY - (facility.Position.Y + facility.Height * 0.5d);

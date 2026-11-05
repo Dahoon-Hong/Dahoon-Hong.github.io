@@ -145,6 +145,27 @@ namespace ProjectC.Core.Tests
         }
 
         [Test]
+        public void OpeningIronOrderContinuesAfterAZeroUnloadFractionalTick()
+        {
+            GameSimulation simulation = GameSimulation.CreateNewMatch();
+            ImportShipState ship = simulation.World.ImportShips[0];
+
+            simulation.AdvanceGameMilliseconds(186);
+
+            Assert.That(ship.Phase, Is.EqualTo(ImportShipPhase.Docked));
+            Assert.That(ship.ExportLoadStarted, Is.False);
+            Assert.That(ship.EligibleIronToUnload, Is.EqualTo(100));
+            Assert.That(ship.UnloadedIron, Is.EqualTo(3));
+            Assert.That(ship.RemainingIron, Is.EqualTo(97));
+
+            simulation.AdvanceGameMilliseconds(64);
+
+            Assert.That(ship.Phase, Is.EqualTo(ImportShipPhase.Docked));
+            Assert.That(ship.UnloadedIron, Is.EqualTo(5));
+            Assert.That(ship.RemainingIron, Is.EqualTo(95));
+        }
+
+        [Test]
         public void RegularShipLoadsAtConfirmedRateAndCreditsOnlyAtDeparture()
         {
             GameSimulation simulation = GameSimulation.CreateNewMatch();
@@ -545,21 +566,184 @@ namespace ProjectC.Core.Tests
             FacilityState ironworks = world.FindFacility("ironworks");
             simulation.SetRestockTarget(ironworks.Id, ItemId.Iron, 60);
 
-            Assert.That(port.Inventory.TryAdd(ItemId.Iron, 1), Is.True);
-            simulation.Transport.Tick(world, 50, 50);
-            Assert.That(port.Inventory.TryAdd(ItemId.Iron, 1), Is.True);
-            simulation.Transport.Tick(world, 100, 50);
+            for (int unit = 1; unit <= 5; unit++)
+            {
+                Assert.That(port.Inventory.TryAdd(ItemId.Iron, 1), Is.True);
+                simulation.Transport.Tick(world, unit * 50, 50);
+            }
+
+            var initialOrders = world.TransportOrders.FindAll(order => order.IsAutomatic &&
+                order.SourceFacilityId == port.Id && order.DestinationFacilityId == ironworks.Id &&
+                order.Item == ItemId.Iron);
+            Assert.That(initialOrders, Has.Count.EqualTo(1));
+            Assert.That(initialOrders[0].Quantity, Is.EqualTo(5));
+
+            for (int unit = 6; unit <= 10; unit++)
+            {
+                Assert.That(port.Inventory.TryAdd(ItemId.Iron, 1), Is.True);
+                simulation.Transport.Tick(world, unit * 50, 50);
+            }
 
             var automaticIronOrders = world.TransportOrders.FindAll(order => order.IsAutomatic &&
                 order.SourceFacilityId == port.Id && order.DestinationFacilityId == ironworks.Id &&
                 order.Item == ItemId.Iron);
             Assert.That(automaticIronOrders, Has.Count.EqualTo(1));
-            Assert.That(automaticIronOrders[0].Quantity, Is.EqualTo(2));
-            Assert.That(automaticIronOrders[0].ReservedQuantity, Is.EqualTo(2));
-            Assert.That(ironworks.Inventory.GetExpectedInbound(ItemId.Iron), Is.EqualTo(2));
+            Assert.That(automaticIronOrders[0].Quantity, Is.EqualTo(10));
+            Assert.That(automaticIronOrders[0].ReservedQuantity, Is.EqualTo(10));
+            Assert.That(ironworks.Inventory.GetExpectedInbound(ItemId.Iron), Is.EqualTo(10));
         }
 
         [Test]
+        public void LoweringRestockTargetCancelsAutomaticExcessAndKeepsManualOrder()
+        {
+            GameSimulation simulation = CreateMatchWithoutAutomaticRestock();
+            GameWorld world = simulation.World;
+            FacilityState port = world.FindFacility("port");
+            FacilityState ironworks = world.FindFacility("ironworks");
+            Assert.That(port.Inventory.TryAdd(ItemId.Iron, 30), Is.True);
+            TransportOrder manual = simulation.QueueTransfer(port.Id, ironworks.Id, ItemId.Iron, 5);
+
+            simulation.SetRestockTarget(ironworks.Id, ItemId.Iron, 30);
+            simulation.AdvanceGameMilliseconds(GameSimulation.SimulationStepMilliseconds);
+
+            TransportOrder automatic = world.TransportOrders.Find(order => order.IsAutomatic &&
+                order.SourceFacilityId == port.Id && order.DestinationFacilityId == ironworks.Id &&
+                order.Item == ItemId.Iron);
+            Assert.That(automatic, Is.Not.Null);
+            Assert.That(automatic.Quantity, Is.EqualTo(25));
+            Assert.That(automatic.Quantity - automatic.DeliveredQuantity - automatic.ReservedQuantity -
+                automatic.InTransitQuantity - automatic.CancelledQuantity, Is.EqualTo(10));
+            Assert.That(automatic.ReservedQuantity, Is.EqualTo(15));
+
+            simulation.SetRestockTarget(ironworks.Id, ItemId.Iron, 13);
+
+            Assert.That(automatic.CancelledQuantity, Is.EqualTo(17));
+            Assert.That(automatic.ReservedQuantity, Is.EqualTo(8),
+                "A partial pickup cancellation should preserve the amount still required by the reduced target.");
+            Assert.That(automatic.State, Is.EqualTo(TransportOrderState.InProgress));
+            Assert.That(ironworks.Inventory.GetExpectedInbound(ItemId.Iron), Is.EqualTo(13));
+            Assert.That(port.Inventory.GetReserved(ItemId.Iron), Is.EqualTo(13));
+            Assert.That(world.Drones.FindAll(drone => drone.Region == DroneRegion.Production &&
+                drone.IsAvailable), Has.Count.EqualTo(1));
+
+            simulation.SetRestockTarget(ironworks.Id, ItemId.Iron, 0);
+
+            Assert.That(automatic.CancelledQuantity, Is.EqualTo(25));
+            Assert.That(automatic.State, Is.EqualTo(TransportOrderState.Cancelled));
+            Assert.That(automatic.ReservedQuantity, Is.Zero);
+            Assert.That(automatic.Quantity - automatic.DeliveredQuantity - automatic.ReservedQuantity -
+                automatic.InTransitQuantity - automatic.CancelledQuantity, Is.Zero);
+            Assert.That(manual.CancelledQuantity, Is.Zero);
+            Assert.That(manual.ReservedQuantity, Is.EqualTo(5));
+            Assert.That(ironworks.Inventory.GetExpectedInbound(ItemId.Iron), Is.EqualTo(5));
+            Assert.That(port.Inventory.GetReserved(ItemId.Iron), Is.EqualTo(5));
+            Assert.That(world.Drones.FindAll(drone => drone.Region == DroneRegion.Production &&
+                drone.IsAvailable), Has.Count.EqualTo(3));
+
+            simulation.SetRestockTarget(ironworks.Id, ItemId.Iron, 10);
+            simulation.AdvanceGameMilliseconds(GameSimulation.SimulationStepMilliseconds);
+            TransportOrder replacement = world.TransportOrders.Find(order => order.IsAutomatic &&
+                order != automatic && order.SourceFacilityId == port.Id &&
+                order.DestinationFacilityId == ironworks.Id && order.Item == ItemId.Iron);
+
+            Assert.That(replacement, Is.Not.Null);
+            Assert.That(replacement.Quantity, Is.EqualTo(5));
+            Assert.That(ironworks.Inventory.GetExpectedInbound(ItemId.Iron), Is.EqualTo(10));
+        }
+
+        [Test]
+        public void LoweringRestockTargetPreservesCargoAlreadyInTransit()
+        {
+            GameSimulation simulation = CreateMatchWithoutAutomaticRestock();
+            GameWorld world = simulation.World;
+            FacilityState port = world.FindFacility("port");
+            FacilityState ironworks = world.FindFacility("ironworks");
+            Assert.That(port.Inventory.TryAdd(ItemId.Iron, 10), Is.True);
+            simulation.SetRestockTarget(ironworks.Id, ItemId.Iron, 10);
+            int waitedMilliseconds = 0;
+            while (waitedMilliseconds < 60_000 && !world.TransportOrders.Exists(order => order.IsAutomatic &&
+                       order.DestinationFacilityId == ironworks.Id && order.Item == ItemId.Iron &&
+                       order.InTransitQuantity > 0))
+            {
+                simulation.AdvanceGameMilliseconds(GameSimulation.SimulationStepMilliseconds);
+                waitedMilliseconds += GameSimulation.SimulationStepMilliseconds;
+            }
+
+            TransportOrder automatic = world.TransportOrders.Find(order => order.IsAutomatic &&
+                order.DestinationFacilityId == ironworks.Id && order.Item == ItemId.Iron &&
+                order.InTransitQuantity > 0);
+            Assert.That(automatic, Is.Not.Null, "Automatic restock must reach its source pickup before delivery. " +
+                "elapsed=" + waitedMilliseconds + ", target=" + ironworks.GetRestockTarget(ItemId.Iron) +
+                ", stock=" + ironworks.Inventory.GetStock(ItemId.Iron) +
+                ", inbound=" + ironworks.Inventory.GetExpectedInbound(ItemId.Iron) +
+                ", sourceStock=" + port.Inventory.GetStock(ItemId.Iron) +
+                ", orders=" + DescribeTransportOrders(world) + ", drones=" + DescribeDrones(world));
+            int inTransitBefore = automatic.InTransitQuantity;
+
+            simulation.SetRestockTarget(ironworks.Id, ItemId.Iron, 0);
+
+            Assert.That(automatic.InTransitQuantity, Is.EqualTo(inTransitBefore));
+            Assert.That(ironworks.Inventory.GetExpectedInbound(ItemId.Iron), Is.EqualTo(inTransitBefore));
+            Assert.That(automatic.CancelledQuantity, Is.EqualTo(automatic.Quantity -
+                automatic.DeliveredQuantity - inTransitBefore));
+            Assert.That(automatic.State, Is.EqualTo(TransportOrderState.InProgress));
+        }
+
+        [Test]
+        public void ConstructionMaterialOrdersWaitForDroneSizedSourceBatch()
+        {
+            GameSimulation simulation = CreateMatchWithoutAutomaticRestock();
+            GameWorld world = simulation.World;
+            Assert.That(simulation.TryPlaceFacility(FacilityKind.Miner, new GridPosition(20, 25), 0,
+                out FacilityState miner, out string reason), Is.True, reason);
+
+            simulation.AdvanceGameMilliseconds(250);
+            Assert.That(world.FindFacility("port").Inventory.GetStock(ItemId.Iron), Is.EqualTo(5));
+            Assert.That(world.TransportOrders, Is.Empty,
+                "A partial import should accumulate until a drone can carry a full construction batch.");
+
+            simulation.AdvanceGameMilliseconds(50);
+            var firstBatch = world.TransportOrders.FindAll(order => order.DestinationFacilityId == miner.Id &&
+                order.Item == ItemId.Iron);
+            Assert.That(firstBatch, Has.Count.EqualTo(1));
+            Assert.That(firstBatch[0].Quantity, Is.EqualTo(5));
+
+            simulation.AdvanceGameMilliseconds(250);
+            var accumulatedBatches = world.TransportOrders.FindAll(order => order.DestinationFacilityId == miner.Id &&
+                order.Item == ItemId.Iron);
+            Assert.That(accumulatedBatches, Has.Count.EqualTo(2));
+            Assert.That(accumulatedBatches.TrueForAll(order => order.Quantity == 5), Is.True);
+            Assert.That(miner.Inventory.GetExpectedInbound(ItemId.Iron), Is.EqualTo(10));
+        }
+
+        [Test]
+        public void ReadyConstructionClaimsAWorkerBeforeTransportDispatch()
+        {
+            GameSimulation simulation = CreateMatchWithoutAutomaticRestock();
+            GameWorld world = simulation.World;
+            FacilityState port = world.FindFacility("port");
+            Assert.That(simulation.TryPlaceFacility(FacilityKind.Miner, new GridPosition(20, 25), 0,
+                out FacilityState miner, out string reason), Is.True, reason);
+            Assert.That(miner.Inventory.TryAdd(ItemId.Iron, 20), Is.True);
+            Assert.That(miner.Inventory.TryAdd(ItemId.Plate, 5), Is.True);
+            Assert.That(port.Inventory.TryAdd(ItemId.Iron, 20), Is.True);
+
+            TransportOrder import = simulation.QueueTransfer(port.Id, "ironworks", ItemId.Iron, 20);
+            simulation.AdvanceGameMilliseconds(GameSimulation.SimulationStepMilliseconds);
+
+            ConstructionSite site = world.ConstructionSites.Find(candidate => candidate.Facility == miner);
+            Assert.That(site, Is.Not.Null);
+            Assert.That(site.AssignedDroneId, Is.Not.Null,
+                "A funded site should claim an available production drone before new transport work.");
+            DroneState worker = world.Drones.Find(candidate => candidate.Id == site.AssignedDroneId);
+            Assert.That(worker.ActiveConstructionSiteId, Is.EqualTo(miner.Id));
+            Assert.That(import.State, Is.EqualTo(TransportOrderState.InProgress),
+                "The remaining production drones should still be able to serve transport.");
+            Assert.That(import.ReservedQuantity, Is.EqualTo(15));
+        }
+
+        [Test]
+        [Timeout(60_000)]
         public void ConfirmedOpeningFlowConnectsFirstDefenseToActualCrystalExport()
         {
             GameSimulation simulation = GameSimulation.CreateNewMatch();
@@ -570,6 +754,8 @@ namespace ProjectC.Core.Tests
             FacilityState outpost = world.FindFacility("outpost");
             FacilityState turret = world.FindFacility("turret");
 
+            Assert.That(simulation.Conveyors.Paths, Is.Empty,
+                "The opening match must not contain a preconnected conveyor path.");
             Assert.That(port.Inventory.GetStock(ItemId.Iron), Is.Zero);
             Assert.That(ironworks.Inventory.GetStock(ItemId.Iron), Is.Zero);
             Assert.That(ammunitionFactory.Inventory.GetStock(ItemId.Plate), Is.Zero);
@@ -602,29 +788,40 @@ namespace ProjectC.Core.Tests
 
             Assert.That(simulation.TryPlaceFacility(FacilityKind.Miner, new GridPosition(20, 25), 0,
                 out FacilityState miner, out string minerReason), Is.True, minerReason);
-            Assert.That(simulation.TryPlaceFacility(FacilityKind.Refinery, new GridPosition(22, 25), 0,
+            Assert.That(simulation.TryPlaceFacility(FacilityKind.Refinery, new GridPosition(23, 25), 0,
                 out FacilityState refinery, out string refineryReason), Is.True, refineryReason);
             simulation.SetFacilityPriority(miner.Id, 5);
             simulation.SetFacilityPriority(refinery.Id, 5);
             simulation.SetRestockTarget(refinery.Id, ItemId.Ore, 0);
-            AdvanceUntil(simulation, () => !miner.IsUnderConstruction && !refinery.IsUnderConstruction,
-                600_000, "miner and refinery construction", () =>
+            Assert.That(simulation.TryPlaceConveyorPath(miner.Id,
+                new[] { new GridPosition(22, 25) }, refinery.Id,
+                out ConveyorPathState orePath, out string orePathReason), Is.True, orePathReason);
+            FacilityState oreBelt = world.Facilities.Find(facility =>
+                facility.Kind == FacilityKind.Conveyor && facility.Position.X == 22 && facility.Position.Y == 25);
+            Assert.That(oreBelt, Is.Not.Null);
+            AdvanceUntil(simulation, () => !miner.IsUnderConstruction && !refinery.IsUnderConstruction &&
+                    !oreBelt.IsUnderConstruction,
+                600_000, "Miner, Refinery, and conveyor construction", () =>
                 "miner started=" + miner.IsConstructionStarted + ", building=" + miner.IsUnderConstruction +
                 ", iron=" + miner.Inventory.GetStock(ItemId.Iron) + ", plate=" + miner.Inventory.GetStock(ItemId.Plate) +
                 "; refinery started=" + refinery.IsConstructionStarted + ", building=" + refinery.IsUnderConstruction +
                 ", iron=" + refinery.Inventory.GetStock(ItemId.Iron) + ", plate=" + refinery.Inventory.GetStock(ItemId.Plate) +
+                "; belt started=" + oreBelt.IsConstructionStarted + ", building=" + oreBelt.IsUnderConstruction +
                 "; drones=" + DescribeDrones(world) + "; orders=" + DescribeTransportOrders(world));
+            Assert.That(simulation.Conveyors.Paths, Has.Count.EqualTo(1));
+            Assert.That(orePath.Cells, Has.Count.EqualTo(1));
             simulation.SetRestockTarget(ammunitionFactory.Id, ItemId.Plate, 5);
 
-            AdvanceUntil(simulation, () => miner.Inventory.GetStock(ItemId.Ore) >= 10,
-                300_000, "a full mined ore transfer batch", () => "miner ore=" +
-                miner.Inventory.GetStock(ItemId.Ore) + ", refinery ore=" + refinery.Inventory.GetStock(ItemId.Ore));
-            TransportOrder oreTransfer = simulation.QueueTransfer(miner.Id, refinery.Id, ItemId.Ore, 10);
-            AdvanceUntil(simulation, () => oreTransfer.DeliveredQuantity == 10,
-                60_000, "ore delivery to refinery", () => "miner ore=" +
+            AdvanceUntil(simulation, () => refinery.Inventory.GetStock(ItemId.Ore) >= 10,
+                300_000, "mined Ore delivery through conveyor", () => "miner ore=" +
                 miner.Inventory.GetStock(ItemId.Ore) + ", refinery ore=" +
-                refinery.Inventory.GetStock(ItemId.Ore) + ", delivered=" + oreTransfer.DeliveredQuantity +
-                ", drones=" + DescribeDrones(world));
+                refinery.Inventory.GetStock(ItemId.Ore) + ", drones=" + DescribeDrones(world));
+            Assert.That(world.Events.Exists(entry => entry.Category == "conveyor" &&
+                entry.Detail.Contains(":delivered:Ore:" + refinery.Id)), Is.True,
+                "Mined Ore must reach the Refinery through the installed conveyor path.");
+            Assert.That(world.TransportOrders.Exists(order => order.SourceFacilityId == miner.Id &&
+                order.DestinationFacilityId == refinery.Id && order.Item == ItemId.Ore), Is.False,
+                "No Drone transfer may mask the conveyor flow.");
             AdvanceUntil(simulation, () => refinery.Inventory.GetAvailable(ItemId.Crystal) >= 5,
                 60_000, "five produced crystals");
 
@@ -724,6 +921,235 @@ namespace ProjectC.Core.Tests
         }
 
         [Test]
+        public void IdleDroneAtOutpostChangesRegionImmediately()
+        {
+            GameSimulation simulation = GameSimulation.CreateNewMatch();
+            DroneState drone = simulation.World.Drones[0];
+            Assert.That(drone.Region, Is.EqualTo(DroneRegion.Production));
+            Assert.That(drone.PositionX, Is.EqualTo(simulation.World.FindFacility("outpost").Position.X));
+
+            Assert.That(simulation.RequestDroneRegionChange(drone.Id, DroneRegion.Combat), Is.True);
+
+            Assert.That(drone.Region, Is.EqualTo(DroneRegion.Combat));
+            Assert.That(drone.PendingRegion, Is.Null);
+            Assert.That(drone.IsAvailable, Is.True);
+        }
+
+        [Test]
+        public void IdleDroneReturnsToOutpostBeforeChangingRegion()
+        {
+            GameSimulation simulation = GameSimulation.CreateNewMatch();
+            simulation.SetRestockTarget("ironworks", ItemId.Iron, 0);
+            simulation.SetRestockTarget("ammunition-factory", ItemId.Plate, 0);
+            DroneState drone = simulation.World.Drones[4];
+            Assert.That(drone.Region, Is.EqualTo(DroneRegion.Combat));
+
+            Assert.That(simulation.RequestDroneRegionChange(drone.Id, DroneRegion.Production), Is.True);
+
+            Assert.That(drone.Region, Is.EqualTo(DroneRegion.Combat));
+            Assert.That(drone.PendingRegion, Is.EqualTo(DroneRegion.Production));
+            Assert.That(drone.IsAvailable, Is.False);
+            Assert.That(drone.IsReturningToOutpost, Is.True);
+
+            AdvanceUntil(simulation, () => drone.Region == DroneRegion.Production && !drone.PendingRegion.HasValue,
+                10_000, "idle drone return and region change");
+
+            FacilityState outpost = simulation.World.FindFacility("outpost");
+            Assert.That(drone.IsAvailable, Is.True);
+            Assert.That(drone.IsReturningToOutpost, Is.False);
+            Assert.That(drone.PositionX, Is.EqualTo(outpost.Position.X + outpost.Width * 0.5d));
+            Assert.That(drone.PositionY, Is.EqualTo(outpost.Position.Y + outpost.Height * 0.5d));
+        }
+
+        [Test]
+        public void ActiveTransportCompletesBeforeDroneChangesRegion()
+        {
+            GameSimulation simulation = GameSimulation.CreateNewMatch();
+            simulation.SetRestockTarget("ironworks", ItemId.Iron, 0);
+            simulation.SetRestockTarget("ammunition-factory", ItemId.Plate, 0);
+            GameWorld world = simulation.World;
+            FacilityState outpost = world.FindFacility("outpost");
+            FacilityState turret = world.FindFacility("turret");
+            DroneState drone = world.Drones[4];
+            Assert.That(turret.Inventory.TryRemove(ItemId.Ammunition, 5), Is.True);
+            Assert.That(outpost.Inventory.TryAdd(ItemId.Ammunition, 5), Is.True);
+            TransportOrder order = simulation.QueueTransfer(outpost.Id, turret.Id, ItemId.Ammunition, 5);
+            simulation.AdvanceGameMilliseconds(50);
+            Assert.That(drone.ActiveTransportOrderId, Is.EqualTo(order.Id));
+
+            Assert.That(simulation.RequestDroneRegionChange(drone.Id, DroneRegion.Production), Is.True);
+
+            Assert.That(drone.Region, Is.EqualTo(DroneRegion.Combat));
+            Assert.That(drone.PendingRegion, Is.EqualTo(DroneRegion.Production));
+            Assert.That(drone.ActiveTransportOrderId, Is.EqualTo(order.Id));
+            AdvanceUntil(simulation, () => order.DeliveredQuantity == 5 &&
+                    drone.Region == DroneRegion.Production && !drone.PendingRegion.HasValue,
+                10_000, "active transport completion and drone region change");
+
+            Assert.That(outpost.Inventory.GetStock(ItemId.Ammunition), Is.Zero);
+            Assert.That(turret.Inventory.GetStock(ItemId.Ammunition), Is.EqualTo(60));
+            Assert.That(order.State, Is.EqualTo(TransportOrderState.Completed));
+            Assert.That(drone.ActiveTransportOrderId, Is.Null);
+            Assert.That(drone.IsAvailable, Is.True);
+            int deliveredEventIndex = world.Events.FindIndex(entry => entry.Category == "transport" &&
+                entry.Detail == order.Id + ":delivered:5");
+            int regionChangedEventIndex = world.Events.FindIndex(entry => entry.Category == "drone" &&
+                entry.Detail == drone.Id + ":region-changed:Combat->Production");
+            Assert.That(deliveredEventIndex, Is.GreaterThanOrEqualTo(0));
+            Assert.That(regionChangedEventIndex, Is.GreaterThan(deliveredEventIndex));
+        }
+
+        [Test]
+        public void OutpostRepairKeepsItsInitialPlanWhileWaitingAndFinishesPaidWorkBeforeMoreMaterials()
+        {
+            GameSimulation simulation = GameSimulation.CreateNewMatch();
+            FacilityState outpost = simulation.World.FindFacility("outpost");
+            simulation.DamageFacility(outpost.Id, 500);
+
+            Assert.That(simulation.RequestRepair(outpost.Id), Is.True);
+            RepairTask task = simulation.Repairs.GetTask(outpost.Id);
+            Assert.That(task.PlannedRecoveryHitPoints, Is.EqualTo(500));
+
+            simulation.DamageFacility(outpost.Id, 1_000);
+            simulation.AdvanceGameMilliseconds(5_000);
+            Assert.That(task.Status, Is.EqualTo(RepairTaskStatus.WaitingForMaterials));
+            Assert.That(task.PlannedRecoveryHitPoints, Is.EqualTo(500));
+            Assert.That(task.PaidRecoveryHitPoints, Is.Zero);
+            Assert.That(task.RestoredHitPoints, Is.Zero);
+
+            Assert.That(outpost.Inventory.TryAdd(ItemId.Iron, 9), Is.True);
+            Assert.That(outpost.Inventory.TryAdd(ItemId.Plate, 2), Is.True);
+            simulation.AdvanceGameMilliseconds(50);
+            Assert.That(task.PaidRecoveryHitPoints, Is.Zero);
+            Assert.That(outpost.Inventory.GetStock(ItemId.Iron), Is.EqualTo(9));
+            Assert.That(outpost.Inventory.GetStock(ItemId.Plate), Is.EqualTo(2));
+
+            Assert.That(outpost.Inventory.TryAdd(ItemId.Iron, 1), Is.True);
+            Assert.That(outpost.Inventory.TryAdd(ItemId.Plate, 1), Is.True);
+            simulation.AdvanceGameMilliseconds(50);
+            Assert.That(task.PaidRecoveryHitPoints, Is.EqualTo(500));
+            string outpostRepairDroneId = task.AssignedDroneId;
+            Assert.That(outpostRepairDroneId, Is.Not.Null);
+
+            AdvanceUntil(simulation, () => task.RestoredHitPoints == 500, 20_000,
+                "initially paid Outpost repair tranche");
+            Assert.That(outpost.Health, Is.EqualTo(4_000));
+            Assert.That(task.Status, Is.EqualTo(RepairTaskStatus.WaitingForMaterials));
+            Assert.That(task.AssignedDroneId, Is.Null);
+            Assert.That(task.PaidRecoveryHitPoints, Is.EqualTo(500));
+            Assert.That(task.PlannedRecoveryHitPoints, Is.EqualTo(1_500));
+            DroneState outpostRepairDrone = simulation.World.Drones.Find(drone => drone.Id == outpostRepairDroneId);
+            Assert.That(outpostRepairDrone, Is.Not.Null);
+            Assert.That(outpostRepairDrone.IsAvailable, Is.True);
+
+            Assert.That(outpost.Inventory.TryAdd(ItemId.Iron, 19), Is.True);
+            Assert.That(outpost.Inventory.TryAdd(ItemId.Plate, 4), Is.True);
+            simulation.AdvanceGameMilliseconds(50);
+            Assert.That(task.PaidRecoveryHitPoints, Is.EqualTo(1_400),
+                "The affordable cumulative tranche should use the available Iron and Plate without rounding either item independently per tick.");
+            Assert.That(outpost.Inventory.GetStock(ItemId.Iron), Is.EqualTo(1));
+            Assert.That(outpost.Inventory.GetStock(ItemId.Plate), Is.Zero);
+
+            AdvanceUntil(simulation, () => task.RestoredHitPoints == 1_400, 20_000,
+                "partially funded Outpost repair tranche");
+            Assert.That(task.Status, Is.EqualTo(RepairTaskStatus.WaitingForMaterials));
+            Assert.That(task.AssignedDroneId, Is.Null);
+
+            FacilityState turret = simulation.World.FindFacility("turret");
+            Assert.That(turret.Inventory.TryRemove(ItemId.Ammunition, 5), Is.True);
+            Assert.That(outpost.Inventory.TryAdd(ItemId.Ammunition, 5), Is.True);
+            TransportOrder droneReuseOrder = simulation.QueueTransfer(outpost.Id, turret.Id,
+                ItemId.Ammunition, 5);
+            simulation.AdvanceGameMilliseconds(50);
+            Assert.That(outpostRepairDrone.IsAvailable, Is.False);
+            Assert.That(outpostRepairDrone.ActiveTransportOrderId, Is.EqualTo(droneReuseOrder.Id),
+                "The worker released at the repair tranche boundary should be eligible for new work.");
+            Assert.That(task.Status, Is.EqualTo(RepairTaskStatus.WaitingForMaterials));
+            AdvanceUntil(simulation, () => droneReuseOrder.State == TransportOrderState.Completed, 10_000,
+                "released Outpost repair drone to complete another task");
+            Assert.That(outpostRepairDrone.IsAvailable, Is.True);
+
+            Assert.That(outpost.Inventory.TryAdd(ItemId.Iron, 1), Is.True);
+            Assert.That(outpost.Inventory.TryAdd(ItemId.Plate, 1), Is.True);
+            AdvanceUntil(simulation, () => simulation.Repairs.GetTask(outpost.Id) == null, 20_000,
+                "remaining Outpost repair after the next material tranche");
+
+            Assert.That(outpost.Health, Is.EqualTo(outpost.MaximumHealth));
+            Assert.That(task.PaidRecoveryHitPoints, Is.EqualTo(1_500));
+            Assert.That(task.RestoredHitPoints, Is.EqualTo(1_500));
+            Assert.That(outpost.Inventory.GetStock(ItemId.Iron), Is.Zero);
+            Assert.That(outpost.Inventory.GetStock(ItemId.Plate), Is.Zero);
+        }
+
+        [Test]
+        public void TurretRepairCompletesPaidTrancheBeforeWaitingForCostsFromAdditionalDamage()
+        {
+            GameSimulation simulation = GameSimulation.CreateNewMatch();
+            FacilityState turret = simulation.World.FindFacility("turret");
+            simulation.DamageFacility(turret.Id, 100);
+
+            Assert.That(simulation.RequestRepair(turret.Id), Is.True);
+            RepairTask task = simulation.Repairs.GetTask(turret.Id);
+            Assert.That(task.PlannedRecoveryHitPoints, Is.EqualTo(100));
+            Assert.That(turret.Inventory.TryAdd(ItemId.Iron, 2), Is.True);
+            Assert.That(turret.Inventory.TryAdd(ItemId.Plate, 1), Is.True);
+            simulation.AdvanceGameMilliseconds(50);
+            Assert.That(task.PaidRecoveryHitPoints, Is.EqualTo(100));
+            string turretRepairDroneId = task.AssignedDroneId;
+            Assert.That(turretRepairDroneId, Is.Not.Null);
+
+            simulation.DamageFacility(turret.Id, 100);
+            AdvanceUntil(simulation, () => task.RestoredHitPoints == 100, 10_000,
+                "paid Turret repair tranche after additional damage");
+
+            Assert.That(turret.Health, Is.EqualTo(900));
+            Assert.That(task.Status, Is.EqualTo(RepairTaskStatus.WaitingForMaterials));
+            Assert.That(task.AssignedDroneId, Is.Null);
+            Assert.That(task.PaidRecoveryHitPoints, Is.EqualTo(100));
+            Assert.That(task.PlannedRecoveryHitPoints, Is.EqualTo(200));
+            DroneState turretRepairDrone = simulation.World.Drones.Find(drone => drone.Id == turretRepairDroneId);
+            Assert.That(turretRepairDrone, Is.Not.Null);
+            Assert.That(turretRepairDrone.IsAvailable, Is.True);
+
+            var reuseInventory = new InventoryStore("turret-repair-reuse.inventory");
+            Assert.That(reuseInventory.TryAdd(ItemId.Iron, 2), Is.True);
+            Assert.That(reuseInventory.TryAdd(ItemId.Plate, 1), Is.True);
+            var reuseTurret = new FacilityState("turret-repair-reuse", FacilityKind.Turret,
+                new GridPosition(80, 110), reuseInventory, maximumHealth: 1_000);
+            reuseTurret.ApplyDamage(100);
+            simulation.World.Facilities.Add(reuseTurret);
+            Assert.That(simulation.RequestRepair(reuseTurret.Id), Is.True);
+            RepairTask reuseTask = simulation.Repairs.GetTask(reuseTurret.Id);
+            AdvanceUntil(simulation, () => reuseTask.AssignedDroneId == turretRepairDroneId, 1_000,
+                "released Turret repair drone to take another repair task");
+            AdvanceUntil(simulation, () => simulation.Repairs.GetTask(reuseTurret.Id) == null, 10_000,
+                "released Turret repair drone to complete another task");
+            Assert.That(reuseTurret.Health, Is.EqualTo(reuseTurret.MaximumHealth));
+            Assert.That(reuseTask.PaidRecoveryHitPoints, Is.EqualTo(100));
+            Assert.That(task.Status, Is.EqualTo(RepairTaskStatus.WaitingForMaterials));
+            Assert.That(turretRepairDrone.IsAvailable, Is.True);
+
+            Assert.That(turret.Inventory.TryAdd(ItemId.Iron, 1), Is.True);
+            AdvanceUntil(simulation, () => task.RestoredHitPoints == 150, 10_000,
+                "first separately supplied Turret repair increment");
+            Assert.That(task.Status, Is.EqualTo(RepairTaskStatus.WaitingForMaterials));
+            Assert.That(task.PaidRecoveryHitPoints, Is.EqualTo(150));
+            Assert.That(task.AssignedDroneId, Is.Null);
+            Assert.That(turretRepairDrone.IsAvailable, Is.True);
+            Assert.That(turret.Inventory.GetStock(ItemId.Iron), Is.Zero);
+
+            Assert.That(turret.Inventory.TryAdd(ItemId.Iron, 1), Is.True);
+            AdvanceUntil(simulation, () => simulation.Repairs.GetTask(turret.Id) == null, 10_000,
+                "remaining Turret repair after material replenishment");
+
+            Assert.That(turret.Health, Is.EqualTo(turret.MaximumHealth));
+            Assert.That(task.PaidRecoveryHitPoints, Is.EqualTo(200));
+            Assert.That(task.RestoredHitPoints, Is.EqualTo(200));
+            Assert.That(turret.Inventory.GetStock(ItemId.Iron), Is.Zero);
+            Assert.That(turret.Inventory.GetStock(ItemId.Plate), Is.Zero);
+        }
+
+        [Test]
         public void DestroyingOutpostImmediatelyEndsMatchAsDefeat()
         {
             GameSimulation simulation = GameSimulation.CreateNewMatch();
@@ -758,11 +1184,73 @@ namespace ProjectC.Core.Tests
         }
 
         [Test]
+        [Timeout(60_000)]
+        public void EveryWaveMatchesTheConfirmedThirtyWaveSchedule()
+        {
+            GameDefinitions definitions = GameDefinitions.Default;
+            Assert.That(definitions.WaveCount, Is.EqualTo(30));
+            Assert.That(definitions.InitialWaveMilliseconds, Is.EqualTo(300_000));
+            Assert.That(definitions.WaveIntervalMilliseconds, Is.EqualTo(120_000));
+            Assert.That(definitions.FirstWaveEnemyCount, Is.EqualTo(10));
+            Assert.That(definitions.AdditionalEnemiesPerWave, Is.EqualTo(5));
+            Assert.That(definitions.MaximumEnemiesPerEntrySpawn, Is.EqualTo(3));
+
+            for (int wave = 1; wave <= definitions.WaveCount; wave++)
+            {
+                int expectedStart = 300_000 + ((wave - 1) * 120_000);
+                int expectedEnemies = 10 + ((wave - 1) * 5);
+                int[] entries = definitions.SplitWaveAcrossEntries(wave);
+
+                Assert.That(definitions.GetWaveStartMilliseconds(wave), Is.EqualTo(expectedStart),
+                    "Unexpected start time for wave " + wave + ".");
+                Assert.That(definitions.GetWaveEnemyCount(wave), Is.EqualTo(expectedEnemies),
+                    "Unexpected enemy count for wave " + wave + ".");
+                Assert.That(entries, Has.Length.EqualTo(3));
+                Assert.That(entries[0] + entries[1] + entries[2], Is.EqualTo(expectedEnemies),
+                    "Entry batches must preserve the wave total for wave " + wave + ".");
+                Assert.That(entries[0], Is.GreaterThanOrEqualTo(entries[1]));
+                Assert.That(entries[1], Is.GreaterThanOrEqualTo(entries[2]));
+                Assert.That(entries[0] - entries[2], Is.LessThanOrEqualTo(1));
+            }
+        }
+
+        [Test]
         public void ExportVictoryUsesActualStrictDepartureAndLossWinsTie()
         {
             Assert.That(MatchRules.Resolve(3_899_950, 2_000, false), Is.EqualTo(MatchOutcome.Victory));
             Assert.That(MatchRules.Resolve(3_900_000, 2_000, false), Is.EqualTo(MatchOutcome.Defeat));
             Assert.That(MatchRules.Resolve(3_899_950, 2_000, true), Is.EqualTo(MatchOutcome.Defeat));
+        }
+
+        [Test]
+        public void EnemyRecordsOutpostArrivalOnceWhileContinuingToAttack()
+        {
+            GameDefinitions definitions = GameDefinitions.CreateDefault();
+            definitions.InitialWaveMilliseconds = 50;
+            definitions.WaveCount = 1;
+            definitions.FirstWaveEnemyCount = 1;
+            definitions.AdditionalEnemiesPerWave = 0;
+            definitions.MaximumEnemiesPerEntrySpawn = 1;
+            definitions.EnemySpeedCellsPerSecond = 5;
+            definitions.MatchDeadlineMilliseconds = 60_000;
+            GameSimulation simulation = GameSimulation.CreateNewMatch(definitions);
+            FacilityState outpost = simulation.World.FindFacility("outpost");
+            simulation.DamageFacility("turret", definitions.TurretHealth);
+
+            AdvanceUntil(simulation,
+                () => simulation.World.Enemies.Exists(enemy => enemy.ReachedOutpost),
+                20_000, "single enemy to reach the Outpost");
+            EnemyState enemy = simulation.World.Enemies[0];
+            string arrivalEvent = enemy.Id + ":attacking-outpost";
+
+            Assert.That(simulation.World.Events.FindAll(entry => entry.Category == "combat" &&
+                entry.Detail == arrivalEvent).Count, Is.EqualTo(1));
+            int healthAtArrival = outpost.Health;
+            simulation.AdvanceGameMilliseconds(2_000);
+
+            Assert.That(outpost.Health, Is.LessThan(healthAtArrival));
+            Assert.That(simulation.World.Events.FindAll(entry => entry.Category == "combat" &&
+                entry.Detail == arrivalEvent).Count, Is.EqualTo(1));
         }
 
         private static GameSimulation CreateMatchWithoutAutomaticRestock()

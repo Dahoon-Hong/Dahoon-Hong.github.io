@@ -130,16 +130,20 @@ namespace ProjectC.Core
                     continue;
                 }
 
-                int requiredRecovery = checked(task.RestoredHitPoints + facility.MaximumHealth - facility.Health);
-                task.PlannedRecoveryHitPoints = Math.Max(task.PlannedRecoveryHitPoints, requiredRecovery);
+                if (task.PaidRecoveryHitPoints > 0)
+                {
+                    int requiredRecovery = checked(task.RestoredHitPoints + facility.MaximumHealth - facility.Health);
+                    task.PlannedRecoveryHitPoints = Math.Max(task.PlannedRecoveryHitPoints, requiredRecovery);
+                }
+
                 if (!TryPayAdditionalCosts(world, facility, task, task.PlannedRecoveryHitPoints))
                 {
                     if (task.RestoredHitPoints >= task.PaidRecoveryHitPoints)
                     {
                         ReleaseDrone(world, task);
                         task.Status = RepairTaskStatus.WaitingForMaterials;
+                        continue;
                     }
-                    continue;
                 }
 
                 if (task.AssignedDroneId == null)
@@ -206,10 +210,14 @@ namespace ProjectC.Core
         {
             if (!TryGetRepairCosts(world, facility, out Dictionary<ItemId, int> fullRepairCosts)) return false;
             int maximumHealth = facility.MaximumHealth;
+            int affordableRecovery = FindMaximumAffordableRecovery(facility, task, fullRepairCosts,
+                cumulativeRecovery, maximumHealth);
+            if (affordableRecovery <= task.PaidRecoveryHitPoints) return false;
+
             var deltas = new Dictionary<ItemId, int>();
             foreach (KeyValuePair<ItemId, int> cost in fullRepairCosts)
             {
-                int required = DivideRoundUp(checked((long)cumulativeRecovery * cost.Value), maximumHealth);
+                int required = DivideRoundUp(checked((long)affordableRecovery * cost.Value), maximumHealth);
                 task.PaidCosts.TryGetValue(cost.Key, out int alreadyPaid);
                 int delta = Math.Max(0, required - alreadyPaid);
                 if (facility.Inventory.GetAvailable(cost.Key) < delta) return false;
@@ -223,7 +231,45 @@ namespace ProjectC.Core
                 task.PaidCosts[delta.Key] = task.PaidCosts[delta.Key] + delta.Value;
             }
 
-            task.PaidRecoveryHitPoints = cumulativeRecovery;
+            task.PaidRecoveryHitPoints = affordableRecovery;
+            return true;
+        }
+
+        private static int FindMaximumAffordableRecovery(FacilityState facility, RepairTask task,
+            Dictionary<ItemId, int> fullRepairCosts, int maximumRecovery, int maximumHealth)
+        {
+            if (task.PaidRecoveryHitPoints == 0)
+            {
+                return CanPayRecoveryThrough(facility, task, fullRepairCosts, maximumRecovery, maximumHealth)
+                    ? maximumRecovery
+                    : 0;
+            }
+
+            int lower = task.PaidRecoveryHitPoints;
+            int upper = maximumRecovery;
+            while (lower < upper)
+            {
+                int candidate = lower + (upper - lower + 1) / 2;
+                if (CanPayRecoveryThrough(facility, task, fullRepairCosts, candidate, maximumHealth))
+                    lower = candidate;
+                else
+                    upper = candidate - 1;
+            }
+
+            return lower;
+        }
+
+        private static bool CanPayRecoveryThrough(FacilityState facility, RepairTask task,
+            Dictionary<ItemId, int> fullRepairCosts, int cumulativeRecovery, int maximumHealth)
+        {
+            foreach (KeyValuePair<ItemId, int> cost in fullRepairCosts)
+            {
+                int required = DivideRoundUp(checked((long)cumulativeRecovery * cost.Value), maximumHealth);
+                task.PaidCosts.TryGetValue(cost.Key, out int alreadyPaid);
+                int delta = Math.Max(0, required - alreadyPaid);
+                if (facility.Inventory.GetAvailable(cost.Key) < delta) return false;
+            }
+
             return true;
         }
 
@@ -276,7 +322,7 @@ namespace ProjectC.Core
             for (int i = 0; i < world.Drones.Count; i++)
             {
                 DroneState drone = world.Drones[i];
-                if (!drone.IsAvailable || drone.Region != requiredRegion) continue;
+                if (!drone.IsAvailable || drone.PendingRegion.HasValue || drone.Region != requiredRegion) continue;
                 double dx = drone.PositionX - targetX;
                 double dy = drone.PositionY - targetY;
                 double distanceSquared = dx * dx + dy * dy;

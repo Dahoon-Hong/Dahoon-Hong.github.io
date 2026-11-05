@@ -38,6 +38,11 @@ namespace ProjectC.Core
     public sealed class WaveCombatSystem
     {
         private const double EnemyRadius = 0.25d;
+        private static readonly double[] MoveCandidateOffsets =
+        {
+            0d, -Math.PI / 4d, Math.PI / 4d, -Math.PI / 2d,
+            Math.PI / 2d, -3d * Math.PI / 4d, 3d * Math.PI / 4d, Math.PI
+        };
         private readonly Queue<SpawnBatch>[] entryQueues =
         {
             new Queue<SpawnBatch>(), new Queue<SpawnBatch>(), new Queue<SpawnBatch>()
@@ -46,6 +51,7 @@ namespace ProjectC.Core
         private readonly bool[] entryClockInitialized = new bool[3];
         private int nextWaveNumber = 1;
         private int nextEnemySequence = 1;
+        private readonly FacilitySpatialIndex facilitySpatialIndex = new FacilitySpatialIndex();
         private readonly Dictionary<string, int> turretShotRemainderMilliseconds =
             new Dictionary<string, int>(StringComparer.Ordinal);
 
@@ -61,10 +67,11 @@ namespace ProjectC.Core
                 EnqueueWave(world, nextWaveNumber++);
             }
 
+            facilitySpatialIndex.Rebuild(world);
             int existingEnemyCount = world.Enemies.Count;
-            MoveEnemies(world, currentMilliseconds, elapsedMilliseconds, existingEnemyCount);
+            MoveEnemies(world, currentMilliseconds, elapsedMilliseconds, existingEnemyCount, facilitySpatialIndex);
             if (world.Outcome != MatchOutcome.Running) return;
-            SpawnReadyBatches(world, currentMilliseconds);
+            SpawnReadyBatches(world, currentMilliseconds, facilitySpatialIndex);
             FireTurret(world, currentMilliseconds, elapsedMilliseconds);
         }
 
@@ -86,7 +93,7 @@ namespace ProjectC.Core
             world.Record(start, "wave", "started:" + waveNumber + ":enemies:" + world.Definitions.GetWaveEnemyCount(waveNumber));
         }
 
-        private void SpawnReadyBatches(GameWorld world, long currentMilliseconds)
+        private void SpawnReadyBatches(GameWorld world, long currentMilliseconds, FacilitySpatialIndex facilityIndex)
         {
             for (int entry = 0; entry < entryQueues.Length; entry++)
             {
@@ -103,13 +110,14 @@ namespace ProjectC.Core
                         (laneIndex - ((batch.CurrentGroupSize - 1) / 2d)) * 0.5d;
                     if (batch.CurrentGroupSize == 1)
                     {
-                        if (!TryFindSingleSpawnPosition(world, entry, lane, out lane, out double x, out double y)) break;
+                        if (!TryFindSingleSpawnPosition(world, entry, lane, facilityIndex,
+                            out lane, out double x, out double y)) break;
                         SpawnEnemy(world, batch, lane, currentMilliseconds);
                     }
                     else
                     {
                         GetEntryPosition(world, entry, lane, out double x, out double y);
-                        if (!CanEnemyOccupy(world, x, y, null)) break;
+                        if (!CanEnemyOccupy(world, x, y, null, facilityIndex)) break;
                         SpawnEnemy(world, batch, lane, currentMilliseconds);
                     }
                     batch.Remaining--;
@@ -127,10 +135,10 @@ namespace ProjectC.Core
         }
 
         private static bool TryFindSingleSpawnPosition(GameWorld world, int entryIndex, double preferredLane,
-            out double lane, out double x, out double y)
+            FacilitySpatialIndex facilityIndex, out double lane, out double x, out double y)
         {
             GetEntryPosition(world, entryIndex, preferredLane, out x, out y);
-            if (CanEnemyOccupy(world, x, y, null))
+            if (CanEnemyOccupy(world, x, y, null, facilityIndex))
             {
                 lane = preferredLane;
                 return true;
@@ -141,12 +149,12 @@ namespace ProjectC.Core
             for (int step = 1; step <= laneSteps; step++)
             {
                 double offset = step * 0.5d;
-                if (TryGetSpawnPosition(world, entryIndex, preferredLane + offset, out x, out y))
+                if (TryGetSpawnPosition(world, entryIndex, preferredLane + offset, facilityIndex, out x, out y))
                 {
                     lane = preferredLane + offset;
                     return true;
                 }
-                if (TryGetSpawnPosition(world, entryIndex, preferredLane - offset, out x, out y))
+                if (TryGetSpawnPosition(world, entryIndex, preferredLane - offset, facilityIndex, out x, out y))
                 {
                     lane = preferredLane - offset;
                     return true;
@@ -157,10 +165,11 @@ namespace ProjectC.Core
             return false;
         }
 
-        private static bool TryGetSpawnPosition(GameWorld world, int entryIndex, double lane, out double x, out double y)
+        private static bool TryGetSpawnPosition(GameWorld world, int entryIndex, double lane,
+            FacilitySpatialIndex facilityIndex, out double x, out double y)
         {
             GetEntryPosition(world, entryIndex, lane, out x, out y);
-            return CanEnemyOccupy(world, x, y, null);
+            return CanEnemyOccupy(world, x, y, null, facilityIndex);
         }
 
         private void SpawnEnemy(GameWorld world, SpawnBatch batch, double laneOffset, long currentMilliseconds)
@@ -183,7 +192,8 @@ namespace ProjectC.Core
             world.Record(currentMilliseconds, "wave", "spawned:" + id + ":entry:" + batch.EntryIndex);
         }
 
-        private static void MoveEnemies(GameWorld world, long currentMilliseconds, long elapsedMilliseconds, int enemyCount)
+        private static void MoveEnemies(GameWorld world, long currentMilliseconds, long elapsedMilliseconds,
+            int enemyCount, FacilitySpatialIndex facilityIndex)
         {
             FacilityState outpost = world.FindFacility(FacilityKind.Outpost);
             if (outpost == null || outpost.IsDestroyed) return;
@@ -210,16 +220,16 @@ namespace ProjectC.Core
                 double distance = Math.Sqrt((dx * dx) + (dy * dy));
                 if (distance > distancePerStep && distance > 0.000001d)
                 {
-                    TryMoveEnemy(world, enemy, targetX, targetY, distancePerStep, occupancy);
+                    TryMoveEnemy(world, enemy, targetX, targetY, distancePerStep, occupancy, facilityIndex);
                     continue;
                 }
 
-                if (!CanEnemyOccupy(world, targetX, targetY, enemy, occupancy)) continue;
+                if (!CanEnemyOccupy(world, targetX, targetY, enemy, facilityIndex, occupancy)) continue;
                 occupancy.Remove(enemy);
                 enemy.X = targetX;
                 enemy.Y = targetY;
                 occupancy.Add(enemy);
-                if (blockingFacility == null)
+                if (blockingFacility == null && !enemy.ReachedOutpost)
                 {
                     enemy.ReachedOutpost = true;
                     world.Record(currentMilliseconds, "combat", enemy.Id + ":attacking-outpost");
@@ -321,22 +331,20 @@ namespace ProjectC.Core
         }
 
         private static void TryMoveEnemy(GameWorld world, EnemyState enemy, double targetX, double targetY,
-            double distancePerStep, EnemyOccupancy occupancy)
+            double distancePerStep, EnemyOccupancy occupancy, FacilitySpatialIndex facilityIndex)
         {
             double dx = targetX - enemy.X;
             double dy = targetY - enemy.Y;
             double angle = Math.Atan2(dy, dx);
-            double[] offsets = { 0d, -Math.PI / 4d, Math.PI / 4d, -Math.PI / 2d,
-                Math.PI / 2d, -3d * Math.PI / 4d, 3d * Math.PI / 4d, Math.PI };
             double bestDistance = double.MaxValue;
             double bestX = enemy.X;
             double bestY = enemy.Y;
-            for (int i = 0; i < offsets.Length; i++)
+            for (int i = 0; i < MoveCandidateOffsets.Length; i++)
             {
-                double candidateAngle = angle + offsets[i];
+                double candidateAngle = angle + MoveCandidateOffsets[i];
                 double candidateX = enemy.X + Math.Cos(candidateAngle) * distancePerStep;
                 double candidateY = enemy.Y + Math.Sin(candidateAngle) * distancePerStep;
-                if (!CanEnemyOccupy(world, candidateX, candidateY, enemy, occupancy)) continue;
+                if (!CanEnemyOccupy(world, candidateX, candidateY, enemy, facilityIndex, occupancy)) continue;
                 double remainingX = targetX - candidateX;
                 double remainingY = targetY - candidateY;
                 double remaining = remainingX * remainingX + remainingY * remainingY;
@@ -353,7 +361,7 @@ namespace ProjectC.Core
         }
 
         private static bool CanEnemyOccupy(GameWorld world, double x, double y, EnemyState movingEnemy,
-            EnemyOccupancy occupancy = null)
+            FacilitySpatialIndex facilityIndex, EnemyOccupancy occupancy = null)
         {
             GameDefinitions definitions = world.Definitions;
             if (x < EnemyRadius || y < definitions.ProductionHeight + EnemyRadius ||
@@ -375,15 +383,7 @@ namespace ProjectC.Core
                 }
             }
 
-            for (int i = 0; i < world.Facilities.Count; i++)
-            {
-                FacilityState facility = world.Facilities[i];
-                if (facility.IsDestroyed || facility.Position.Y + facility.Height <= definitions.ProductionHeight) continue;
-                if (Overlaps(x - EnemyRadius, y - EnemyRadius, EnemyRadius * 2d, EnemyRadius * 2d,
-                    facility.Position.X, facility.Position.Y, facility.Width, facility.Height)) return false;
-            }
-
-            return true;
+            return !facilityIndex.IsBlocked(x, y);
         }
 
         private static bool OverlapsMountain(GameDefinitions definitions, double x, double y)
@@ -397,10 +397,6 @@ namespace ProjectC.Core
                     if (definitions.IsMountainCell(cellX, cellY)) return true;
             return false;
         }
-
-        private static bool Overlaps(double ax, double ay, double aw, double ah,
-            double bx, double by, double bw, double bh) =>
-            ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 
         private static bool SegmentIntersectsRectangle(double startX, double startY, double endX, double endY,
             double minX, double minY, double maxX, double maxY, out double entryT)

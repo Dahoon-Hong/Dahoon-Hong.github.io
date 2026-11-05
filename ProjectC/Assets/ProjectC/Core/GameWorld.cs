@@ -95,7 +95,9 @@ namespace ProjectC.Core
         }
 
         public string Id { get; }
-        public DroneRegion Region { get; }
+        public DroneRegion Region { get; internal set; }
+        public DroneRegion? PendingRegion { get; internal set; }
+        public bool IsReturningToOutpost { get; internal set; }
         public GridPosition? Position { get; set; }
         public double PositionX { get; internal set; }
         public double PositionY { get; internal set; }

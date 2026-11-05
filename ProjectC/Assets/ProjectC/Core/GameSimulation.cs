@@ -154,6 +154,19 @@ namespace ProjectC.Core
             Record("priority", facility.Id + ":" + priority);
         }
 
+        public bool RequestDroneRegionChange(string droneId, DroneRegion region)
+        {
+            if (World.Outcome != MatchOutcome.Running) throw new InvalidOperationException("The match has ended.");
+            for (int i = 0; i < World.Drones.Count; i++)
+            {
+                DroneState drone = World.Drones[i];
+                if (drone.Id == droneId)
+                    return Transport.RequestDroneRegionChange(World, drone, region, processedMilliseconds);
+            }
+
+            throw new ArgumentException("Drone does not exist.", nameof(droneId));
+        }
+
         public void SetRestockTarget(string facilityId, ItemId item, int quantity)
         {
             if (World.Outcome != MatchOutcome.Running) throw new InvalidOperationException("The match has ended.");
@@ -161,7 +174,10 @@ namespace ProjectC.Core
             if (facility == null) throw new ArgumentException("Facility does not exist.", nameof(facilityId));
             if (quantity < 0 || quantity > facility.Inventory.GetCapacity(item))
                 throw new ArgumentOutOfRangeException(nameof(quantity), "The restock target must fit the facility's capacity.");
+            int previousTarget = facility.GetRestockTarget(item);
             facility.SetRestockTarget(item, quantity);
+            if (quantity < previousTarget)
+                Transport.ReconcileAutomaticRestockTarget(World, facility, item, quantity, processedMilliseconds);
             Record("supply", facility.Id + ":target:" + item + ":" + quantity);
         }
 
@@ -322,9 +338,9 @@ namespace ProjectC.Core
                 Mining.Tick(World, processedMilliseconds, step);
                 Construction.QueueMissingMaterials(World, processedMilliseconds, Transport);
                 Repairs.QueueMissingMaterials(World, processedMilliseconds, Transport);
+                Construction.Tick(World, processedMilliseconds, step);
                 Transport.Tick(World, processedMilliseconds, step);
                 Conveyors.Tick(World, processedMilliseconds, step);
-                Construction.Tick(World, processedMilliseconds, step);
                 Combat.Tick(World, processedMilliseconds, step);
                 Construction.RemoveDestroyedSites(World, processedMilliseconds, Transport);
                 Demolitions.Tick(World, processedMilliseconds, step, Transport, Production, Mining, Combat);
@@ -422,17 +438,20 @@ namespace ProjectC.Core
                 unloadingRateRemainder = rateUnits % 1_000;
                 int available = Math.Max(0, ship.EligibleIronToUnload - ship.UnloadedIron);
                 int unload = Math.Min(Math.Min(units, ship.RemainingIron), available);
-                if (unload > 0 && port.TryAdd(ItemId.Iron, unload))
+                if (unload > 0)
                 {
-                    ship.RemainingIron -= unload;
-                    ship.UnloadedIron += unload;
-                    ship.Cargo.SetCapacity(ItemId.Crystal, World.Definitions.ShipCargoCapacity - ship.RemainingIron);
-                    Record("ship", ship.Id + ":unloaded:" + unload);
-                }
-                else if (available > 0)
-                {
-                    // A full port stops this batch. The ship can continue to its export stage with unused iron aboard.
-                    ship.EligibleIronToUnload = ship.UnloadedIron;
+                    if (port.TryAdd(ItemId.Iron, unload))
+                    {
+                        ship.RemainingIron -= unload;
+                        ship.UnloadedIron += unload;
+                        ship.Cargo.SetCapacity(ItemId.Crystal, World.Definitions.ShipCargoCapacity - ship.RemainingIron);
+                        Record("ship", ship.Id + ":unloaded:" + unload);
+                    }
+                    else
+                    {
+                        // A full port stops this batch. The ship can continue to its export stage with unused iron aboard.
+                        ship.EligibleIronToUnload = ship.UnloadedIron;
+                    }
                 }
 
                 if (ship.RemainingIron == 0 || ship.UnloadedIron >= ship.EligibleIronToUnload)
