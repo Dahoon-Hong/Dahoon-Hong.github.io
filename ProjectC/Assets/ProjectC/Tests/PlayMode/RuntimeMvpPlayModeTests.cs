@@ -175,6 +175,8 @@ namespace ProjectC.Runtime.PlayMode.Tests
             FindButton(view.transform, "1x").onClick.Invoke();
             Assert.That(simulation.Clock.Speed, Is.EqualTo(GameSpeed.One));
 
+            GuideCanBeHiddenOrSkippedWithoutChangingTheMatch();
+
             FindButton(view.transform, "Build Conveyor").onClick.Invoke();
             yield return DragConveyorPath(new GridPosition(60, 52), new GridPosition(65, 52));
 
@@ -189,6 +191,8 @@ namespace ProjectC.Runtime.PlayMode.Tests
                 new GridPosition(63, 52), new GridPosition(64, 52), new GridPosition(65, 52)
             }));
 
+            yield return DuplicateConveyorPreviewIsRejected();
+            yield return FacilityHudWarningAndMinimapNavigationWork();
             yield return SaveAndReloadSettings();
             yield return SettingsDisplayScaleAudioAndDuplicateBindingPersistInOneShortSession();
 
@@ -200,8 +204,135 @@ namespace ProjectC.Runtime.PlayMode.Tests
             string title = FindText(view.transform, "Menu Title").text;
             Assert.That(title, Is.EqualTo(expectedLanguage == "ko" ? "패배" : "DEFEAT"));
             string body = FindText(view.transform, "Menu Body").text;
-            Assert.That(body, Does.Contain("/"));
-            Assert.That(body, Does.Contain(expectedLanguage == "ko" ? "최종 수출량:" : "Final exported:"));
+            string exportedStat = expectedLanguage == "ko"
+                ? string.Format("최종 수출량: {0:N0}/{1:N0} ({2}%)", simulation.World.ExportedCrystals,
+                    simulation.World.Definitions.ExportGoal, simulation.World.GoalCompletionRatePercent)
+                : string.Format("Final exported: {0:N0} / {1:N0} ({2}%)", simulation.World.ExportedCrystals,
+                    simulation.World.Definitions.ExportGoal, simulation.World.GoalCompletionRatePercent);
+            string waveStat = expectedLanguage == "ko"
+                ? string.Format("도달 웨이브: {0}/{1}", simulation.World.HighestWaveReached,
+                    simulation.World.Definitions.WaveCount)
+                : string.Format("Highest wave started: {0}/{1}", simulation.World.HighestWaveReached,
+                    simulation.World.Definitions.WaveCount);
+            string enemyStat = expectedLanguage == "ko"
+                ? "처치한 적: " + simulation.World.EnemiesDefeated
+                : "Enemies defeated: " + simulation.World.EnemiesDefeated;
+            Assert.That(body, Does.Contain(exportedStat));
+            Assert.That(body, Does.Contain(expectedLanguage == "ko" ? "경과 시간: " : "Play time: "));
+            Assert.That(body, Does.Contain(waveStat));
+            Assert.That(body, Does.Contain(enemyStat));
+        }
+
+        private void GuideCanBeHiddenOrSkippedWithoutChangingTheMatch()
+        {
+            ProjectCOnboardingPanel guide = view.GetComponent<ProjectCOnboardingPanel>();
+            int fundsBefore = simulation.World.Funds.Balance;
+            int ironBefore = simulation.World.FindFacility(FacilityKind.Port).Inventory.GetStock(ItemId.Iron);
+            long timeBefore = simulation.CurrentMilliseconds;
+
+            guide.Show();
+            Assert.That(guide.IsVisible, Is.True);
+            Assert.That(FindText(view.transform, "Guide Title").text, Is.EqualTo("FIRST PLAY GUIDE"));
+            Assert.That(FindText(view.transform, "Guide Progress").text, Does.Contain("STEP 1 / 4"));
+            Assert.That(FindText(view.transform, "Guide Objective").text,
+                Does.Contain("Move imported iron from the port"));
+            FindButton(view.transform, "Hide Guide").onClick.Invoke();
+            Assert.That(guide.IsVisible, Is.False);
+            Assert.That(guide.CompletedStepCount, Is.EqualTo(0));
+
+            guide.Show();
+            FindButton(view.transform, "Skip Guide").onClick.Invoke();
+            Assert.That(guide.IsVisible, Is.False);
+            Assert.That(guide.CompletedStepCount, Is.EqualTo(0));
+            Assert.That(simulation.World.Funds.Balance, Is.EqualTo(fundsBefore));
+            Assert.That(simulation.World.FindFacility(FacilityKind.Port).Inventory.GetStock(ItemId.Iron),
+                Is.EqualTo(ironBefore));
+            Assert.That(simulation.CurrentMilliseconds, Is.EqualTo(timeBefore));
+        }
+
+        private IEnumerator DuplicateConveyorPreviewIsRejected()
+        {
+            FindButton(view.transform, "Build Conveyor").onClick.Invoke();
+            Vector2 startScreen = GridCellScreenPoint(new GridPosition(60, 52));
+            Vector2 endScreen = GridCellScreenPoint(new GridPosition(65, 52));
+            Move(mouse.position, startScreen);
+            yield return null;
+            Press(mouse.leftButton);
+            yield return null;
+            Move(mouse.position, endScreen);
+            yield return null;
+
+            Assert.That(FindText(view.transform, "Selected Facility Text").text,
+                Does.Contain("Path preview: occupied"));
+            Assert.That(HasActiveNamedObject(view.transform, "Conveyor Path Preview"), Is.True);
+            Assert.That(simulation.Conveyors.Paths, Has.Count.EqualTo(1));
+
+            Release(mouse.leftButton);
+            yield return null;
+            Assert.That(simulation.Conveyors.Paths, Has.Count.EqualTo(1));
+            Assert.That(FindText(view.transform, "Selected Facility Text").text,
+                Does.Contain("Conveyor path rejected: occupied"));
+
+            keyboard = InputSystem.AddDevice<Keyboard>();
+            Press(keyboard.escapeKey);
+            yield return null;
+            Release(keyboard.escapeKey);
+            yield return null;
+            Assert.That(FindText(view.transform, "Selected Facility Text").text, Does.Contain("Placement cancelled."));
+            Assert.That(HasActiveNamedObject(view.transform, "Conveyor Path Preview"), Is.False);
+        }
+
+        private IEnumerator FacilityHudWarningAndMinimapNavigationWork()
+        {
+            GameWorld world = simulation.World;
+            string expectedFunds = "FUNDS  $" + world.Funds.Balance;
+            string expectedExport = string.Format("EXPORT  {0:N0}/{1:N0}", world.ExportedCrystals,
+                world.Definitions.ExportGoal);
+            FacilityState outpost = world.FindFacility(FacilityKind.Outpost);
+            string expectedOutpost = "OUTPOST  " + outpost.Health + "/" + outpost.MaximumHealth;
+            string expectedWave = "WAVE  0/" + world.Definitions.WaveCount;
+            UI.Text status = FindText(view.transform, "Match Status");
+            Assert.That(status.text, Does.Contain(expectedFunds));
+            Assert.That(status.text, Does.Contain(expectedExport));
+            Assert.That(status.text, Does.Contain(expectedOutpost));
+            Assert.That(status.text, Does.Contain(expectedWave));
+
+            yield return ClickWorldFacility("ironworks");
+            UI.Text details = FindText(view.transform, "Selected Facility Text");
+            Assert.That(details.text, Does.Contain("ironworks"));
+            Assert.That(details.text, Does.Contain("58, 52"));
+            Assert.That(details.text, Does.Contain("INVENTORY"));
+            Assert.That(FindNamedObject(view.transform, "ironworks Selection Marker").activeSelf, Is.True);
+            Assert.That(FindNamedObject(view.transform, "outpost Selection Marker").activeSelf, Is.False);
+
+            UI.Image outpostMarker = FindNamedObject(view.transform, "Facility outpost").GetComponent<UI.Image>();
+            Color originalOutpostColor = outpostMarker.color;
+            simulation.DamageFacility("outpost", 1);
+            yield return new WaitForSecondsRealtime(0.25f);
+            Assert.That(outpostMarker.color, Is.Not.EqualTo(originalOutpostColor));
+            Assert.That(status.text, Does.Contain("OUTPOST  " + outpost.Health + "/" + outpost.MaximumHealth));
+
+            UI.Button warnings = FindButton(view.transform, "Facility Warnings");
+            Assert.That(warnings.interactable, Is.True);
+            warnings.onClick.Invoke();
+            yield return null;
+            Assert.That(FindNamedObject(view.transform, "Warning List").activeSelf, Is.True);
+            UI.Button outpostWarning = FindButton(view.transform, "Warning outpost");
+            Vector3 cameraBeforeWarning = Camera.main.transform.position;
+            outpostWarning.onClick.Invoke();
+            Assert.That(details.text, Does.Contain("outpost"));
+            Assert.That(details.text, Does.Contain(outpost.Health + " / " + outpost.MaximumHealth));
+            Assert.That(Vector3.Distance(cameraBeforeWarning, Camera.main.transform.position), Is.GreaterThan(0.1f));
+            FindButton(view.transform, "Close Warning List").onClick.Invoke();
+
+            RectTransform minimap = FindNamedObject(view.transform, "Minimap").GetComponent<RectTransform>();
+            Vector3 minimapTarget = minimap.TransformPoint(new Vector3(
+                minimap.rect.xMax - 8f, minimap.rect.yMax - 8f, 0f));
+            Vector2 minimapScreen = RectTransformUtility.WorldToScreenPoint(null, minimapTarget);
+            Vector3 cameraBeforeMinimap = Camera.main.transform.position;
+            yield return ClickScreenPoint(minimapScreen);
+            Assert.That(Vector3.Distance(cameraBeforeMinimap, Camera.main.transform.position), Is.GreaterThan(0.1f));
+            Assert.That(outpostMarker.gameObject.activeSelf, Is.True);
         }
 
         private IEnumerator SettingsDisplayScaleAudioAndDuplicateBindingPersistInOneShortSession()
@@ -339,10 +470,8 @@ namespace ProjectC.Runtime.PlayMode.Tests
         private IEnumerator DragConveyorPath(GridPosition start, GridPosition end)
         {
             mouse = InputSystem.AddDevice<Mouse>();
-            Camera camera = Camera.main;
-            Assert.That(camera, Is.Not.Null, "The runtime view must provide the map camera.");
-            Vector2 startScreen = camera.WorldToScreenPoint(new Vector3(start.X + 0.5f, 0.01f, start.Y + 0.5f));
-            Vector2 endScreen = camera.WorldToScreenPoint(new Vector3(end.X + 0.5f, 0.01f, end.Y + 0.5f));
+            Vector2 startScreen = GridCellScreenPoint(start);
+            Vector2 endScreen = GridCellScreenPoint(end);
             Move(mouse.position, startScreen);
             yield return null;
             Press(mouse.leftButton);
@@ -351,6 +480,54 @@ namespace ProjectC.Runtime.PlayMode.Tests
             yield return null;
             Release(mouse.leftButton);
             yield return null;
+        }
+
+        private IEnumerator ClickWorldFacility(string facilityId)
+        {
+            GameObject facility = FindNamedObject(view.transform, facilityId);
+            Camera camera = Camera.main;
+            Assert.That(camera, Is.Not.Null, "The runtime view must provide the map camera.");
+            Vector2 screenPosition = camera.WorldToScreenPoint(facility.transform.position);
+            Mouse activeMouse = GetTestMouse();
+            Move(activeMouse.position, screenPosition);
+            yield return null;
+            Press(activeMouse.leftButton);
+            yield return null;
+            Release(activeMouse.leftButton);
+            yield return null;
+        }
+
+        private IEnumerator ClickScreenPoint(Vector2 screenPosition)
+        {
+            Mouse activeMouse = GetTestMouse();
+            Move(activeMouse.position, screenPosition);
+            yield return null;
+            Press(activeMouse.leftButton);
+            yield return null;
+            Release(activeMouse.leftButton);
+            yield return null;
+        }
+
+        private Mouse GetTestMouse()
+        {
+            if (mouse == null || !mouse.added) mouse = InputSystem.AddDevice<Mouse>();
+            return mouse;
+        }
+
+        private static Vector2 GridCellScreenPoint(GridPosition position)
+        {
+            Camera camera = Camera.main;
+            Assert.That(camera, Is.Not.Null, "The runtime view must provide the map camera.");
+            return camera.WorldToScreenPoint(new Vector3(position.X + 0.5f, 0.01f, position.Y + 0.5f));
+        }
+
+        private static bool HasActiveNamedObject(Transform root, string objectName)
+        {
+            Transform[] transforms = root.GetComponentsInChildren<Transform>(true);
+            for (int i = 0; i < transforms.Length; i++)
+                if (transforms[i].gameObject.name == objectName && transforms[i].gameObject.activeInHierarchy)
+                    return true;
+            return false;
         }
 
         private static UI.Button FindButton(Transform root, string objectName)
