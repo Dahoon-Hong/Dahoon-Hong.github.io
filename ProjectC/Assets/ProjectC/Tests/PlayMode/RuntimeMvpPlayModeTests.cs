@@ -192,6 +192,9 @@ namespace ProjectC.Runtime.PlayMode.Tests
             }));
 
             yield return DuplicateConveyorPreviewIsRejected();
+            yield return FacilityPlacementPreviewRotationAndCommitWork();
+            yield return FacilityManagementActionsWork();
+            yield return PortContractsAndOneOffOrderAreApplied();
             yield return FacilityHudWarningAndMinimapNavigationWork();
             yield return SaveAndReloadSettings();
             yield return SettingsDisplayScaleAudioAndDuplicateBindingPersistInOneShortSession();
@@ -333,6 +336,206 @@ namespace ProjectC.Runtime.PlayMode.Tests
             yield return ClickScreenPoint(minimapScreen);
             Assert.That(Vector3.Distance(cameraBeforeMinimap, Camera.main.transform.position), Is.GreaterThan(0.1f));
             Assert.That(outpostMarker.gameObject.activeSelf, Is.True);
+        }
+
+        private IEnumerator FacilityPlacementPreviewRotationAndCommitWork()
+        {
+            GridPosition occupiedPathCell = new GridPosition(60, 52);
+            GridPosition openProductionCell = new GridPosition(60, 60);
+            int initialFacilityCount = simulation.World.Facilities.Count;
+            int initialFunds = simulation.World.Funds.Balance;
+            int initialPathCount = simulation.Conveyors.Paths.Count;
+
+            FindButton(view.transform, "Build Splitter").onClick.Invoke();
+            Move(mouse.position, GridCellScreenPoint(occupiedPathCell));
+            yield return null;
+
+            GameObject preview = FindNamedObject(view.transform, "Facility Placement Preview");
+            Assert.That(preview.activeInHierarchy, Is.True);
+            Renderer previewRenderer = preview.GetComponent<Renderer>();
+            Assert.That((Color32)previewRenderer.sharedMaterial.color,
+                Is.EqualTo(new Color32(226, 91, 75, 255)), "A preview over an existing path must be red.");
+
+            Move(mouse.position, GridCellScreenPoint(openProductionCell));
+            yield return null;
+            Assert.That(preview.activeInHierarchy, Is.True);
+            Assert.That((Color32)previewRenderer.sharedMaterial.color,
+                Is.EqualTo(new Color32(65, 205, 151, 255)), "A valid open-cell preview must be green.");
+
+            keyboard = InputSystem.AddDevice<Keyboard>();
+            Press(keyboard.rKey);
+            yield return null;
+            Release(keyboard.rKey);
+            yield return null;
+            Assert.That(FindText(view.transform, "Build Mode").text, Does.Contain("Rotation 90°"));
+
+            Move(mouse.position, GridCellScreenPoint(openProductionCell));
+            yield return null;
+            Press(mouse.leftButton);
+            yield return null;
+            Release(mouse.leftButton);
+            yield return null;
+
+            Assert.That(simulation.World.Facilities, Has.Count.EqualTo(initialFacilityCount + 1));
+            FacilityState placed = simulation.World.Facilities[simulation.World.Facilities.Count - 1];
+            Assert.That(placed.Kind, Is.EqualTo(FacilityKind.Splitter));
+            Assert.That(placed.Position.Equals(openProductionCell), Is.True);
+            Assert.That(placed.RotationDegrees, Is.EqualTo(90));
+            Assert.That(placed.IsUnderConstruction, Is.True);
+            Assert.That(simulation.World.Funds.Balance, Is.EqualTo(initialFunds));
+            Assert.That(simulation.Conveyors.Paths, Has.Count.EqualTo(initialPathCount));
+            Assert.That(preview.activeSelf, Is.False);
+
+            Assert.That(placed.Inventory.TryAdd(ItemId.Iron, 1), Is.True);
+            SelectFacilityForManagement(placed);
+            UI.Button cancelConstruction = FindButton(view.transform, "Demolish Facility");
+            Assert.That(cancelConstruction.GetComponentInChildren<UI.Text>().text, Is.EqualTo("Cancel Construction"));
+            cancelConstruction.onClick.Invoke();
+            Assert.That(simulation.World.Facilities.Contains(placed), Is.False);
+            Assert.That(simulation.World.ConstructionSites.Exists(site => site.Facility == placed), Is.False);
+            RecoveryPile recovery = null;
+            for (int i = 0; i < simulation.World.RecoveryPiles.Count; i++)
+                if (simulation.World.RecoveryPiles[i].Position.Equals(openProductionCell))
+                    recovery = simulation.World.RecoveryPiles[i];
+            Assert.That(recovery, Is.Not.Null);
+            Assert.That(recovery.Inventory.GetStock(ItemId.Iron), Is.GreaterThanOrEqualTo(1));
+        }
+
+        private IEnumerator FacilityManagementActionsWork()
+        {
+            FacilityState ironworks = simulation.World.FindFacility("ironworks");
+            SelectFacilityForManagement(ironworks);
+            UI.InputField restockTarget = FindNamedObject(view.transform, "Restock Target")
+                .GetComponent<UI.InputField>();
+            restockTarget.text = "23";
+            FindButton(view.transform, "Apply Target").onClick.Invoke();
+            Assert.That(ironworks.GetRestockTarget(ItemId.Iron), Is.EqualTo(23));
+            Assert.That(FindText(view.transform, "Selected Facility Text").text,
+                Does.Contain("23 target set to Iron Ironworks."));
+
+            FacilityState startingTurret = simulation.World.FindFacility(FacilityKind.Turret);
+            simulation.DamageFacility(startingTurret.Id, 100);
+            Assert.That(startingTurret.Inventory.TryAdd(ItemId.Iron, 2), Is.True);
+            Assert.That(startingTurret.Inventory.TryAdd(ItemId.Plate, 1), Is.True);
+            SelectFacilityForManagement(startingTurret);
+            UI.Button repair = FindButton(view.transform, "Repair Facility");
+            repair.onClick.Invoke();
+            Assert.That(simulation.Repairs.GetTask(startingTurret.Id), Is.Not.Null);
+            Assert.That(repair.GetComponentInChildren<UI.Text>().text, Is.EqualTo("Cancel Repair"));
+            repair.onClick.Invoke();
+            Assert.That(simulation.Repairs.GetTask(startingTurret.Id), Is.Null);
+            Assert.That(startingTurret.Health, Is.EqualTo(startingTurret.MaximumHealth - 100));
+            Assert.That(repair.GetComponentInChildren<UI.Text>().text, Is.EqualTo("Repair Facility"));
+
+            repair.onClick.Invoke();
+            simulation.AdvanceGameMilliseconds(3_000);
+            yield return null;
+            Assert.That(startingTurret.Health, Is.EqualTo(startingTurret.MaximumHealth));
+            Assert.That(simulation.Repairs.GetTask(startingTurret.Id), Is.Null);
+            Assert.That(startingTurret.Inventory.GetStock(ItemId.Iron), Is.EqualTo(0));
+            Assert.That(startingTurret.Inventory.GetStock(ItemId.Plate), Is.EqualTo(0));
+
+            GridPosition newTurretPosition = new GridPosition(65, 109);
+            Assert.That(simulation.TryPlaceFacility(FacilityKind.Turret, newTurretPosition, 0,
+                out FacilityState newTurret, out string placementReason), Is.True, placementReason);
+            SelectFacilityForManagement(newTurret);
+            UI.Text details = FindText(view.transform, "Selected Facility Text");
+            Assert.That(details.text, Does.Contain("STATUS   Waiting for materials / drone"));
+            UI.Button demolition = FindButton(view.transform, "Demolish Facility");
+            Assert.That(demolition.GetComponentInChildren<UI.Text>().text, Is.EqualTo("Cancel Construction"));
+
+            Assert.That(newTurret.Inventory.TryAdd(ItemId.Iron, 20), Is.True);
+            Assert.That(newTurret.Inventory.TryAdd(ItemId.Plate, 5), Is.True);
+            simulation.AdvanceGameMilliseconds(5_000);
+            yield return new WaitForSecondsRealtime(0.25f);
+            Assert.That(newTurret.IsUnderConstruction, Is.False);
+            Assert.That(details.text, Does.Not.Contain("STATUS   "));
+            Assert.That(demolition.GetComponentInChildren<UI.Text>().text, Is.EqualTo("Demolish Facility"));
+            Assert.That(demolition.interactable, Is.True);
+
+            demolition.onClick.Invoke();
+            Assert.That(newTurret.IsDemolishing, Is.True);
+            Assert.That(simulation.Demolitions.GetTask(newTurret.Id), Is.Not.Null);
+            Assert.That(demolition.GetComponentInChildren<UI.Text>().text, Is.EqualTo("Cancel Demolition"));
+            demolition.onClick.Invoke();
+            Assert.That(newTurret.IsDemolishing, Is.False);
+            Assert.That(simulation.Demolitions.GetTask(newTurret.Id), Is.Null);
+            Assert.That(demolition.GetComponentInChildren<UI.Text>().text, Is.EqualTo("Demolish Facility"));
+        }
+
+        private IEnumerator PortContractsAndOneOffOrderAreApplied()
+        {
+            yield return ClickWorldFacility("port");
+            FindButton(view.transform, "Manage Port").onClick.Invoke();
+            Assert.That(FindNamedObject(view.transform, "Port Contracts").activeSelf, Is.True);
+
+            int fundsBeforeContracts = simulation.World.Funds.Balance;
+            UI.InputField regularIron = FindNamedObject(view.transform, "Regular Iron Contract Quantity")
+                .GetComponent<UI.InputField>();
+            UI.InputField regularCrystal = FindNamedObject(view.transform, "Regular Crystal Contract Quantity")
+                .GetComponent<UI.InputField>();
+            regularIron.text = "125";
+            regularCrystal.text = "25";
+            FindButton(view.transform, "Apply Regular Contracts").onClick.Invoke();
+
+            Assert.That(simulation.World.RegularImportContractQuantity, Is.EqualTo(125));
+            Assert.That(simulation.World.RegularExportContractQuantity, Is.EqualTo(25));
+            Assert.That(FindText(view.transform, "Regular Import Label").text, Does.Contain("125"));
+            Assert.That(FindText(view.transform, "Regular Export Label").text, Does.Contain("25"));
+            Assert.That(simulation.World.Funds.Balance, Is.EqualTo(fundsBeforeContracts),
+                "Changing regular contracts must not prepay a voyage.");
+
+            regularIron.SetTextWithoutNotify("501");
+            FindButton(view.transform, "Apply Regular Contracts").onClick.Invoke();
+            Assert.That(simulation.World.RegularImportContractQuantity, Is.EqualTo(125),
+                "An invalid regular contract draft must leave the active quantity unchanged.");
+            regularIron.text = "125";
+
+            UI.InputField oneOffIron = FindNamedObject(view.transform, "One Off Iron Quantity")
+                .GetComponent<UI.InputField>();
+
+            int fundsBeforeInvalidOrder = simulation.World.Funds.Balance;
+            oneOffIron.SetTextWithoutNotify("501");
+            FindButton(view.transform, "Confirm One Off Order").onClick.Invoke();
+            Assert.That(simulation.World.Funds.Balance, Is.EqualTo(fundsBeforeInvalidOrder));
+            for (int i = 0; i < simulation.PendingImportShips.Count; i++)
+                Assert.That(simulation.PendingImportShips[i].OneOff, Is.False,
+                    "A cargo-over-capacity order must not create a ship.");
+            Assert.That(FindText(view.transform, "One Off Order Summary").text, Does.Contain("Order rejected"));
+
+            oneOffIron.text = "1";
+            FindNamedObject(view.transform, "One Off Drone Quantity").GetComponent<UI.InputField>().text = "0";
+            FindNamedObject(view.transform, "One Off Export Quantity").GetComponent<UI.InputField>().text = "0";
+            long orderRequestedAt = simulation.CurrentMilliseconds;
+            FindButton(view.transform, "Confirm One Off Order").onClick.Invoke();
+
+            Assert.That(simulation.World.Funds.Balance,
+                Is.EqualTo(fundsBeforeContracts - simulation.World.Definitions.IronUnitPrice));
+            ImportShipState oneOff = null;
+            for (int i = 0; i < simulation.PendingImportShips.Count; i++)
+                if (simulation.PendingImportShips[i].OneOff) oneOff = simulation.PendingImportShips[i];
+            Assert.That(oneOff, Is.Not.Null);
+            Assert.That(oneOff.PaidIron, Is.EqualTo(1));
+            Assert.That(oneOff.DroneCount, Is.EqualTo(0));
+            Assert.That(oneOff.ArrivalMilliseconds, Is.EqualTo(orderRequestedAt + 60_000));
+            Assert.That(FindText(view.transform, "One Off Order Summary").text,
+                Does.Contain("Order confirmed"));
+
+            DroneState combatDrone = null;
+            for (int i = 0; i < simulation.World.Drones.Count; i++)
+                if (simulation.World.Drones[i].Region == DroneRegion.Combat &&
+                    !simulation.World.Drones[i].PendingRegion.HasValue)
+                {
+                    combatDrone = simulation.World.Drones[i];
+                    break;
+                }
+            Assert.That(combatDrone, Is.Not.Null);
+            FindButton(view.transform, "Move Drone to Production").onClick.Invoke();
+            Assert.That(combatDrone.Region == DroneRegion.Production ||
+                        combatDrone.PendingRegion == DroneRegion.Production, Is.True,
+                "The Port action must request the selected combat drone's region change.");
+            FindButton(view.transform, "Close Port Contracts").onClick.Invoke();
+            Assert.That(FindNamedObject(view.transform, "Port Contracts").activeSelf, Is.False);
         }
 
         private IEnumerator SettingsDisplayScaleAudioAndDuplicateBindingPersistInOneShortSession()
@@ -512,6 +715,14 @@ namespace ProjectC.Runtime.PlayMode.Tests
         {
             if (mouse == null || !mouse.added) mouse = InputSystem.AddDevice<Mouse>();
             return mouse;
+        }
+
+        private void SelectFacilityForManagement(FacilityState facility)
+        {
+            var select = typeof(ProjectCRuntimeView).GetMethod("SelectFacility",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.That(select, Is.Not.Null, "Runtime facility selection callback should remain available.");
+            select.Invoke(view, new object[] { facility });
         }
 
         private static Vector2 GridCellScreenPoint(GridPosition position)
