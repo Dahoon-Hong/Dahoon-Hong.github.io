@@ -1661,3 +1661,23 @@ browser DOM checks for native runtime evidence.
 
 - The three scenarios must use the shortest deterministic timeline (101 fixed simulation ticks), rather than replaying all78,000 ticks to the production deadline. No test-only clock reflection or production fast-forward behavior is allowed.
 - Run the new boundary tests by exact filter, then run the default EditMode suite. A focused NUnit `Passed` must include the expected assertions and is not itself gameplay acceptance. EV-01–03 close only when all explicit departure, outcome, event, and deadline assertions pass; Standalone FLOW-01 and GAME-01 remain separate gates.
+
+### PERF-01 bounded combat terrain lookup optimization
+
+**Requirements and scope**
+
+- Keep the production 50ms simulation step, system order, movement candidates, collision decisions, targeting, and event timestamps unchanged.
+- Replace repeated mountain-region scans in enemy movement collision checks and turret line-of-sight with a per-match cell lookup. Refresh it when the definitions object, map dimensions, mountain-region array, or any region rectangle changes; preserve the public mutable definition behavior.
+- Leave construction, conveyor validation, and map rendering on the existing `GameDefinitions.IsMountainCell` API. Do not modify gameplay balance, spawn timing, or wave data.
+
+**Acceptance and verification**
+
+- Compare the lookup against `IsMountainCell` for every map cell and the out-of-map boundary, then replace the region array and mutate a region in place to verify cache refresh.
+- Measure the same dense `WaveCombatSystem.Tick` scenario before and after, and record the query/tick timings without a hardware-dependent absolute threshold. Run focused and full EditMode plus full PlayMode commands with each process under60 seconds.
+- Report this as a bounded combat-path optimization only. It does not prove the full GAME-01 match or close target-device PERF-01 without representative full-match and standalone measurements.
+
+**Result**
+
+- TDD red produced the expected missing-`MountainCellLookup` compile error in6.0 s. After implementation, lookup parity/refresh and the existing combat occupancy check passed3/3 (NUnit body1.275 s; Unity process25.9 s). Full EditMode passed71/71 (body5.717 s; process22.7 s), and full PlayMode passed1/1 (body2.145 s; process26.0 s). A final label-only focused measurement passed1/1 (body0.425 s; process20.1 s). All successful processes stayed below55 seconds.
+- The identical 512-enemy/100-tick combat measurement was424.93 ms before the lookup. Two post-change runs measured314.67 ms and358.90 ms, a15–26% reduction on this desktop. This microbenchmark does not represent target hardware or a full match.
+- Reports and logs are saved under `ProjectC/Builds/Verification-fast/Plan1-combat-terrain-*`. Unity logs still report the pre-existing `TagManager.asset` YAML parse warning at line41; it does not fail these tests.

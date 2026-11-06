@@ -53,6 +53,7 @@ namespace ProjectC.Core
         private int nextEnemySequence = 1;
         private readonly FacilitySpatialIndex facilitySpatialIndex = new FacilitySpatialIndex();
         private readonly EnemyOccupancy enemyOccupancy = new EnemyOccupancy();
+        private readonly MountainCellLookup mountainCells = new MountainCellLookup();
         private readonly Dictionary<string, int> turretShotRemainderMilliseconds =
             new Dictionary<string, int>(StringComparer.Ordinal);
 
@@ -68,13 +69,14 @@ namespace ProjectC.Core
                 EnqueueWave(world, nextWaveNumber++);
             }
 
+            mountainCells.RefreshIfChanged(world.Definitions);
             facilitySpatialIndex.Rebuild(world);
             int existingEnemyCount = world.Enemies.Count;
             MoveEnemies(world, currentMilliseconds, elapsedMilliseconds, existingEnemyCount,
-                facilitySpatialIndex, enemyOccupancy);
+                facilitySpatialIndex, enemyOccupancy, mountainCells);
             if (world.Outcome != MatchOutcome.Running) return;
             SpawnReadyBatches(world, currentMilliseconds, facilitySpatialIndex);
-            FireTurret(world, currentMilliseconds, elapsedMilliseconds);
+            FireTurret(world, currentMilliseconds, elapsedMilliseconds, mountainCells);
         }
 
         private void EnqueueWave(GameWorld world, int waveNumber)
@@ -195,7 +197,8 @@ namespace ProjectC.Core
         }
 
         private static void MoveEnemies(GameWorld world, long currentMilliseconds, long elapsedMilliseconds,
-            int enemyCount, FacilitySpatialIndex facilityIndex, EnemyOccupancy occupancy)
+            int enemyCount, FacilitySpatialIndex facilityIndex, EnemyOccupancy occupancy,
+            MountainCellLookup mountainLookup)
         {
             FacilityState outpost = world.FindFacility(FacilityKind.Outpost);
             if (outpost == null || outpost.IsDestroyed) return;
@@ -222,11 +225,12 @@ namespace ProjectC.Core
                 double distance = Math.Sqrt((dx * dx) + (dy * dy));
                 if (distance > distancePerStep && distance > 0.000001d)
                 {
-                    TryMoveEnemy(world, enemy, targetX, targetY, distancePerStep, occupancy, facilityIndex);
+                    TryMoveEnemy(world, enemy, targetX, targetY, distancePerStep, occupancy,
+                        facilityIndex, mountainLookup);
                     continue;
                 }
 
-                if (!CanEnemyOccupy(world, targetX, targetY, enemy, facilityIndex, occupancy)) continue;
+                if (!CanEnemyOccupy(world, targetX, targetY, enemy, facilityIndex, occupancy, mountainLookup)) continue;
                 occupancy.Remove(enemy);
                 enemy.X = targetX;
                 enemy.Y = targetY;
@@ -333,7 +337,8 @@ namespace ProjectC.Core
         }
 
         private static void TryMoveEnemy(GameWorld world, EnemyState enemy, double targetX, double targetY,
-            double distancePerStep, EnemyOccupancy occupancy, FacilitySpatialIndex facilityIndex)
+            double distancePerStep, EnemyOccupancy occupancy, FacilitySpatialIndex facilityIndex,
+            MountainCellLookup mountainLookup)
         {
             double dx = targetX - enemy.X;
             double dy = targetY - enemy.Y;
@@ -346,7 +351,7 @@ namespace ProjectC.Core
                 double candidateAngle = angle + MoveCandidateOffsets[i];
                 double candidateX = enemy.X + Math.Cos(candidateAngle) * distancePerStep;
                 double candidateY = enemy.Y + Math.Sin(candidateAngle) * distancePerStep;
-                if (!CanEnemyOccupy(world, candidateX, candidateY, enemy, facilityIndex, occupancy)) continue;
+                if (!CanEnemyOccupy(world, candidateX, candidateY, enemy, facilityIndex, occupancy, mountainLookup)) continue;
                 double remainingX = targetX - candidateX;
                 double remainingY = targetY - candidateY;
                 double remaining = remainingX * remainingX + remainingY * remainingY;
@@ -363,12 +368,13 @@ namespace ProjectC.Core
         }
 
         private static bool CanEnemyOccupy(GameWorld world, double x, double y, EnemyState movingEnemy,
-            FacilitySpatialIndex facilityIndex, EnemyOccupancy occupancy = null)
+            FacilitySpatialIndex facilityIndex, EnemyOccupancy occupancy = null,
+            MountainCellLookup mountainLookup = null)
         {
             GameDefinitions definitions = world.Definitions;
             if (x < EnemyRadius || y < definitions.ProductionHeight + EnemyRadius ||
                 x > definitions.MapWidth - EnemyRadius || y > definitions.MapHeight - EnemyRadius ||
-                OverlapsMountain(definitions, x, y)) return false;
+                OverlapsMountain(definitions, x, y, mountainLookup)) return false;
 
             if (occupancy != null)
             {
@@ -388,7 +394,8 @@ namespace ProjectC.Core
             return !facilityIndex.IsBlocked(x, y);
         }
 
-        private static bool OverlapsMountain(GameDefinitions definitions, double x, double y)
+        private static bool OverlapsMountain(GameDefinitions definitions, double x, double y,
+            MountainCellLookup mountainLookup = null)
         {
             int minX = Math.Max(0, (int)Math.Floor(x - EnemyRadius));
             int maxX = Math.Min(definitions.MapWidth - 1, (int)Math.Floor(x + EnemyRadius));
@@ -396,7 +403,9 @@ namespace ProjectC.Core
             int maxY = Math.Min(definitions.MapHeight - 1, (int)Math.Floor(y + EnemyRadius));
             for (int cellX = minX; cellX <= maxX; cellX++)
                 for (int cellY = minY; cellY <= maxY; cellY++)
-                    if (definitions.IsMountainCell(cellX, cellY)) return true;
+                    if (mountainLookup == null
+                        ? definitions.IsMountainCell(cellX, cellY)
+                        : mountainLookup.IsMountainCell(cellX, cellY)) return true;
             return false;
         }
 
@@ -438,7 +447,8 @@ namespace ProjectC.Core
             return true;
         }
 
-        private void FireTurret(GameWorld world, long currentMilliseconds, long elapsedMilliseconds)
+        private void FireTurret(GameWorld world, long currentMilliseconds, long elapsedMilliseconds,
+            MountainCellLookup mountainLookup)
         {
             for (int turretIndex = 0; turretIndex < world.Facilities.Count; turretIndex++)
             {
@@ -450,7 +460,7 @@ namespace ProjectC.Core
                 remainder += (int)elapsedMilliseconds;
                 while (remainder >= world.Definitions.TurretRateOfFireMilliseconds)
                 {
-                    EnemyState target = SelectTarget(world, turret);
+                    EnemyState target = SelectTarget(world, turret, mountainLookup);
                     if (target == null)
                     {
                         remainder = 0;
@@ -472,7 +482,8 @@ namespace ProjectC.Core
             }
         }
 
-        private static EnemyState SelectTarget(GameWorld world, FacilityState turret)
+        private static EnemyState SelectTarget(GameWorld world, FacilityState turret,
+            MountainCellLookup mountainLookup)
         {
             double turretX = turret.Position.X + 0.5d;
             double turretY = turret.Position.Y + 0.5d;
@@ -488,7 +499,7 @@ namespace ProjectC.Core
                 double dy = enemy.Y - turretY;
                 double distanceSquared = (dx * dx) + (dy * dy);
                 if (distanceSquared > rangeSquared) continue;
-                if (!HasLineOfSight(world.Definitions, turretX, turretY, enemy.X, enemy.Y)) continue;
+                if (!HasLineOfSight(mountainLookup, turretX, turretY, enemy.X, enemy.Y)) continue;
                 if (distanceSquared > selectedDistanceSquared) continue;
                 if (distanceSquared == selectedDistanceSquared && selected != null && enemy.SpawnSequence > selected.SpawnSequence) continue;
                 selected = enemy;
@@ -498,7 +509,7 @@ namespace ProjectC.Core
             return selected;
         }
 
-        private static bool HasLineOfSight(GameDefinitions definitions, double startX, double startY,
+        private static bool HasLineOfSight(MountainCellLookup mountainLookup, double startX, double startY,
             double endX, double endY)
         {
             double dx = endX - startX;
@@ -510,7 +521,7 @@ namespace ProjectC.Core
                 double t = i / (double)samples;
                 int x = (int)Math.Floor(startX + dx * t);
                 int y = (int)Math.Floor(startY + dy * t);
-                if (definitions.IsMountainCell(x, y)) return false;
+                if (mountainLookup.IsMountainCell(x, y)) return false;
             }
 
             return true;
@@ -612,6 +623,90 @@ namespace ProjectC.Core
             public int Remaining { get; set; }
             public int CurrentGroupSize { get; set; }
             public int SpawnedInCurrentGroup { get; set; }
+        }
+    }
+
+    internal sealed class MountainCellLookup
+    {
+        private GameDefinitions indexedDefinitions;
+        private MapRegionDefinitionData[] indexedRegions;
+        private MountainRegionSnapshot[] indexedRegionSnapshots = new MountainRegionSnapshot[0];
+        private bool[] mountainCells = new bool[0];
+        private int mapWidth;
+        private int mapHeight;
+
+        internal void RefreshIfChanged(GameDefinitions definitions)
+        {
+            if (definitions == null) throw new System.ArgumentNullException(nameof(definitions));
+            if (Matches(definitions)) return;
+
+            mapWidth = System.Math.Max(0, definitions.MapWidth);
+            mapHeight = System.Math.Max(0, definitions.MapHeight);
+            mountainCells = new bool[checked(mapWidth * mapHeight)];
+            indexedRegions = definitions.MountainRegions;
+            int regionCount = indexedRegions == null ? 0 : indexedRegions.Length;
+            indexedRegionSnapshots = new MountainRegionSnapshot[regionCount];
+
+            for (int i = 0; i < regionCount; i++)
+            {
+                MapRegionDefinitionData region = indexedRegions[i];
+                indexedRegionSnapshots[i] = new MountainRegionSnapshot(region);
+                if (region == null) continue;
+
+                int minimumX = System.Math.Max(0, region.X);
+                int maximumX = System.Math.Min(mapWidth, region.X + region.Width);
+                int minimumY = System.Math.Max(0, region.Y);
+                int maximumY = System.Math.Min(mapHeight, region.Y + region.Height);
+                for (int y = minimumY; y < maximumY; y++)
+                    for (int x = minimumX; x < maximumX; x++)
+                        mountainCells[y * mapWidth + x] = true;
+            }
+
+            indexedDefinitions = definitions;
+        }
+
+        internal bool IsMountainCell(int x, int y)
+        {
+            if (indexedDefinitions == null) return false;
+            if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight)
+                return indexedDefinitions.IsMountainCell(x, y);
+            return mountainCells[y * mapWidth + x];
+        }
+
+        private bool Matches(GameDefinitions definitions)
+        {
+            if (!ReferenceEquals(indexedDefinitions, definitions) || mapWidth != System.Math.Max(0, definitions.MapWidth) ||
+                mapHeight != System.Math.Max(0, definitions.MapHeight) ||
+                !ReferenceEquals(indexedRegions, definitions.MountainRegions)) return false;
+
+            MapRegionDefinitionData[] regions = definitions.MountainRegions;
+            int count = regions == null ? 0 : regions.Length;
+            if (indexedRegionSnapshots.Length != count) return false;
+            for (int i = 0; i < count; i++)
+                if (!indexedRegionSnapshots[i].Matches(regions[i])) return false;
+            return true;
+        }
+
+        private readonly struct MountainRegionSnapshot
+        {
+            private readonly bool isNull;
+            private readonly int x;
+            private readonly int y;
+            private readonly int width;
+            private readonly int height;
+
+            public MountainRegionSnapshot(MapRegionDefinitionData region)
+            {
+                isNull = region == null;
+                x = region == null ? 0 : region.X;
+                y = region == null ? 0 : region.Y;
+                width = region == null ? 0 : region.Width;
+                height = region == null ? 0 : region.Height;
+            }
+
+            public bool Matches(MapRegionDefinitionData region) => region == null
+                ? isNull
+                : !isNull && x == region.X && y == region.Y && width == region.Width && height == region.Height;
         }
     }
 }
