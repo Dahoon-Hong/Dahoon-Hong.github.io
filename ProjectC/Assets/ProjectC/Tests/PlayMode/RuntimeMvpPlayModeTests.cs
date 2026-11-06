@@ -174,6 +174,7 @@ namespace ProjectC.Runtime.PlayMode.Tests
             Assert.That(simulation.Clock.Speed, Is.EqualTo(GameSpeed.Four));
             FindButton(view.transform, "1x").onClick.Invoke();
             Assert.That(simulation.Clock.Speed, Is.EqualTo(GameSpeed.One));
+            yield return PauseNavigationConfirmationsCanBeCancelled();
 
             GuideCanBeHiddenOrSkippedWithoutChangingTheMatch();
 
@@ -195,6 +196,7 @@ namespace ProjectC.Runtime.PlayMode.Tests
             yield return FacilityPlacementPreviewRotationAndCommitWork();
             yield return FacilityManagementActionsWork();
             yield return PortContractsAndOneOffOrderAreApplied();
+            yield return SplitterOutputFilterUiCyclesEveryMode();
             yield return FacilityHudWarningAndMinimapNavigationWork();
             yield return SaveAndReloadSettings();
             yield return SettingsDisplayScaleAudioAndDuplicateBindingPersistInOneShortSession();
@@ -251,6 +253,33 @@ namespace ProjectC.Runtime.PlayMode.Tests
             Assert.That(simulation.World.FindFacility(FacilityKind.Port).Inventory.GetStock(ItemId.Iron),
                 Is.EqualTo(ironBefore));
             Assert.That(simulation.CurrentMilliseconds, Is.EqualTo(timeBefore));
+        }
+
+        private IEnumerator PauseNavigationConfirmationsCanBeCancelled()
+        {
+            keyboard = InputSystem.AddDevice<Keyboard>();
+            Press(keyboard.escapeKey);
+            yield return null;
+            Release(keyboard.escapeKey);
+            yield return null;
+            Assert.That(FindNamedObject(view.transform, "Game Menu").activeSelf, Is.True);
+            Assert.That(FindText(view.transform, "Menu Title").text, Is.EqualTo("GAME MENU"));
+            Assert.That(simulation.Clock.Speed, Is.EqualTo(GameSpeed.One),
+                "Opening the pause menu must preserve the current speed.");
+
+            FindButton(view.transform, "Restart Match").onClick.Invoke();
+            Assert.That(FindText(view.transform, "Menu Title").text, Is.EqualTo("RESTART MATCH?"));
+            FindButton(view.transform, "Cancel Navigation").onClick.Invoke();
+            Assert.That(FindText(view.transform, "Menu Title").text, Is.EqualTo("GAME MENU"));
+            Assert.That(simulation.World.Outcome, Is.EqualTo(MatchOutcome.Running));
+
+            FindButton(view.transform, "Main Menu").onClick.Invoke();
+            Assert.That(FindText(view.transform, "Menu Title").text, Is.EqualTo("RETURN TO MENU?"));
+            FindButton(view.transform, "Cancel Navigation").onClick.Invoke();
+            Assert.That(FindText(view.transform, "Menu Title").text, Is.EqualTo("GAME MENU"));
+            FindButton(view.transform, "Resume").onClick.Invoke();
+            Assert.That(FindNamedObject(view.transform, "Game Menu").activeSelf, Is.False);
+            Assert.That(simulation.Clock.Speed, Is.EqualTo(GameSpeed.One));
         }
 
         private IEnumerator DuplicateConveyorPreviewIsRejected()
@@ -536,6 +565,54 @@ namespace ProjectC.Runtime.PlayMode.Tests
                 "The Port action must request the selected combat drone's region change.");
             FindButton(view.transform, "Close Port Contracts").onClick.Invoke();
             Assert.That(FindNamedObject(view.transform, "Port Contracts").activeSelf, Is.False);
+        }
+
+        private IEnumerator SplitterOutputFilterUiCyclesEveryMode()
+        {
+            Assert.That(simulation.TryPlaceFacility(FacilityKind.Splitter, new GridPosition(55, 52), 0,
+                out FacilityState splitter, out string splitterReason), Is.True, splitterReason);
+            var pathCells = new[] { new GridPosition(56, 52), new GridPosition(57, 52) };
+            Assert.That(simulation.TryPlaceConveyorPath(splitter.Id, pathCells, "ironworks",
+                out ConveyorPathState path, out string pathReason), Is.True, pathReason);
+
+            yield return null;
+            SelectFacilityForManagement(splitter);
+
+            UI.Button filterButton = FindButton(view.transform, "Cycle Conveyor Filter");
+            Assert.That(filterButton.gameObject.activeInHierarchy, Is.True);
+            Assert.That(filterButton.interactable, Is.True);
+            Assert.That(FindText(view.transform, "Conveyor Path Label").text, Is.EqualTo("Output 1/1"));
+            Assert.That(filterButton.GetComponentInChildren<UI.Text>().text, Is.EqualTo("Filter · All items"));
+
+            ItemId[][] expectedAllowedItems =
+            {
+                new[] { ItemId.Iron },
+                new[] { ItemId.Plate },
+                new[] { ItemId.Ammunition },
+                new ItemId[0]
+            };
+            string[] expectedLabels =
+            {
+                "Filter · Only Iron",
+                "Filter · Only Plate",
+                "Filter · Only Ammunition",
+                "Filter · Blocks all",
+                "Filter · All items"
+            };
+
+            for (int i = 0; i < expectedLabels.Length; i++)
+            {
+                filterButton.onClick.Invoke();
+                Assert.That(simulation.Conveyors.TryGetPathFilter(path.Id,
+                    out bool isFiltered, out ItemId[] allowedItems), Is.True);
+                Assert.That(filterButton.GetComponentInChildren<UI.Text>().text, Is.EqualTo(expectedLabels[i]));
+                if (i < expectedAllowedItems.Length)
+                {
+                    Assert.That(isFiltered, Is.True);
+                    Assert.That(allowedItems, Is.EqualTo(expectedAllowedItems[i]));
+                }
+                else Assert.That(isFiltered, Is.False);
+            }
         }
 
         private IEnumerator SettingsDisplayScaleAudioAndDuplicateBindingPersistInOneShortSession()
