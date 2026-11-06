@@ -418,6 +418,12 @@ namespace ProjectC.Runtime.PlayMode.Tests
 
         private IEnumerator DuplicateConveyorPreviewIsRejected()
         {
+            int facilityCount = simulation.World.Facilities.Count;
+            int constructionCount = simulation.World.ConstructionSites.Count;
+            int pathCount = simulation.Conveyors.Paths.Count;
+            ConveyorPathState originalPath = simulation.Conveyors.Paths[0];
+            var originalPathCells = new List<GridPosition>(originalPath.Cells);
+
             FindButton(view.transform, "Build Conveyor").onClick.Invoke();
             Vector2 startScreen = GridCellScreenPoint(new GridPosition(60, 52));
             Vector2 endScreen = GridCellScreenPoint(new GridPosition(65, 52));
@@ -445,6 +451,48 @@ namespace ProjectC.Runtime.PlayMode.Tests
             Release(keyboard.escapeKey);
             yield return null;
             Assert.That(FindText(view.transform, "Selected Facility Text").text, Does.Contain("Placement cancelled."));
+            Assert.That(HasActiveNamedObject(view.transform, "Conveyor Path Preview"), Is.False);
+
+            FindButton(view.transform, "Build Conveyor").onClick.Invoke();
+            GridPosition mixedRouteStart = new GridPosition(60, 53);
+            Vector2 mixedStartScreen = GridCellScreenPoint(mixedRouteStart);
+            Vector2 mixedEndScreen = GridCellScreenPoint(new GridPosition(65, 52));
+            Move(mouse.position, mixedStartScreen);
+            yield return null;
+            Press(mouse.leftButton);
+            yield return null;
+            Move(mouse.position, mixedEndScreen);
+            yield return null;
+
+            Assert.That(FindText(view.transform, "Selected Facility Text").text,
+                Does.Contain("Path preview: occupied"));
+            Assert.That(HasActiveNamedObject(view.transform, "Conveyor Path Preview"), Is.True);
+            Assert.That(simulation.World.Facilities, Has.Count.EqualTo(facilityCount));
+            Assert.That(simulation.World.ConstructionSites, Has.Count.EqualTo(constructionCount));
+            Assert.That(simulation.Conveyors.Paths, Has.Count.EqualTo(pathCount));
+
+            Release(mouse.leftButton);
+            yield return null;
+
+            Assert.That(FindText(view.transform, "Selected Facility Text").text,
+                Does.Contain("Conveyor path rejected: occupied"));
+            Assert.That(simulation.World.Facilities, Has.Count.EqualTo(facilityCount));
+            Assert.That(simulation.World.ConstructionSites, Has.Count.EqualTo(constructionCount));
+            Assert.That(simulation.Conveyors.Paths, Has.Count.EqualTo(pathCount));
+            Assert.That(simulation.Conveyors.Paths[0], Is.SameAs(originalPath));
+            Assert.That(simulation.Conveyors.Paths[0].Cells, Is.EqualTo(originalPathCells));
+            Assert.That(simulation.World.Facilities.Exists(facility =>
+                facility.Position.Equals(mixedRouteStart)), Is.False);
+            Assert.That(simulation.World.ConstructionSites.Exists(site =>
+                site.Facility.Position.Equals(mixedRouteStart)), Is.False);
+
+            keyboard = InputSystem.AddDevice<Keyboard>();
+            Press(keyboard.escapeKey);
+            yield return null;
+            Release(keyboard.escapeKey);
+            yield return null;
+            Assert.That(FindText(view.transform, "Selected Facility Text").text,
+                Does.Contain("Placement cancelled."));
             Assert.That(HasActiveNamedObject(view.transform, "Conveyor Path Preview"), Is.False);
         }
 
