@@ -37,6 +37,7 @@ namespace ProjectC.Runtime.PlayMode.Tests
         private bool[] previousEventSystemActive;
         private EventSystem testEventSystem;
         private GameObject testViewObject;
+        private GameObject navigationTestViewObject;
         private GameObject settingsReloadObject;
         private Camera[] testCameras;
         private Light[] testLights;
@@ -47,6 +48,7 @@ namespace ProjectC.Runtime.PlayMode.Tests
         private PreferenceSnapshot preferences;
         private LocalDiagnosticRecorder diagnosticRecorder;
         private string diagnosticFilePath;
+        private int startMatchRequests;
         private float previousAudioVolume;
         private FullScreenMode previousScreenMode;
         private string expectedLanguage;
@@ -55,6 +57,7 @@ namespace ProjectC.Runtime.PlayMode.Tests
         public IEnumerator SetUpRuntime()
         {
             preferences = new PreferenceSnapshot();
+            startMatchRequests = 0;
             previousAudioVolume = AudioListener.volume;
             previousScreenMode = Screen.fullScreenMode;
             SetDeterministicSettings();
@@ -104,7 +107,7 @@ namespace ProjectC.Runtime.PlayMode.Tests
             simulation = GameSimulation.CreateNewMatch(UnityDefinitionLoader.Load());
             testViewObject = new GameObject("Project C PlayMode Test View");
             view = testViewObject.AddComponent<ProjectCRuntimeView>();
-            view.Initialize(simulation, null, null, false);
+            view.Initialize(simulation, null, () => startMatchRequests++, false);
             view.GetComponent<ProjectCOnboardingPanel>().SetVisible(false);
             testEventSystem = EventSystem.current;
             testCameras = FindNewObjects(camerasBefore, Object.FindObjectsByType<Camera>(FindObjectsSortMode.None));
@@ -121,6 +124,7 @@ namespace ProjectC.Runtime.PlayMode.Tests
             if (!string.IsNullOrEmpty(diagnosticFilePath) && File.Exists(diagnosticFilePath))
                 File.Delete(diagnosticFilePath);
             if (settingsReloadObject != null) Object.Destroy(settingsReloadObject);
+            if (navigationTestViewObject != null) Object.Destroy(navigationTestViewObject);
             if (testViewObject != null) Object.Destroy(testViewObject);
             if (testEventSystem != null && !WasPresent(testEventSystem, previousEventSystems))
                 Object.Destroy(testEventSystem.gameObject);
@@ -248,6 +252,53 @@ namespace ProjectC.Runtime.PlayMode.Tests
             Assert.That(File.ReadAllLines(diagnosticFilePath), Has.Length.EqualTo(recordCountAfterEnd),
                 "Session end must be recorded only once.");
             AssertDiagnosticRecords();
+            yield return NavigationApprovalsRunTheConfirmedAction();
+        }
+
+        private IEnumerator NavigationApprovalsRunTheConfirmedAction()
+        {
+            testViewObject.SetActive(false);
+            GameSimulation navigationSimulation = GameSimulation.CreateNewMatch(simulation.World.Definitions);
+            navigationTestViewObject = new GameObject("Project C Navigation Test View");
+            ProjectCRuntimeView navigationView = navigationTestViewObject.AddComponent<ProjectCRuntimeView>();
+            navigationView.Initialize(navigationSimulation, null, () => startMatchRequests++, false);
+            navigationView.GetComponent<ProjectCOnboardingPanel>().SetVisible(false);
+
+            keyboard = InputSystem.AddDevice<Keyboard>();
+            Press(keyboard.escapeKey);
+            yield return null;
+            Release(keyboard.escapeKey);
+            yield return null;
+            Assert.That(FindText(navigationView.transform, "Menu Title").text,
+                Is.EqualTo(expectedLanguage == "ko" ? "게임 메뉴" : "GAME MENU"));
+
+            FindButton(navigationView.transform, "Restart Match").onClick.Invoke();
+            Assert.That(FindText(navigationView.transform, "Menu Title").text,
+                Is.EqualTo(expectedLanguage == "ko" ? "경기를 재시작할까요?" : "RESTART MATCH?"));
+            FindButton(navigationView.transform, "Cancel Navigation").onClick.Invoke();
+            Assert.That(startMatchRequests, Is.Zero,
+                "Cancelling a restart must not request a new match.");
+            Assert.That(navigationSimulation.World.Outcome, Is.EqualTo(MatchOutcome.Running));
+
+            FindButton(navigationView.transform, "Restart Match").onClick.Invoke();
+            FindButton(navigationView.transform, "Confirm Navigation").onClick.Invoke();
+            Assert.That(startMatchRequests, Is.EqualTo(1),
+                "Approving a restart should hand off to the runtime's new-match callback exactly once.");
+
+            // The test callback records the handoff instead of replacing the view.
+            FindButton(navigationView.transform, "Cancel Navigation").onClick.Invoke();
+            FindButton(navigationView.transform, "Main Menu").onClick.Invoke();
+            Assert.That(FindText(navigationView.transform, "Menu Title").text,
+                Is.EqualTo(expectedLanguage == "ko" ? "메인 메뉴로 돌아갈까요?" : "RETURN TO MENU?"));
+            FindButton(navigationView.transform, "Confirm Navigation").onClick.Invoke();
+            Assert.That(FindText(navigationView.transform, "Menu Title").text, Is.EqualTo("PROJECT C"));
+            Assert.That(startMatchRequests, Is.EqualTo(1));
+            Assert.That(navigationSimulation.World.Outcome, Is.EqualTo(MatchOutcome.Running));
+            Assert.That(navigationSimulation.Clock.Speed, Is.EqualTo(GameSpeed.Paused));
+
+            Object.Destroy(navigationTestViewObject);
+            navigationTestViewObject = null;
+            yield return null;
         }
 
         private void StartDiagnosticRecordCoverage()
