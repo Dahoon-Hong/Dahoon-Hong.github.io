@@ -1367,6 +1367,25 @@ browser DOM checks for native runtime evidence.
   alone does not close GAME-01, native runtime, UI, offline-ZIP, or target-device
   performance gates.
 
+### Focused implementation slice — enemy occupancy reuse
+
+**Requirements and scope**
+
+- Keep enemy occupancy owned by `WaveCombatSystem` and reuse its cell dictionary
+  and bucket lists across 50 ms combat ticks. Clear only buckets touched by the
+  preceding tick, then rebuild occupancy from live enemies.
+- Preserve enemy ordering, movement, collision checks, damage, wave timing, and
+  event ordering. Do not claim a measured full-match speedup from storage reuse
+  alone.
+
+**Acceptance and verification**
+
+- A focused regression includes live enemies, warms the combat occupancy, and
+  verifies the same occupied-cell buckets remain reusable across 100 ticks.
+- The focused test and full EditMode suite each finish within the 60-second
+  wall-clock budget. Native Standalone path placement, full-match Victory,
+  target-device performance, and offline ZIP remain independent release gates.
+
 ### GAME-01 capacity experiment v67 — add one Production Drone at t=1,500
 
 **Requirements and scope**

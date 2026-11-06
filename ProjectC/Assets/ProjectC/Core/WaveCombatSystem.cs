@@ -52,6 +52,7 @@ namespace ProjectC.Core
         private int nextWaveNumber = 1;
         private int nextEnemySequence = 1;
         private readonly FacilitySpatialIndex facilitySpatialIndex = new FacilitySpatialIndex();
+        private readonly EnemyOccupancy enemyOccupancy = new EnemyOccupancy();
         private readonly Dictionary<string, int> turretShotRemainderMilliseconds =
             new Dictionary<string, int>(StringComparer.Ordinal);
 
@@ -69,7 +70,8 @@ namespace ProjectC.Core
 
             facilitySpatialIndex.Rebuild(world);
             int existingEnemyCount = world.Enemies.Count;
-            MoveEnemies(world, currentMilliseconds, elapsedMilliseconds, existingEnemyCount, facilitySpatialIndex);
+            MoveEnemies(world, currentMilliseconds, elapsedMilliseconds, existingEnemyCount,
+                facilitySpatialIndex, enemyOccupancy);
             if (world.Outcome != MatchOutcome.Running) return;
             SpawnReadyBatches(world, currentMilliseconds, facilitySpatialIndex);
             FireTurret(world, currentMilliseconds, elapsedMilliseconds);
@@ -193,12 +195,12 @@ namespace ProjectC.Core
         }
 
         private static void MoveEnemies(GameWorld world, long currentMilliseconds, long elapsedMilliseconds,
-            int enemyCount, FacilitySpatialIndex facilityIndex)
+            int enemyCount, FacilitySpatialIndex facilityIndex, EnemyOccupancy occupancy)
         {
             FacilityState outpost = world.FindFacility(FacilityKind.Outpost);
             if (outpost == null || outpost.IsDestroyed) return;
             double distancePerStep = world.Definitions.EnemySpeedCellsPerSecond * (elapsedMilliseconds / 1_000d);
-            var occupancy = new EnemyOccupancy(world);
+            occupancy.Rebuild(world);
 
             for (int i = 0; i < enemyCount; i++)
             {
@@ -516,12 +518,26 @@ namespace ProjectC.Core
 
         private sealed class EnemyOccupancy
         {
-            private readonly int bucketWidth;
-            private readonly Dictionary<int, List<EnemyState>> cells = new Dictionary<int, List<EnemyState>>();
+            private readonly Dictionary<int, EnemyBucket> cells = new Dictionary<int, EnemyBucket>();
+            private readonly List<EnemyBucket> touchedBuckets = new List<EnemyBucket>();
+            private int bucketWidth;
+            private long generation;
 
-            public EnemyOccupancy(GameWorld world)
+            public void Rebuild(GameWorld world)
             {
-                bucketWidth = world.Definitions.MapWidth * 2;
+                int nextBucketWidth = world.Definitions.MapWidth * 2;
+                if (bucketWidth != nextBucketWidth)
+                {
+                    cells.Clear();
+                    touchedBuckets.Clear();
+                    bucketWidth = nextBucketWidth;
+                }
+
+                for (int i = 0; i < touchedBuckets.Count; i++)
+                    touchedBuckets[i].Enemies.Clear();
+                touchedBuckets.Clear();
+                generation++;
+
                 for (int i = 0; i < world.Enemies.Count; i++)
                     if (world.Enemies[i].IsAlive) Add(world.Enemies[i]);
             }
@@ -535,10 +551,10 @@ namespace ProjectC.Core
                     for (int xOffset = -1; xOffset <= 1; xOffset++)
                     {
                         if (!cells.TryGetValue((cellY + yOffset) * bucketWidth + cellX + xOffset,
-                            out List<EnemyState> bucket)) continue;
-                        for (int i = 0; i < bucket.Count; i++)
+                            out EnemyBucket bucket)) continue;
+                        for (int i = 0; i < bucket.Enemies.Count; i++)
                         {
-                            EnemyState other = bucket[i];
+                            EnemyState other = bucket.Enemies[i];
                             if (other == movingEnemy) continue;
                             if (Math.Abs(x - other.X) < EnemyRadius * 2d &&
                                 Math.Abs(y - other.Y) < EnemyRadius * 2d) return false;
@@ -552,24 +568,34 @@ namespace ProjectC.Core
             public void Add(EnemyState enemy)
             {
                 int key = GetCellKey(enemy.X, enemy.Y);
-                if (!cells.TryGetValue(key, out List<EnemyState> bucket))
+                if (!cells.TryGetValue(key, out EnemyBucket bucket))
                 {
-                    bucket = new List<EnemyState>();
+                    bucket = new EnemyBucket();
                     cells.Add(key, bucket);
                 }
-                bucket.Add(enemy);
+                if (bucket.Generation != generation)
+                {
+                    bucket.Generation = generation;
+                    touchedBuckets.Add(bucket);
+                }
+                bucket.Enemies.Add(enemy);
             }
 
             public void Remove(EnemyState enemy)
             {
                 int key = GetCellKey(enemy.X, enemy.Y);
-                if (!cells.TryGetValue(key, out List<EnemyState> bucket)) return;
-                bucket.Remove(enemy);
-                if (bucket.Count == 0) cells.Remove(key);
+                if (!cells.TryGetValue(key, out EnemyBucket bucket)) return;
+                bucket.Enemies.Remove(enemy);
             }
 
             private int GetCellKey(double x, double y) =>
                 (int)Math.Floor(y * 2d) * bucketWidth + (int)Math.Floor(x * 2d);
+
+            private sealed class EnemyBucket
+            {
+                public readonly List<EnemyState> Enemies = new List<EnemyState>();
+                public long Generation;
+            }
         }
 
         private sealed class SpawnBatch
