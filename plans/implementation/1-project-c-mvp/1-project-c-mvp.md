@@ -1663,7 +1663,7 @@ browser DOM checks for native runtime evidence.
 
 - Added direct regressions: EV-04 lethal damage before same-tick repair keeps the turret destroyed; EV-05 equal-distance targeting uses earlier SpawnSequence despite list order and lower later-enemy HP; EV-06 cancellation one 50 ms step before a 100 ms construction completes returns Iron once and prevents completion.
 - Focused EventBoundaryTests passed3/3 in0.274 s. Default EditMode passed56, failed0,38 Explicit probes skipped (94 total) in10.267 s. NUnit XML: `ProjectC/Builds/Verification-fast/Plan1-default-editmode-after-event-boundaries.xml`; Editor log saved alongside it.
-- EV-01–03 remain partial because exact ship-departure/tie cases are not integrated into those tests. EV-07 remains covered by `BlockedEntryQueuesPriorWaveWhileOtherEntriesContinueIndependently`. These core tests do not close Standalone FLOW-01 or GAME-01.
+- EV-01–03 are covered by the later integrated `EventBoundaryDepartureTests`: actual departure before the deadline, exact-deadline defeat, same-tick Outpost destruction, and the unchanged default deadline. EV-07 remains covered by `BlockedEntryQueuesPriorWaveWhileOtherEntriesContinueIndependently`. These bounded core tests do not close Standalone FLOW-01 or GAME-01.
 
 ### CORE-03 event boundary coverage — EV-01 through EV-03
 
