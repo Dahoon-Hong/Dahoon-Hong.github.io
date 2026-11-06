@@ -14,9 +14,16 @@ namespace ProjectC.Runtime.PlayMode.Tests
     public sealed class RuntimeMvpPlayModeTests : InputTestFixture
     {
         private const string LanguageKey = "ProjectC.Settings.Language";
+        private const string FullscreenKey = "ProjectC.Settings.Fullscreen";
+        private const string UiScaleKey = "ProjectC.Settings.UiScale";
+        private const string MasterVolumeKey = "ProjectC.Settings.Master";
+        private const string BgmVolumeKey = "ProjectC.Settings.Bgm";
+        private const string EffectsVolumeKey = "ProjectC.Settings.Effects";
         private const string ShakeKey = "ProjectC.Settings.CameraShake";
         private const string FlashKey = "ProjectC.Settings.ScreenFlash";
         private const string PauseKey = "ProjectC.Settings.PauseBinding";
+        private const string RotateKey = "ProjectC.Settings.RotateBinding";
+        private const string ConveyorBendKey = "ProjectC.Settings.ConveyorBendBinding";
 
         private ProjectCRuntimeBootstrap[] previousBootstraps;
         private bool[] previousBootstrapEnabled;
@@ -47,6 +54,7 @@ namespace ProjectC.Runtime.PlayMode.Tests
             preferences = new PreferenceSnapshot();
             previousAudioVolume = AudioListener.volume;
             previousScreenMode = Screen.fullScreenMode;
+            SetDeterministicSettings();
 
             previousBootstraps = Object.FindObjectsByType<ProjectCRuntimeBootstrap>(
                 FindObjectsInactive.Include, FindObjectsSortMode.None);
@@ -182,6 +190,7 @@ namespace ProjectC.Runtime.PlayMode.Tests
             }));
 
             yield return SaveAndReloadSettings();
+            yield return SettingsDisplayScaleAudioAndDuplicateBindingPersistInOneShortSession();
 
             simulation.DamageFacility("outpost", simulation.World.Definitions.OutpostHealth);
             Assert.That(simulation.World.Outcome, Is.EqualTo(MatchOutcome.Defeat));
@@ -193,6 +202,101 @@ namespace ProjectC.Runtime.PlayMode.Tests
             string body = FindText(view.transform, "Menu Body").text;
             Assert.That(body, Does.Contain("/"));
             Assert.That(body, Does.Contain(expectedLanguage == "ko" ? "최종 수출량:" : "Final exported:"));
+        }
+
+        private IEnumerator SettingsDisplayScaleAudioAndDuplicateBindingPersistInOneShortSession()
+        {
+            ProjectCSettingsPanel settings = view.GetComponent<ProjectCSettingsPanel>();
+
+            FindButton(view.transform, "2x").onClick.Invoke();
+            settings.Open();
+            long beforeSettings = simulation.CurrentMilliseconds;
+            yield return new WaitForSecondsRealtime(0.15f);
+            Assert.That(simulation.Clock.Speed, Is.EqualTo(GameSpeed.Two));
+            Assert.That(simulation.CurrentMilliseconds, Is.GreaterThan(beforeSettings),
+                "Opening settings must not stop the running match.");
+            settings.Close();
+
+            FindButton(view.transform, "Pause / Resume").onClick.Invoke();
+            Assert.That(simulation.Clock.Speed, Is.EqualTo(GameSpeed.Paused));
+            long pausedAt = simulation.CurrentMilliseconds;
+            settings.Open();
+            yield return new WaitForSecondsRealtime(0.1f);
+            Assert.That(simulation.CurrentMilliseconds, Is.EqualTo(pausedAt),
+                "Opening settings must not resume a paused match.");
+            Assert.That(simulation.Clock.Speed, Is.EqualTo(GameSpeed.Paused));
+            settings.Close();
+            FindButton(view.transform, "Pause / Resume").onClick.Invoke();
+            FindButton(view.transform, "1x").onClick.Invoke();
+
+            string expectedLanguage = settings.Language;
+            Key expectedPauseBinding = settings.PauseBinding;
+            settings.Open();
+            Canvas canvas = view.GetComponentInChildren<Canvas>(true);
+            UI.CanvasScaler scaler = canvas.GetComponent<UI.CanvasScaler>();
+            Vector2 baseResolution = scaler.referenceResolution;
+
+            int[] scales = { 125, 150, 75, 100 };
+            for (int i = 0; i < scales.Length; i++)
+            {
+                FindButton(view.transform, "Next UI Scale").onClick.Invoke();
+                Assert.That(settings.UiScalePercent, Is.EqualTo(scales[i]));
+                Assert.That(PlayerPrefs.GetInt(UiScaleKey), Is.EqualTo(scales[i]));
+                float divisor = scales[i] / 100f;
+                Assert.That(scaler.referenceResolution.x, Is.EqualTo(baseResolution.x / divisor).Within(0.01f));
+                Assert.That(scaler.referenceResolution.y, Is.EqualTo(baseResolution.y / divisor).Within(0.01f));
+            }
+
+            FindButton(view.transform, "Toggle Screen Mode").onClick.Invoke();
+            Assert.That(PlayerPrefs.GetInt(FullscreenKey), Is.EqualTo(1));
+            Assert.That(FindText(view.transform, "Screen Mode Value").text,
+                Is.EqualTo(expectedLanguage == "ko" ? "전체 화면" : "Fullscreen"));
+
+            SetSlider(view.transform, "Master Volume", 0.35f);
+            SetSlider(view.transform, "BGM Volume", 0.45f);
+            SetSlider(view.transform, "Effects Volume", 0.55f);
+            Assert.That(AudioListener.volume, Is.EqualTo(0.35f).Within(0.001f));
+            Assert.That(PlayerPrefs.GetFloat(MasterVolumeKey), Is.EqualTo(0.35f).Within(0.001f));
+            Assert.That(PlayerPrefs.GetFloat(BgmVolumeKey), Is.EqualTo(0.45f).Within(0.001f));
+            Assert.That(PlayerPrefs.GetFloat(EffectsVolumeKey), Is.EqualTo(0.55f).Within(0.001f));
+
+            FindButton(view.transform, "Rebind Rotate").onClick.Invoke();
+            keyboard = InputSystem.AddDevice<Keyboard>();
+            Press(keyboard[expectedPauseBinding]);
+            yield return null;
+            Release(keyboard[expectedPauseBinding]);
+            yield return null;
+            Assert.That(settings.PauseBinding, Is.EqualTo(expectedPauseBinding));
+            Assert.That(settings.RotateBinding, Is.EqualTo(Key.R), "A key assigned to Pause must not overwrite Rotate.");
+            Assert.That(PlayerPrefs.GetInt(PauseKey), Is.EqualTo((int)expectedPauseBinding));
+            Assert.That(PlayerPrefs.GetInt(RotateKey), Is.EqualTo((int)Key.R));
+            Assert.That(FindText(view.transform, "Settings Feedback").text,
+                Does.Contain(expectedLanguage == "ko" ? "이미" : "already assigned"));
+
+            settingsReloadObject = new GameObject("Project C Settings Reload Probe", typeof(Canvas), typeof(UI.CanvasScaler));
+            Canvas reloadCanvas = settingsReloadObject.GetComponent<Canvas>();
+            reloadCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            UI.CanvasScaler reloadScaler = settingsReloadObject.GetComponent<UI.CanvasScaler>();
+            ProjectCSettingsPanel reloaded = settingsReloadObject.AddComponent<ProjectCSettingsPanel>();
+            reloaded.Initialize(reloadCanvas, reloadScaler, null);
+            Assert.That(reloaded.Language, Is.EqualTo(expectedLanguage));
+            Assert.That(reloaded.UiScalePercent, Is.EqualTo(100));
+            Assert.That(reloaded.MasterVolume, Is.EqualTo(0.35f).Within(0.001f));
+            Assert.That(reloaded.BgmVolume, Is.EqualTo(0.45f).Within(0.001f));
+            Assert.That(reloaded.EffectsVolume, Is.EqualTo(0.55f).Within(0.001f));
+            Assert.That(reloaded.PauseBinding, Is.EqualTo(expectedPauseBinding));
+            Assert.That(reloaded.RotateBinding, Is.EqualTo(Key.R));
+
+            FindButton(view.transform, "Restore Display").onClick.Invoke();
+            FindButton(view.transform, "Restore Audio").onClick.Invoke();
+            Assert.That(settings.UiScalePercent, Is.EqualTo(100));
+            Assert.That(scaler.referenceResolution.x, Is.EqualTo(baseResolution.x).Within(0.01f));
+            Assert.That(scaler.referenceResolution.y, Is.EqualTo(baseResolution.y).Within(0.01f));
+            Assert.That(PlayerPrefs.GetInt(FullscreenKey), Is.EqualTo(0));
+            Assert.That(AudioListener.volume, Is.EqualTo(0.8f).Within(0.001f));
+            Assert.That(settings.MasterVolume, Is.EqualTo(0.8f).Within(0.001f));
+            Assert.That(settings.BgmVolume, Is.EqualTo(0.8f).Within(0.001f));
+            Assert.That(settings.EffectsVolume, Is.EqualTo(0.9f).Within(0.001f));
         }
 
         private IEnumerator SaveAndReloadSettings()
@@ -221,11 +325,11 @@ namespace ProjectC.Runtime.PlayMode.Tests
             Assert.That(settings.ScreenFlashEnabled, Is.EqualTo(expectedFlash));
             Assert.That(settings.PauseBinding, Is.EqualTo(expectedPauseBinding));
 
-            Canvas canvas = view.GetComponentInChildren<Canvas>(true);
-            UI.CanvasScaler scaler = canvas.GetComponent<UI.CanvasScaler>();
-            settingsReloadObject = new GameObject("Project C Settings Reload Probe");
+            settingsReloadObject = new GameObject("Project C Settings Reload Probe", typeof(Canvas), typeof(UI.CanvasScaler));
+            Canvas reloadCanvas = settingsReloadObject.GetComponent<Canvas>();
+            reloadCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
             ProjectCSettingsPanel reloaded = settingsReloadObject.AddComponent<ProjectCSettingsPanel>();
-            reloaded.Initialize(canvas, scaler, null);
+            reloaded.Initialize(reloadCanvas, settingsReloadObject.GetComponent<UI.CanvasScaler>(), null);
             Assert.That(reloaded.Language, Is.EqualTo(expectedLanguage));
             Assert.That(reloaded.CameraShakeEnabled, Is.EqualTo(expectedShake));
             Assert.That(reloaded.ScreenFlashEnabled, Is.EqualTo(expectedFlash));
@@ -258,6 +362,30 @@ namespace ProjectC.Runtime.PlayMode.Tests
                     buttons[i].gameObject.name == buttonGameObjectName) return buttons[i];
             Assert.Fail("Button not found: " + objectName);
             return null;
+        }
+
+        private static void SetSlider(Transform root, string objectName, float value)
+        {
+            GameObject target = FindNamedObject(root, objectName);
+            UI.Slider slider = target.GetComponent<UI.Slider>();
+            Assert.That(slider, Is.Not.Null, "Slider component not found on " + objectName + ".");
+            slider.value = value;
+        }
+
+        private static void SetDeterministicSettings()
+        {
+            PlayerPrefs.SetString(LanguageKey, "en");
+            PlayerPrefs.SetInt(FullscreenKey, 0);
+            PlayerPrefs.SetInt(UiScaleKey, 100);
+            PlayerPrefs.SetFloat(MasterVolumeKey, 0.8f);
+            PlayerPrefs.SetFloat(BgmVolumeKey, 0.8f);
+            PlayerPrefs.SetFloat(EffectsVolumeKey, 0.9f);
+            PlayerPrefs.SetInt(ShakeKey, 1);
+            PlayerPrefs.SetInt(FlashKey, 1);
+            PlayerPrefs.SetInt(PauseKey, (int)Key.Space);
+            PlayerPrefs.SetInt(RotateKey, (int)Key.R);
+            PlayerPrefs.SetInt(ConveyorBendKey, (int)Key.Q);
+            PlayerPrefs.Save();
         }
 
         private static Key GetUnassignedKey(ProjectCSettingsPanel settings)
@@ -322,20 +450,41 @@ namespace ProjectC.Runtime.PlayMode.Tests
         private sealed class PreferenceSnapshot
         {
             private readonly bool hadLanguage = PlayerPrefs.HasKey(LanguageKey);
+            private readonly bool hadFullscreen = PlayerPrefs.HasKey(FullscreenKey);
+            private readonly bool hadUiScale = PlayerPrefs.HasKey(UiScaleKey);
+            private readonly bool hadMasterVolume = PlayerPrefs.HasKey(MasterVolumeKey);
+            private readonly bool hadBgmVolume = PlayerPrefs.HasKey(BgmVolumeKey);
+            private readonly bool hadEffectsVolume = PlayerPrefs.HasKey(EffectsVolumeKey);
             private readonly bool hadShake = PlayerPrefs.HasKey(ShakeKey);
             private readonly bool hadFlash = PlayerPrefs.HasKey(FlashKey);
             private readonly bool hadPause = PlayerPrefs.HasKey(PauseKey);
+            private readonly bool hadRotate = PlayerPrefs.HasKey(RotateKey);
+            private readonly bool hadConveyorBend = PlayerPrefs.HasKey(ConveyorBendKey);
             private readonly string language = PlayerPrefs.GetString(LanguageKey, "en");
+            private readonly int fullscreen = PlayerPrefs.GetInt(FullscreenKey, 0);
+            private readonly int uiScale = PlayerPrefs.GetInt(UiScaleKey, 100);
+            private readonly float masterVolume = PlayerPrefs.GetFloat(MasterVolumeKey, 0.8f);
+            private readonly float bgmVolume = PlayerPrefs.GetFloat(BgmVolumeKey, 0.8f);
+            private readonly float effectsVolume = PlayerPrefs.GetFloat(EffectsVolumeKey, 0.9f);
             private readonly int shake = PlayerPrefs.GetInt(ShakeKey, 1);
             private readonly int flash = PlayerPrefs.GetInt(FlashKey, 1);
             private readonly int pause = PlayerPrefs.GetInt(PauseKey, (int)Key.Space);
+            private readonly int rotate = PlayerPrefs.GetInt(RotateKey, (int)Key.R);
+            private readonly int conveyorBend = PlayerPrefs.GetInt(ConveyorBendKey, (int)Key.Q);
 
             public void Restore()
             {
                 RestoreString(LanguageKey, hadLanguage, language);
+                RestoreInt(FullscreenKey, hadFullscreen, fullscreen);
+                RestoreInt(UiScaleKey, hadUiScale, uiScale);
+                RestoreFloat(MasterVolumeKey, hadMasterVolume, masterVolume);
+                RestoreFloat(BgmVolumeKey, hadBgmVolume, bgmVolume);
+                RestoreFloat(EffectsVolumeKey, hadEffectsVolume, effectsVolume);
                 RestoreInt(ShakeKey, hadShake, shake);
                 RestoreInt(FlashKey, hadFlash, flash);
                 RestoreInt(PauseKey, hadPause, pause);
+                RestoreInt(RotateKey, hadRotate, rotate);
+                RestoreInt(ConveyorBendKey, hadConveyorBend, conveyorBend);
                 PlayerPrefs.Save();
             }
 
@@ -348,6 +497,12 @@ namespace ProjectC.Runtime.PlayMode.Tests
             private static void RestoreInt(string key, bool existed, int value)
             {
                 if (existed) PlayerPrefs.SetInt(key, value);
+                else PlayerPrefs.DeleteKey(key);
+            }
+
+            private static void RestoreFloat(string key, bool existed, float value)
+            {
+                if (existed) PlayerPrefs.SetFloat(key, value);
                 else PlayerPrefs.DeleteKey(key);
             }
         }
