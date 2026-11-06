@@ -262,7 +262,86 @@ namespace ProjectC.Runtime.PlayMode.Tests
             navigationTestViewObject = new GameObject("Project C Navigation Test View");
             ProjectCRuntimeView navigationView = navigationTestViewObject.AddComponent<ProjectCRuntimeView>();
             navigationView.Initialize(navigationSimulation, null, () => startMatchRequests++, false);
-            navigationView.GetComponent<ProjectCOnboardingPanel>().SetVisible(false);
+            ProjectCOnboardingPanel guide = navigationView.GetComponent<ProjectCOnboardingPanel>();
+            guide.SetVisible(false);
+
+            navigationSimulation.SetRestockTarget("ironworks", ItemId.Iron, 0);
+            navigationSimulation.SetRestockTarget("ammunition-factory", ItemId.Plate, 0);
+            navigationSimulation.SetRestockTarget("outpost", ItemId.Ammunition, 12);
+            navigationSimulation.SetFacilityPriority("ironworks", 5);
+            navigationSimulation.SetFacilityPriority("ammunition-factory", 5);
+            navigationSimulation.SetFacilityPriority("outpost", 5);
+            guide.Show();
+
+            AdvanceSimulationUntil(navigationSimulation,
+                () => navigationSimulation.World.ImportShips[0].UnloadedIron == 100,
+                10_000, "opening iron shipment");
+            Assert.That(guide.CompletedStepCount, Is.Zero);
+            Assert.That(FindText(navigationView.transform, "Guide Progress").text,
+                Does.Contain(expectedLanguage == "ko" ? "단계 1 / 4" : "STEP 1 / 4"));
+
+            TransportOrder firstIronDelivery = navigationSimulation.QueueTransfer(
+                "port", "ironworks", ItemId.Iron, 1);
+            Assert.That(firstIronDelivery.DeliveredQuantity, Is.Zero);
+            Assert.That(guide.CompletedStepCount, Is.Zero,
+                "Queueing an Iron transfer must not complete the guide before a Drone delivers it.");
+            AdvanceSimulationUntil(navigationSimulation,
+                () => firstIronDelivery.DeliveredQuantity == 1,
+                120_000, "first Iron Drone delivery", GameSimulation.SimulationStepMilliseconds);
+            yield return new WaitForSecondsRealtime(0.25f);
+            Assert.That(guide.CompletedStepCount, Is.EqualTo(1));
+            Assert.That(guide.ActiveStepIndex, Is.EqualTo(1));
+            Assert.That(FindText(navigationView.transform, "Guide Progress").text,
+                Does.Contain(expectedLanguage == "ko" ? "단계 2 / 4" : "STEP 2 / 4"));
+
+            guide.Hide();
+            Assert.That(guide.IsVisible, Is.False);
+            guide.Show();
+            Assert.That(guide.CompletedStepCount, Is.EqualTo(1),
+                "Hiding and showing the guide must preserve earned progress.");
+
+            AdvanceSimulationUntil(navigationSimulation,
+                () => navigationSimulation.Production.GetProgress("ironworks").CompletedCycles > 0,
+                10_000, "first Ironworks Plate production");
+            yield return new WaitForSecondsRealtime(0.25f);
+            Assert.That(guide.CompletedStepCount, Is.EqualTo(2));
+            Assert.That(guide.ActiveStepIndex, Is.EqualTo(2));
+
+            navigationSimulation.SetRestockTarget("ammunition-factory", ItemId.Plate, 1);
+            AdvanceSimulationUntil(navigationSimulation,
+                () => navigationSimulation.Production.GetProgress("ammunition-factory").CompletedCycles > 0,
+                90_000, "first Ammunition production after Plate delivery");
+            yield return new WaitForSecondsRealtime(0.25f);
+            Assert.That(navigationSimulation.World.TransportOrders.Exists(order =>
+                order.Item == ItemId.Plate && order.DestinationFacilityId == "ammunition-factory" &&
+                order.DeliveredQuantity > 0), Is.True,
+                "The ammunition objective requires an actual Plate delivery.");
+            Assert.That(guide.CompletedStepCount, Is.EqualTo(3));
+            Assert.That(guide.ActiveStepIndex, Is.EqualTo(3));
+
+            AdvanceSimulationUntil(navigationSimulation,
+                () => navigationSimulation.World.TransportOrders.Exists(order => order.IsAutomatic &&
+                    order.SourceFacilityId == "ammunition-factory" && order.DestinationFacilityId == "outpost" &&
+                    order.Item == ItemId.Ammunition && order.DeliveredQuantity >= 12),
+                240_000, "first Ammunition shipment to Outpost");
+            AdvanceSimulationUntil(navigationSimulation,
+                () => navigationSimulation.World.Enemies.Exists(enemy => enemy.WaveNumber == 1 && !enemy.IsAlive),
+                360_000, "first-wave Turret defense");
+            AdvanceSimulationUntil(navigationSimulation,
+                () => navigationSimulation.World.TransportOrders.Exists(order => order.IsAutomatic &&
+                    order.SourceFacilityId == "outpost" && order.DestinationFacilityId == "turret" &&
+                    order.Item == ItemId.Ammunition && order.DeliveredQuantity > 0),
+                300_000, "first Outpost ammunition delivery to Turret");
+            yield return new WaitForSecondsRealtime(0.25f);
+            Assert.That(navigationSimulation.World.Outcome, Is.EqualTo(MatchOutcome.Running));
+            Assert.That(guide.CompletedStepCount, Is.EqualTo(4));
+            Assert.That(guide.ActiveStepIndex, Is.EqualTo(-1));
+            Assert.That(guide.IsComplete, Is.True);
+            Assert.That(FindText(navigationView.transform, "Guide Progress").text,
+                Is.EqualTo(expectedLanguage == "ko" ? "모든 안내 단계 완료" : "ALL OBJECTIVES COMPLETE"));
+            guide.Hide();
+            guide.Show();
+            Assert.That(guide.CompletedStepCount, Is.EqualTo(4));
 
             keyboard = InputSystem.AddDevice<Keyboard>();
             Press(keyboard.escapeKey);
@@ -299,6 +378,21 @@ namespace ProjectC.Runtime.PlayMode.Tests
             Object.Destroy(navigationTestViewObject);
             navigationTestViewObject = null;
             yield return null;
+        }
+
+        private static void AdvanceSimulationUntil(GameSimulation targetSimulation, System.Func<bool> condition,
+            int timeoutMilliseconds, string description, int stepMilliseconds = 1_000)
+        {
+            long deadline = targetSimulation.CurrentMilliseconds + timeoutMilliseconds;
+            while (!condition() && targetSimulation.World.Outcome == MatchOutcome.Running &&
+                   targetSimulation.CurrentMilliseconds < deadline)
+            {
+                long remaining = deadline - targetSimulation.CurrentMilliseconds;
+                targetSimulation.AdvanceGameMilliseconds(System.Math.Min(stepMilliseconds, remaining));
+            }
+
+            Assert.That(condition(), Is.True, "Timed out waiting for " + description + " at " +
+                targetSimulation.CurrentMilliseconds + " ms; outcome: " + targetSimulation.World.Outcome + ".");
         }
 
         private void StartDiagnosticRecordCoverage()

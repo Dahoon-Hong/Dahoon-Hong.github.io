@@ -1034,46 +1034,63 @@ namespace ProjectC.Runtime
         private bool HasTransportDelivery(ItemId item, FacilityKind destinationKind,
             FacilityKind? sourceKind = null)
         {
-            string destinationPrefix = GetFacilityIdPrefix(destinationKind);
-            string sourcePrefix = sourceKind.HasValue ? GetFacilityIdPrefix(sourceKind.Value) : null;
             List<TransportOrder> orders = simulation.World.TransportOrders;
             for (int i = 0; i < orders.Count; i++)
             {
                 TransportOrder order = orders[i];
                 if (order.Item != item || order.DeliveredQuantity <= 0 ||
-                    !order.DestinationFacilityId.StartsWith(destinationPrefix, StringComparison.Ordinal)) continue;
-                if (sourcePrefix == null || (order.SourceFacilityId != null &&
-                    order.SourceFacilityId.StartsWith(sourcePrefix, StringComparison.Ordinal))) return true;
+                    !MatchesFacilityIdentifier(order.DestinationFacilityId, destinationKind)) continue;
+                if (!sourceKind.HasValue || MatchesFacilityIdentifier(order.SourceFacilityId, sourceKind.Value))
+                    return true;
             }
             return false;
         }
 
         private bool HasConveyorDelivery(ItemId item, FacilityKind destinationKind)
         {
-            string target = ":delivered:" + item + ":" + GetFacilityIdPrefix(destinationKind);
+            string target = ":delivered:" + item + ":";
             List<SimulationEvent> events = simulation.World.Events;
             for (int i = 0; i < events.Count; i++)
             {
                 SimulationEvent itemEvent = events[i];
-                if (itemEvent.Category == "conveyor" &&
-                    itemEvent.Detail.IndexOf(target, StringComparison.Ordinal) >= 0) return true;
+                if (itemEvent.Category != "conveyor") continue;
+                int destinationIndex = itemEvent.Detail.IndexOf(target, StringComparison.Ordinal);
+                if (destinationIndex < 0) continue;
+                string destinationId = itemEvent.Detail.Substring(destinationIndex + target.Length);
+                if (MatchesFacilityIdentifier(destinationId, destinationKind)) return true;
             }
             return false;
         }
 
         private bool HasProductionEvent(FacilityKind kind, ItemId output)
         {
-            string facilityPrefix = GetFacilityIdPrefix(kind);
             string outputToken = ":" + output + ":";
             List<SimulationEvent> events = simulation.World.Events;
             for (int i = 0; i < events.Count; i++)
             {
                 SimulationEvent itemEvent = events[i];
                 if (itemEvent.Category == "production" &&
-                    itemEvent.Detail.StartsWith(facilityPrefix, StringComparison.Ordinal) &&
+                    MatchesFacilityIdentifier(itemEvent.Detail, kind) &&
                     itemEvent.Detail.Contains(":completed:") &&
                     itemEvent.Detail.IndexOf(outputToken, StringComparison.Ordinal) >= 0) return true;
             }
+            return false;
+        }
+
+        private bool MatchesFacilityIdentifier(string identifier, FacilityKind kind)
+        {
+            if (string.IsNullOrEmpty(identifier)) return false;
+            if (identifier.StartsWith(GetFacilityIdPrefix(kind), StringComparison.Ordinal)) return true;
+
+            FacilityDefinitionData[] startingFacilities = simulation.World.Definitions.StartingFacilities;
+            for (int i = 0; i < startingFacilities.Length; i++)
+            {
+                FacilityDefinitionData startingFacility = startingFacilities[i];
+                if (GameDefinitions.ParseFacilityKind(startingFacility.Kind) != kind) continue;
+                if (identifier.Equals(startingFacility.Id, StringComparison.Ordinal) ||
+                    identifier.StartsWith(startingFacility.Id + ":", StringComparison.Ordinal)) return true;
+            }
+
             return false;
         }
 
