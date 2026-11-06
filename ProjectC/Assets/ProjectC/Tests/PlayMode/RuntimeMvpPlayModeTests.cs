@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using NUnit.Framework;
 using ProjectC.Core;
 using ProjectC.Runtime;
@@ -44,6 +45,8 @@ namespace ProjectC.Runtime.PlayMode.Tests
         private Mouse mouse;
         private Keyboard keyboard;
         private PreferenceSnapshot preferences;
+        private LocalDiagnosticRecorder diagnosticRecorder;
+        private string diagnosticFilePath;
         private float previousAudioVolume;
         private FullScreenMode previousScreenMode;
         private string expectedLanguage;
@@ -115,6 +118,8 @@ namespace ProjectC.Runtime.PlayMode.Tests
         [UnityTearDown]
         public IEnumerator RestoreRuntime()
         {
+            if (!string.IsNullOrEmpty(diagnosticFilePath) && File.Exists(diagnosticFilePath))
+                File.Delete(diagnosticFilePath);
             if (settingsReloadObject != null) Object.Destroy(settingsReloadObject);
             if (testViewObject != null) Object.Destroy(testViewObject);
             if (testEventSystem != null && !WasPresent(testEventSystem, previousEventSystems))
@@ -154,6 +159,7 @@ namespace ProjectC.Runtime.PlayMode.Tests
         [Timeout(50_000)]
         public IEnumerator RuntimeControlsConveyorSettingsAndResultWorkInOneShortSession()
         {
+            StartDiagnosticRecordCoverage();
             Assert.That(simulation.Clock.Speed, Is.EqualTo(GameSpeed.One));
             UI.Button pauseButton = FindButton(view.transform, "Pause / Resume");
             FindButton(view.transform, "2x").onClick.Invoke();
@@ -226,6 +232,134 @@ namespace ProjectC.Runtime.PlayMode.Tests
             Assert.That(body, Does.Contain(expectedLanguage == "ko" ? "경과 시간: " : "Play time: "));
             Assert.That(body, Does.Contain(waveStat));
             Assert.That(body, Does.Contain(enemyStat));
+
+            diagnosticRecorder.CaptureEvents(simulation.World);
+            try
+            {
+                throw new System.InvalidOperationException("diagnostic test error");
+            }
+            catch (System.InvalidOperationException exception)
+            {
+                diagnosticRecorder.RecordError(simulation.CurrentMilliseconds, exception);
+            }
+            diagnosticRecorder.RecordSessionEnd(simulation.World, simulation.CurrentMilliseconds);
+            int recordCountAfterEnd = File.ReadAllLines(diagnosticFilePath).Length;
+            diagnosticRecorder.RecordSessionEnd(simulation.World, simulation.CurrentMilliseconds);
+            Assert.That(File.ReadAllLines(diagnosticFilePath), Has.Length.EqualTo(recordCountAfterEnd),
+                "Session end must be recorded only once.");
+            AssertDiagnosticRecords();
+        }
+
+        private void StartDiagnosticRecordCoverage()
+        {
+            diagnosticRecorder = new LocalDiagnosticRecorder(simulation);
+            diagnosticFilePath = diagnosticRecorder.FilePath;
+            Assert.That(diagnosticFilePath, Is.Not.Empty);
+            Assert.That(File.Exists(diagnosticFilePath), Is.True);
+
+            diagnosticRecorder.RecordCommand(simulation.CurrentMilliseconds, "diagnostic_test", "bounded-playmode");
+            simulation.SetRegularImportContractQuantity(simulation.World.RegularImportContractQuantity);
+            diagnosticRecorder.CaptureEvents(simulation.World);
+            diagnosticRecorder.RecordMeasurement(simulation.CurrentMilliseconds, "diagnostic_test_value", 1.25,
+                "count", "jsonl round-trip");
+            diagnosticRecorder.RecordFrameSample(simulation.CurrentMilliseconds, GameSpeed.One, 60d, 16.67d,
+                1d, 60, Screen.width, Screen.height);
+            diagnosticRecorder.RecordFrameSample(simulation.CurrentMilliseconds, GameSpeed.Two, 30d, 33.33d,
+                1d, 30, Screen.width, Screen.height);
+            diagnosticRecorder.RecordFrameSample(simulation.CurrentMilliseconds, GameSpeed.Four, 15d, 66.67d,
+                1d, 15, Screen.width, Screen.height);
+        }
+
+        private void AssertDiagnosticRecords()
+        {
+            string[] lines = File.ReadAllLines(diagnosticFilePath);
+            var records = new List<DiagnosticRecordSnapshot>(lines.Length);
+            for (int i = 0; i < lines.Length; i++)
+                records.Add(JsonUtility.FromJson<DiagnosticRecordSnapshot>(lines[i]));
+
+            Assert.That(records[0].recordType, Is.EqualTo("session_start"));
+            Assert.That(records[0].sessionId, Is.Not.Empty);
+            Assert.That(records[0].applicationVersion, Is.Not.Empty);
+            Assert.That(records[0].startingFunds, Is.EqualTo(simulation.World.Definitions.StartingFunds));
+            Assert.That(records[0].availableFunds, Is.EqualTo(400));
+            Assert.That(records[0].exportGoal, Is.EqualTo(simulation.World.Definitions.ExportGoal));
+            Assert.That(records[0].deadlineMilliseconds,
+                Is.EqualTo(simulation.World.Definitions.MatchDeadlineMilliseconds));
+
+            bool hasPrepaymentEvent = false;
+            bool hasContractEvent = false;
+            bool hasTestCommand = false;
+            bool hasTestMeasurement = false;
+            bool hasError = false;
+            bool hasDefeatEvent = false;
+            int sessionEndCount = 0;
+            var frameSpeeds = new HashSet<string>();
+            for (int i = 0; i < records.Count; i++)
+            {
+                DiagnosticRecordSnapshot record = records[i];
+                if (record.recordType == "event" && record.category == "order" &&
+                    record.detail.Contains("prepaid:100")) hasPrepaymentEvent = true;
+                if (record.recordType == "event" && record.category == "contract") hasContractEvent = true;
+                if (record.recordType == "command" && record.name == "diagnostic_test" &&
+                    record.detail == "bounded-playmode") hasTestCommand = true;
+                if (record.recordType == "measurement" && record.name == "diagnostic_test_value")
+                {
+                    hasTestMeasurement = true;
+                    Assert.That(record.value, Is.EqualTo("1.25"));
+                    Assert.That(record.unit, Is.EqualTo("count"));
+                    Assert.That(record.detail, Is.EqualTo("jsonl round-trip"));
+                }
+                if (record.recordType == "measurement" && record.name == "render_fps")
+                {
+                    frameSpeeds.Add(record.gameSpeed);
+                    Assert.That(record.averageFrameTimeMilliseconds, Is.Not.Empty);
+                    Assert.That(record.sampleDurationSeconds, Is.EqualTo("1"));
+                    Assert.That(record.screenWidth, Is.EqualTo(Screen.width));
+                    Assert.That(record.screenHeight, Is.EqualTo(Screen.height));
+                    switch (record.gameSpeed)
+                    {
+                        case "1x":
+                            Assert.That(record.averageFrameTimeMilliseconds, Is.EqualTo("16.67"));
+                            Assert.That(record.sampleFrameCount, Is.EqualTo(60));
+                            break;
+                        case "2x":
+                            Assert.That(record.averageFrameTimeMilliseconds, Is.EqualTo("33.33"));
+                            Assert.That(record.sampleFrameCount, Is.EqualTo(30));
+                            break;
+                        case "4x":
+                            Assert.That(record.averageFrameTimeMilliseconds, Is.EqualTo("66.67"));
+                            Assert.That(record.sampleFrameCount, Is.EqualTo(15));
+                            break;
+                        default:
+                            Assert.Fail("Unexpected frame sample speed: " + record.gameSpeed);
+                            break;
+                    }
+                }
+                if (record.recordType == "error" && record.name == typeof(System.InvalidOperationException).FullName)
+                {
+                    hasError = true;
+                    Assert.That(record.detail, Is.EqualTo("diagnostic test error"));
+                    Assert.That(record.stackTrace, Is.Not.Empty);
+                }
+                if (record.recordType == "event" && record.category == "match" &&
+                    record.detail == "outpost-destroyed") hasDefeatEvent = true;
+                if (record.recordType == "session_end")
+                {
+                    sessionEndCount++;
+                    Assert.That(record.outcome, Is.EqualTo("Defeat"));
+                    Assert.That(record.gameTimeMilliseconds, Is.EqualTo(simulation.CurrentMilliseconds));
+                    Assert.That(record.exportedCrystals, Is.EqualTo(simulation.World.ExportedCrystals));
+                }
+            }
+
+            Assert.That(hasPrepaymentEvent, Is.True);
+            Assert.That(hasContractEvent, Is.True);
+            Assert.That(hasTestCommand, Is.True);
+            Assert.That(hasTestMeasurement, Is.True);
+            Assert.That(hasError, Is.True);
+            Assert.That(hasDefeatEvent, Is.True);
+            Assert.That(frameSpeeds, Is.EquivalentTo(new[] { "1x", "2x", "4x" }));
+            Assert.That(sessionEndCount, Is.EqualTo(1));
         }
 
         private void GuideCanBeHiddenOrSkippedWithoutChangingTheMatch()
@@ -816,6 +950,33 @@ namespace ProjectC.Runtime.PlayMode.Tests
                 if (transforms[i].gameObject.name == objectName && transforms[i].gameObject.activeInHierarchy)
                     return true;
             return false;
+        }
+
+        [System.Serializable]
+        private sealed class DiagnosticRecordSnapshot
+        {
+            public string recordType;
+            public string sessionId;
+            public string applicationVersion;
+            public long gameTimeMilliseconds;
+            public int startingFunds;
+            public int availableFunds;
+            public int exportGoal;
+            public int deadlineMilliseconds;
+            public string category;
+            public string name;
+            public string detail;
+            public string value;
+            public string unit;
+            public string gameSpeed;
+            public string averageFrameTimeMilliseconds;
+            public string sampleDurationSeconds;
+            public int sampleFrameCount;
+            public int screenWidth;
+            public int screenHeight;
+            public string stackTrace;
+            public string outcome;
+            public int exportedCrystals;
         }
 
         private static UI.Button FindButton(Transform root, string objectName)
